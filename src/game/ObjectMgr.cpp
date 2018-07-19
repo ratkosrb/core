@@ -52,7 +52,8 @@
 #include "InstanceData.h"
 #include "CharacterDatabaseCache.h"
 #include "HardcodedEvents.h"
-
+#include "fstream"
+#include "iostream"
 #include <limits>
 
 INSTANTIATE_SINGLETON_1(ObjectMgr);
@@ -165,6 +166,214 @@ ObjectMgr::~ObjectMgr()
 
     for (PlayerCacheDataMap::iterator itr = m_playerCacheData.begin(); itr != m_playerCacheData.end(); ++itr)
         delete itr->second;
+}
+
+struct QuestDetailsEntry
+{
+    explicit QuestDetailsEntry(uint32 id, int emote1, int emote2, int emote3, int emote4, int emotedelay1, int emotedelay2, int emotedelay3, int emotedelay4)
+        : ID(id), Emote1(emote1), Emote2(emote2), Emote3(emote3), Emote4(emote4), EmoteDelay1(emotedelay1), EmoteDelay2(emotedelay2), EmoteDelay3(emotedelay3), EmoteDelay4(emotedelay4) {}
+    uint32 ID;
+    int Emote1;
+    int Emote2;
+    int Emote3;
+    int Emote4;
+    int EmoteDelay1;
+    int EmoteDelay2;
+    int EmoteDelay3;
+    int EmoteDelay4;
+};
+
+struct QuestOfferRewardEntry
+{
+    explicit QuestOfferRewardEntry(uint32 id, int emote1, int emote2, int emote3, int emote4, int emotedelay1, int emotedelay2, int emotedelay3, int emotedelay4, std::string rewardtext)
+        : ID(id), Emote1(emote1), Emote2(emote2), Emote3(emote3), Emote4(emote4), EmoteDelay1(emotedelay1), EmoteDelay2(emotedelay2), EmoteDelay3(emotedelay3), EmoteDelay4(emotedelay4), RewardText(rewardtext) {}
+    uint32 ID;
+    int Emote1;
+    int Emote2;
+    int Emote3;
+    int Emote4;
+    int EmoteDelay1;
+    int EmoteDelay2;
+    int EmoteDelay3;
+    int EmoteDelay4;
+    std::string RewardText;
+};
+
+struct QuestRequestItemsEntry
+{
+    explicit QuestRequestItemsEntry(uint32 id, int emoteoncomplete, int emoteonincomplete, std::string completiontext) : ID(id), EmoteOnComplete(emoteoncomplete), EmoteOnIncomplete(emoteonincomplete), CompletionText(completiontext) {}
+    uint32 ID;
+    int EmoteOnComplete;
+    int EmoteOnIncomplete;
+    std::string CompletionText;
+};
+
+std::string ReplaceString(const std::string source_string, const std::string old_substring, const std::string new_substring)
+{
+    // Can't replace nothing.
+    if (old_substring.empty())
+        return source_string;
+
+    // Find the first occurrence of the substring we want to replace.
+    size_t substring_position = source_string.find(old_substring);
+
+    // If not found, there is nothing to replace.
+    if (substring_position == std::string::npos)
+        return source_string;
+
+    // Return the part of the source string until the first occurance of the old substring + the new replacement substring + the result of the same function on the remainder.
+    return source_string.substr(0, substring_position) + new_substring + ReplaceString(source_string.substr(substring_position + old_substring.length(), source_string.length() - (substring_position + old_substring.length())), old_substring, new_substring);
+}
+
+std::string EscapeString(std::string source)
+{
+    source = ReplaceString(source, "\'", "\\'");
+    source = ReplaceString(source, "\r", "\\r");
+    source = ReplaceString(source, "\n", "\\n");
+    return source;
+}
+
+void ObjectMgr::ParseEmotes()
+{
+    std::ofstream myfile("quest_emote.sql");
+    if (!myfile.is_open())
+        return;
+
+    sLog.outString("Parsing details emotes ...");
+
+    std::vector<QuestDetailsEntry> vDetails;
+    
+    Field* fields;
+    QueryResult* result = WorldDatabase.Query("SELECT * FROM quest_details");
+
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 Id = fields[0].GetUInt32();
+            int Emote1 = fields[1].GetInt32();
+            int Emote2 = fields[2].GetInt32();
+            int Emote3 = fields[3].GetInt32();
+            int Emote4 = fields[4].GetInt32();
+            int EmoteDelay1 = fields[5].GetInt32();
+            int EmoteDelay2 = fields[6].GetInt32();
+            int EmoteDelay3 = fields[7].GetInt32();
+            int EmoteDelay4 = fields[8].GetInt32();
+            vDetails.emplace_back(Id, Emote1, Emote2, Emote3, Emote4, EmoteDelay1, EmoteDelay2, EmoteDelay3, EmoteDelay4);
+        } while (result->NextRow());
+        delete result;
+    }
+
+    myfile << "-- Details Emotes\r\n\r\n";
+
+    for (const auto& quest : vDetails)
+    {
+        if (quest.Emote1 != -1)
+            myfile << "UPDATE `quest_template` SET `DetailsEmote1`=" << quest.Emote1 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.Emote2 != -1)
+            myfile << "UPDATE `quest_template` SET `DetailsEmote2`=" << quest.Emote2 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.Emote3 != -1)
+            myfile << "UPDATE `quest_template` SET `DetailsEmote3`=" << quest.Emote3 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.Emote4 != -1)
+            myfile << "UPDATE `quest_template` SET `DetailsEmote4`=" << quest.Emote4 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.EmoteDelay1 != -1)
+            myfile << "UPDATE `quest_template` SET `DetailsEmoteDelay1`=" << quest.EmoteDelay1 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.EmoteDelay2 != -1)
+            myfile << "UPDATE `quest_template` SET `DetailsEmoteDelay2`=" << quest.EmoteDelay2 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.EmoteDelay3 != -1)
+            myfile << "UPDATE `quest_template` SET `DetailsEmoteDelay3`=" << quest.EmoteDelay3 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.EmoteDelay4 != -1)
+            myfile << "UPDATE `quest_template` SET `DetailsEmoteDelay4`=" << quest.EmoteDelay4 << " WHERE `ID`=" << quest.ID << ";\r\n";
+    }
+
+    sLog.outString("Parsing offer reward emotes ...");
+
+    std::vector<QuestOfferRewardEntry> vOfferReward;
+
+    result = WorldDatabase.Query("SELECT * FROM quest_offer_reward");
+
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 Id = fields[0].GetUInt32();
+            int Emote1 = fields[1].GetInt32();
+            int Emote2 = fields[2].GetInt32();
+            int Emote3 = fields[3].GetInt32();
+            int Emote4 = fields[4].GetInt32();
+            int EmoteDelay1 = fields[5].GetInt32();
+            int EmoteDelay2 = fields[6].GetInt32();
+            int EmoteDelay3 = fields[7].GetInt32();
+            int EmoteDelay4 = fields[8].GetInt32();
+            std::string RewardText = fields[9].GetCppString();
+            vOfferReward.emplace_back(Id, Emote1, Emote2, Emote3, Emote4, EmoteDelay1, EmoteDelay2, EmoteDelay3, EmoteDelay4, RewardText);
+        } while (result->NextRow());
+        delete result;
+    }
+
+    myfile << "\r\n-- Offer Reward Emotes\r\n\r\n";
+
+    for (const auto& quest : vOfferReward)
+    {
+        if (quest.Emote1 != -1)
+            myfile << "UPDATE `quest_template` SET `OfferRewardEmote1`=" << quest.Emote1 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.Emote2 != -1)
+            myfile << "UPDATE `quest_template` SET `OfferRewardEmote2`=" << quest.Emote2 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.Emote3 != -1)
+            myfile << "UPDATE `quest_template` SET `OfferRewardEmote3`=" << quest.Emote3 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.Emote4 != -1)
+            myfile << "UPDATE `quest_template` SET `OfferRewardEmote4`=" << quest.Emote4 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.EmoteDelay1 != -1)
+            myfile << "UPDATE `quest_template` SET `OfferRewardEmoteDelay1`=" << quest.EmoteDelay1 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.EmoteDelay2 != -1)
+            myfile << "UPDATE `quest_template` SET `OfferRewardEmoteDelay2`=" << quest.EmoteDelay2 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.EmoteDelay3 != -1)
+            myfile << "UPDATE `quest_template` SET `OfferRewardEmoteDelay3`=" << quest.EmoteDelay3 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.EmoteDelay4 != -1)
+            myfile << "UPDATE `quest_template` SET `OfferRewardEmoteDelay4`=" << quest.EmoteDelay4 << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (!quest.RewardText.empty())
+            myfile << "UPDATE `quest_template` SET `OfferRewardText`='" << EscapeString(quest.RewardText) << "' WHERE `ID`=" << quest.ID << ";\r\n";
+    }
+
+    sLog.outString("Parsing request items emotes ...");
+
+    std::vector<QuestRequestItemsEntry> vRequestItems;
+
+    result = WorldDatabase.Query("SELECT ID, EmoteOnComplete, EmoteOnIncomplete, CompletionText FROM quest_request_items");
+
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 Id = fields[0].GetUInt32();
+            int EmoteOnComplete = fields[1].GetInt32();
+            int EmoteOnIncomplete = fields[2].GetInt32();
+            std::string CompletionText = fields[3].GetCppString();
+            vRequestItems.emplace_back(Id, EmoteOnComplete, EmoteOnIncomplete, CompletionText);
+        } while (result->NextRow());
+        delete result;
+    }
+
+    myfile << "\r\n-- Request Items Emotes\r\n\r\n";
+
+    for (const auto& quest : vRequestItems)
+    {
+        if (quest.EmoteOnComplete != -1)
+            myfile << "UPDATE `quest_template` SET `CompleteEmote`=" << quest.EmoteOnComplete << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (quest.EmoteOnIncomplete != -1)
+            myfile << "UPDATE `quest_template` SET `IncompleteEmote`=" << quest.EmoteOnIncomplete << " WHERE `ID`=" << quest.ID << ";\r\n";
+        if (!quest.CompletionText.empty())
+            myfile << "UPDATE `quest_template` SET `RequestItemsText`='" << EscapeString(quest.CompletionText) << "' WHERE `ID`=" << quest.ID << ";\r\n";
+    }
+
+    myfile << "\r\n-- All Done";
+
+    myfile.close();
+
+    system("pause");
 }
 
 void ObjectMgr::LoadAllIdentifiers()
