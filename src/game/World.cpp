@@ -1652,6 +1652,8 @@ void World::SetInitialWorldSettings()
     sLog.outString("Restoring deleted items to players ...");
     sObjectMgr.RestoreDeletedItems();
 
+    sObjectMgr.SaveSingleTargetAuraData();
+
     sAutoTestingMgr->Load();
 
     m_broadcaster =

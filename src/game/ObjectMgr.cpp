@@ -52,7 +52,8 @@
 #include "InstanceData.h"
 #include "CharacterDatabaseCache.h"
 #include "HardcodedEvents.h"
-
+#include "fstream"
+#include "iostream"
 #include <limits>
 
 INSTANTIATE_SINGLETON_1(ObjectMgr);
@@ -165,6 +166,23 @@ ObjectMgr::~ObjectMgr()
 
     for (PlayerCacheDataMap::iterator itr = m_playerCacheData.begin(); itr != m_playerCacheData.end(); ++itr)
         delete itr->second;
+}
+void ObjectMgr::SaveSingleTargetAuraData()
+{
+    std::ofstream myfile("single_spells.sql");
+    if (!myfile.is_open())
+        return;
+
+    for (uint32 i = 0; i <= sSpellMgr.GetMaxSpellId(); ++i)
+    {
+        SpellEntry const *spellInfo = sSpellMgr.GetSpellEntry(i);
+        if (!spellInfo)
+            continue;
+
+        if (IsSingleTargetSpell(spellInfo))
+            myfile << "UPDATE `spell_template` SET `Custom`=`Custom`|256 WHERE `ID`=" << i << " && `build`=" << SUPPORTED_CLIENT_BUILD << ";\r\n";
+    }
+    myfile.close();
 }
 
 void ObjectMgr::LoadAllIdentifiers()
