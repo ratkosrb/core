@@ -52,7 +52,8 @@
 #include "InstanceData.h"
 #include "CharacterDatabaseCache.h"
 #include "HardcodedEvents.h"
-
+#include "fstream"
+#include "iostream"
 #include <limits>
 
 INSTANTIATE_SINGLETON_1(ObjectMgr);
@@ -165,6 +166,182 @@ ObjectMgr::~ObjectMgr()
 
     for (PlayerCacheDataMap::iterator itr = m_playerCacheData.begin(); itr != m_playerCacheData.end(); ++itr)
         delete itr->second;
+}
+
+struct CreatureTemplateEntry
+{
+    CreatureTemplateEntry(uint32 id, uint32 modelid1, uint32 modelid2, uint32 modelid3, uint32 modelid4) : ID(id), ModelId1(modelid1), ModelId2(modelid2), ModelId3(modelid3), ModelId4(modelid4) {}
+    uint32 ID;
+    uint32 ModelId1;
+    uint32 ModelId2;
+    uint32 ModelId3;
+    uint32 ModelId4;
+    uint32 GetFreeModelSlotAndSetIt(uint32 modelid)
+    {
+        if (ModelId1 == 0)
+        {
+            ModelId1 = modelid;
+            return 1;
+        }   
+        if (ModelId2 == 0)
+        {
+            ModelId2 = modelid;
+            return 2;
+        }
+        if (ModelId3 == 0)
+        {
+            ModelId3 = modelid;
+            return 3;
+        }
+        if (ModelId4 == 0)
+        {
+            ModelId4 = modelid;
+            return 4;
+        }
+
+        return 0;
+    }
+    bool HasModelId(uint32 modelid)
+    {
+        if (ModelId1 == modelid)
+            return true;
+        if (ModelId2 == modelid)
+            return true;
+        if (ModelId3 == modelid)
+            return true;
+        if (ModelId4 == modelid)
+            return true;
+
+        return false;
+    }
+};
+
+struct CreatureTemplateUnion
+{
+    CreatureTemplateUnion(uint32 id, CreatureTemplateEntry* mangos, CreatureTemplateEntry* trinity) : ID(id), models_mangos(mangos), models_trinity(trinity) {};
+    uint32 ID = 0;
+    CreatureTemplateEntry* models_mangos = nullptr;
+    CreatureTemplateEntry* models_trinity = nullptr;
+};
+
+void ObjectMgr::ParseDisplayIds()
+{
+    std::ofstream myfile("model_ids.sql");
+    if (!myfile.is_open())
+        return;
+
+    printf("Checking for missing display ids...");
+
+    std::map<uint32, CreatureTemplateUnion> mCreaturesMap;
+
+    Field* fields;
+    QueryResult* result = WorldDatabase.PQuery("SELECT entry, modelid_1, modelid_2, modelid_3, modelid_4 FROM creature_template t1 WHERE patch=(SELECT max(patch) FROM creature_template t2 WHERE t1.entry=t2.entry && patch <= %u)", 10);
+
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 id = fields[0].GetUInt32();
+            uint32 ModelId1 = fields[1].GetUInt32();
+            uint32 ModelId2 = fields[2].GetUInt32();
+            uint32 ModelId3 = fields[3].GetUInt32();
+            uint32 ModelId4 = fields[4].GetUInt32();
+            CreatureTemplateEntry* mangos_entry = new CreatureTemplateEntry(id, ModelId1, ModelId2, ModelId3, ModelId4);
+
+            mCreaturesMap.insert(std::make_pair(id, CreatureTemplateUnion(id, mangos_entry, nullptr)));
+        } while (result->NextRow());
+        delete result;
+    }
+
+    WorldDatabase.Query("SELECT entry, modelid1, modelid2, modelid3, modelid4 FROM creature_trinity");
+
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 id = fields[0].GetUInt32();
+            uint32 ModelId1 = fields[1].GetUInt32();
+            uint32 ModelId2 = fields[2].GetUInt32();
+            uint32 ModelId3 = fields[3].GetUInt32();
+            uint32 ModelId4 = fields[4].GetUInt32();
+
+            auto entry = mCreaturesMap.find(id);
+
+            if (entry != mCreaturesMap.end())
+            {
+                CreatureTemplateEntry* trinity_entry = new CreatureTemplateEntry(id, ModelId1, ModelId2, ModelId3, ModelId4);
+                entry->second.models_trinity = trinity_entry;
+            }
+        } while (result->NextRow());
+        delete result;
+    }
+
+    for (auto& creature : mCreaturesMap)
+    {
+        if (!creature.second.models_trinity || !creature.second.models_mangos)
+            continue;
+
+        uint32 trinity_model_1 = creature.second.models_trinity->ModelId1;
+        uint32 trinity_model_2 = creature.second.models_trinity->ModelId2;
+        uint32 trinity_model_3 = creature.second.models_trinity->ModelId3;
+        uint32 trinity_model_4 = creature.second.models_trinity->ModelId4;
+
+        if (trinity_model_1 != 0)
+        {
+            if (!creature.second.models_mangos->HasModelId(trinity_model_1))
+            {
+                uint32 slot = creature.second.models_mangos->GetFreeModelSlotAndSetIt(trinity_model_1);
+
+                if (slot != 0)
+                {
+                    myfile << "UPDATE `creature_template` SET `modelid_" << slot << "`=" << trinity_model_1 << " WHERE `entry`=" << creature.second.ID << ";\r\n";
+                }
+            }
+        }
+
+        if (trinity_model_2 != 0)
+        {
+            if (!creature.second.models_mangos->HasModelId(trinity_model_2))
+            {
+                uint32 slot = creature.second.models_mangos->GetFreeModelSlotAndSetIt(trinity_model_2);
+
+                if (slot != 0)
+                {
+                    myfile << "UPDATE `creature_template` SET `modelid_" << slot << "`=" << trinity_model_2 << " WHERE `entry`=" << creature.second.ID << ";\r\n";
+                }
+            }
+        }
+
+        if (trinity_model_3 != 0)
+        {
+            if (!creature.second.models_mangos->HasModelId(trinity_model_3))
+            {
+                uint32 slot = creature.second.models_mangos->GetFreeModelSlotAndSetIt(trinity_model_3);
+
+                if (slot != 0)
+                {
+                    myfile << "UPDATE `creature_template` SET `modelid_" << slot << "`=" << trinity_model_3 << " WHERE `entry`=" << creature.second.ID << ";\r\n";
+                }
+            }
+        }
+
+        if (trinity_model_4 != 0)
+        {
+            if (!creature.second.models_mangos->HasModelId(trinity_model_4))
+            {
+                uint32 slot = creature.second.models_mangos->GetFreeModelSlotAndSetIt(trinity_model_4);
+
+                if (slot != 0)
+                {
+                    myfile << "UPDATE `creature_template` SET `modelid_" << slot << "`=" << trinity_model_4 << " WHERE `entry`=" << creature.second.ID << ";\r\n";
+                }
+            }
+        }
+    }
+    myfile.close();
+    system("pause");
 }
 
 void ObjectMgr::LoadAllIdentifiers()
