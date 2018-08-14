@@ -52,7 +52,8 @@
 #include "InstanceData.h"
 #include "CharacterDatabaseCache.h"
 #include "HardcodedEvents.h"
-
+#include "fstream"
+#include "iostream"
 #include <limits>
 
 INSTANTIATE_SINGLETON_1(ObjectMgr);
@@ -165,6 +166,242 @@ ObjectMgr::~ObjectMgr()
 
     for (PlayerCacheDataMap::iterator itr = m_playerCacheData.begin(); itr != m_playerCacheData.end(); ++itr)
         delete itr->second;
+}
+
+struct CreatureTemplate
+{
+    CreatureTemplate(uint32 id, std::string name, uint32 equipment_id) : ID(id), Name(name), EquipmentId(equipment_id){}
+    uint32 ID;
+    std::string Name;
+    uint32 EquipmentId;
+};
+
+struct CreatureEquipment
+{
+    CreatureEquipment(uint32 id, uint32 item1, uint32 item2, uint32 item3) : ID(id), Item1(item1), Item2(item2), Item3(item3) {}
+    uint32 ID;
+    uint32 Item1;
+    uint32 Item2;
+    uint32 Item3;
+};
+
+std::unordered_map<uint32, CreatureEquipment> mangos_equipment;
+std::unordered_map<uint32, CreatureEquipment> cmangos_equipment;
+std::vector<CreatureEquipment> new_equipment;
+std::unordered_map<uint32, CreatureTemplate> mangos_creatures;
+std::unordered_map<uint32, CreatureTemplate> cmangos_creatures;
+std::set<uint32> monster_items;
+
+CreatureEquipment* GetCmangosEquipment(uint32 id)
+{
+    if (id == 0)
+        return nullptr;
+
+    auto itr = cmangos_equipment.find(id);
+    if (itr == cmangos_equipment.end()) return nullptr;
+    return &itr->second;
+}
+
+CreatureEquipment* GetMangosEquipment(uint32 id)
+{
+    if (id == 0)
+        return nullptr;
+
+    auto itr = mangos_equipment.find(id);
+    if (itr == mangos_equipment.end()) return nullptr;
+    return &itr->second;
+}
+
+CreatureEquipment* GetEquipmentForCmangosCreature(uint32 entry)
+{
+    auto itr = cmangos_creatures.find(entry);
+    if (itr == cmangos_creatures.end()) return nullptr;
+    
+    return GetCmangosEquipment(itr->second.EquipmentId);
+}
+
+bool IsMonsterItem(uint32 entry)
+{
+    auto itr = monster_items.find(entry);
+    if (itr == monster_items.end()) return false;
+    return true;
+}
+
+bool IsCMangosEquipmentBetter(CreatureEquipment* mangos, CreatureEquipment* cmangos)
+{
+    if (!cmangos || !mangos)
+        return false;
+
+    if ((mangos->Item3 == 0) && (cmangos->Item3 != 0))
+        return true;
+
+    if (mangos->Item1 && cmangos->Item1)
+    {
+        if (!IsMonsterItem(mangos->Item1) && IsMonsterItem(cmangos->Item1))
+            return true;
+    }
+
+    if (mangos->Item2 && cmangos->Item2)
+    {
+        if (!IsMonsterItem(mangos->Item2) && IsMonsterItem(cmangos->Item2))
+            return true;
+    }
+
+    if (mangos->Item3 && cmangos->Item3)
+    {
+        if (!IsMonsterItem(mangos->Item3) && IsMonsterItem(cmangos->Item3))
+            return true;
+    }
+
+    return false;
+}
+
+void ObjectMgr::ParseEquipment()
+{
+    std::ofstream myfile("equip_parse.sql");
+    if (!myfile.is_open())
+        return;
+
+    uint32 better_equipment_count = 0;
+    uint32 missing_equipment_count = 0;
+    uint32 raw_equipment_count = 0;
+
+    printf("Loading cmangos equipment.\n");
+    Field* fields;
+    QueryResult* result = WorldDatabase.Query("SELECT entry, equipentry1, equipentry2, equipentry3 FROM cmangos_equipment");
+
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 id = fields[0].GetUInt32();
+            uint32 equipentry1 = fields[1].GetUInt32();
+            uint32 equipentry2 = fields[2].GetUInt32();
+            uint32 equipentry3 = fields[3].GetUInt32();
+            cmangos_equipment.insert(std::make_pair(id, CreatureEquipment(id, equipentry1, equipentry2, equipentry3)));
+        } while (result->NextRow());
+        delete result;
+    }
+
+    printf("Loading mangos equipment.\n");
+    result = WorldDatabase.PQuery("SELECT entry, equipentry1, equipentry2, equipentry3 FROM creature_equip_template t1 WHERE patch=(SELECT max(patch) FROM creature_equip_template t2 WHERE t1.entry=t2.entry && patch <= %u)", WOW_PATCH_112);
+
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 id = fields[0].GetUInt32();
+            uint32 equipentry1 = fields[1].GetUInt32();
+            uint32 equipentry2 = fields[2].GetUInt32();
+            uint32 equipentry3 = fields[3].GetUInt32();
+            mangos_equipment.insert(std::make_pair(id, CreatureEquipment(id, equipentry1, equipentry2, equipentry3)));
+        } while (result->NextRow());
+        delete result;
+    }
+
+    printf("Loading cmangos creatures.\n");
+    result = WorldDatabase.Query("SELECT entry, name, EquipmentTemplateId FROM cmangos_creatures");
+
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 entry = fields[0].GetUInt32();
+            std::string name = fields[1].GetCppString();
+            uint32 equipment_id = fields[2].GetUInt32();
+            cmangos_creatures.insert(std::make_pair(entry, CreatureTemplate(entry, name, equipment_id)));
+        } while (result->NextRow());
+        delete result;
+    }
+
+    printf("Loading mangos creatures.\n");
+    result = WorldDatabase.PQuery("SELECT entry, name, equipment_id FROM creature_template t1 WHERE patch=(SELECT max(patch) FROM creature_template t2 WHERE t1.entry=t2.entry && patch <= %u)", WOW_PATCH_112);
+
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 entry = fields[0].GetUInt32();
+            std::string name = fields[1].GetCppString();
+            uint32 equipment_id = fields[2].GetUInt32();
+            mangos_creatures.insert(std::make_pair(entry, CreatureTemplate(entry, name, equipment_id)));
+        } while (result->NextRow());
+        delete result;
+    }
+
+    printf("Loading monster items.\n");
+    result = WorldDatabase.Query("SELECT entry FROM item_template WHERE maxMoneyLoot=99661");
+
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 entry = fields[0].GetUInt32();
+            monster_items.insert(entry);
+        } while (result->NextRow());
+        delete result;
+    }
+
+    printf("Loaded %zu monster items.\n", monster_items.size());
+
+    printf("Parsing creatures and equipment.\n");
+    for (auto& creature : mangos_creatures)
+    {
+        bool has_equipment = false;
+        CreatureEquipment* my_items = GetMangosEquipment(creature.second.EquipmentId);
+        if (my_items)
+        {
+            has_equipment = true;
+            CreatureEquipment* final_items = my_items;
+            if (CreatureEquipment* cmangos_items = GetEquipmentForCmangosCreature(creature.second.ID))
+            {
+                if (IsCMangosEquipmentBetter(my_items, cmangos_items))
+                {
+                    final_items = cmangos_items;
+                    better_equipment_count++;
+                }
+            }
+            final_items->ID = creature.second.ID;
+            new_equipment.push_back(*final_items);
+        }
+        else
+        {
+            if (CreatureEquipment* cmangos_items = GetEquipmentForCmangosCreature(creature.second.ID))
+            {
+                cmangos_items->ID = creature.second.ID;
+                new_equipment.push_back(*cmangos_items);
+                has_equipment = true;
+                if (!creature.second.EquipmentId)
+                    missing_equipment_count++;
+                else
+                    raw_equipment_count++;
+            }
+            else if (creature.second.EquipmentId)
+                printf("MISSING %u EQUIP %u\n", creature.second.ID, creature.second.EquipmentId);
+        }
+
+        if (has_equipment)
+            myfile << "UPDATE `creature_template` SET `equipment_id`=" << creature.second.ID << " WHERE `entry`=" << creature.second.ID << ";\n";
+    }
+
+    printf("\nAdded missing equipment to %u creatures.\n", missing_equipment_count);
+    printf("Added better equipment to %u creatures.\n\n", better_equipment_count);
+    printf("Replaced raw equipment for %u creatures.\n\n", raw_equipment_count);
+
+
+    printf("Writing new equipment table.\n");
+    myfile << "\nINSERT INTO `creature_equip_template` (`entry`, `equipentry1`, `equipentry2`, `equipentry3`) VALUES\n";
+    for (const auto& equipment : new_equipment)
+    {
+        myfile << "(" << equipment.ID << ", " << equipment.Item1 << ", " << equipment.Item2 << ", " << equipment.Item3 << "),\n";
+    }
+    myfile.close();
+    system("pause");
 }
 
 void ObjectMgr::LoadAllIdentifiers()
