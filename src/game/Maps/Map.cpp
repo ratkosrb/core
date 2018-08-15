@@ -2439,6 +2439,7 @@ bool Map::FindScriptInitialTargets(WorldObject*& source, WorldObject*& target, c
 
 bool Map::FindScriptFinalTargets(WorldObject*& source, WorldObject*& target, const ScriptInfo& script)
 {
+    sLog.outInfo("FindScriptFinalTargets : src %s, target %s, target_type %u, script %u", (source ? std::to_string(source->GetEntry()) : "NULL"), (target ? std::to_string(target->GetEntry()) : "NULL"), script.target_type, script.id);
     // Used when searching for nearby object as target.
     WorldObject* original_source = source;
 

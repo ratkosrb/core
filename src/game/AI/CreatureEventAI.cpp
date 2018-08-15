@@ -377,6 +377,19 @@ bool CreatureEventAI::ProcessEvent(CreatureEventAIHolder& pHolder, Unit* pAction
     if (pHolder.Event.event_chance <= rnd % 100)
         return false;
 
+    switch (m_creature->GetEntry())
+    {
+        case 1836: // Scarlet Cavalier
+        case 1842: // Highlord Taelan Fordring
+        case 12128: // Crimson Elite
+        case 1840: // Grand Inquisitor Isillien
+        case 12126: // Lord Tirion Fordring
+        {
+            sLog.outInfo("EventAI::ProcessEvent - %u", pHolder.Event.event_id);
+            break;
+        }
+    }
+
     //Process actions, normal case
     if (!(pHolder.Event.event_flags & EFLAG_RANDOM_ACTION))
     {

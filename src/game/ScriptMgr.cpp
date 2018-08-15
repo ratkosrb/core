@@ -2424,6 +2424,7 @@ void Script::RegisterSelf(bool bReportError)
 // Returns a target based on the type specified.
 WorldObject* GetTargetByType(WorldObject* pSource, WorldObject* pTarget, uint8 TargetType, uint32 Param1, uint32 Param2)
 {
+    sLog.outInfo("GetTargetByType : src %s tar %s type %u param1 %u param2 %u", (pSource ? std::to_string(pSource->GetEntry()) : "NULL"), (pTarget ? std::to_string(pTarget->GetEntry()) : "NULL"), TargetType, Param1, Param2);
     switch (TargetType)
     {
         case TARGET_T_PROVIDED_TARGET:
@@ -2482,21 +2483,51 @@ WorldObject* GetTargetByType(WorldObject* pSource, WorldObject* pTarget, uint8 T
             break;
         case TARGET_T_MAP_EVENT_SOURCE:
             if (Map* pMap = pSource ? pSource->GetMap() : (pTarget ? pTarget->GetMap() : nullptr))
+            {
+                sLog.outInfo("GetTargetByType : EVENT_SOURCE - Map Exists");
                 if (const ScriptedEvent* pEvent = pMap->GetScriptedMapEvent(Param1))
+                {
+                    sLog.outInfo("GetTargetByType : EVENT_SOURCE - Event Exists");
                     return pEvent->m_pSource;
+                }
+                    
+            }
+                
             break;
         case TARGET_T_MAP_EVENT_TARGET:
             if (Map* pMap = pSource ? pSource->GetMap() : (pTarget ? pTarget->GetMap() : nullptr))
+            {
+                sLog.outInfo("GetTargetByType : EVENT_TARGET - Map Exists");
                 if (const ScriptedEvent* pEvent = pMap->GetScriptedMapEvent(Param1))
+                {
+                    sLog.outInfo("GetTargetByType : EVENT_TARGET - Event Exists");
                     return pEvent->m_pTarget;
+                }
+                    
+            }
+                
             break;
         case TARGET_T_MAP_EVENT_EXTRA_TARGET:
             if (Map* pMap = pSource ? pSource->GetMap() : (pTarget ? pTarget->GetMap() : nullptr))
+            {
+                sLog.outInfo("GetTargetByType : EVENT_EXTRA - Map Exists");
                 if (const ScriptedEvent* pEvent = pMap->GetScriptedMapEvent(Param1))
+                {
+                    sLog.outInfo("GetTargetByType : EVENT_EXTRA - Event Exists");
                     for (const auto& target : pEvent->m_vTargets)
+                    {
+                        sLog.outInfo("GetTargetByType : EVENT_EXTRA - Iterating Targets");
                         if (target.pObject && (target.pObject->GetEntry() == Param2))
+                        {
+                            sLog.outInfo("GetTargetByType : EVENT_EXTRA - Found Target");
                             return target.pObject;
+                        }
+                    }  
+                } 
+            }
+                
             break;
     }
+    sLog.outInfo("GetTargetByType : TARGET NOT FOUND");
     return nullptr;
 }
