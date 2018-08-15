@@ -2424,7 +2424,7 @@ void Script::RegisterSelf(bool bReportError)
 // Returns a target based on the type specified.
 WorldObject* GetTargetByType(WorldObject* pSource, WorldObject* pTarget, uint8 TargetType, uint32 Param1, uint32 Param2)
 {
-    sLog.outInfo("GetTargetByType : src %s tar %s type %u param1 %u param2 %u", (pSource ? std::to_string(pSource->GetEntry()) : "NULL"), (pTarget ? std::to_string(pTarget->GetEntry()) : "NULL"), TargetType, Param1, Param2);
+    sLog.outInfo("GetTargetByType : src %s tar %s type %u param1 %u param2 %u", (pSource ? std::to_string(pSource->GetEntry()).c_str() : "NULL"), (pTarget ? std::to_string(pTarget->GetEntry()).c_str() : "NULL"), TargetType, Param1, Param2);
     switch (TargetType)
     {
         case TARGET_T_PROVIDED_TARGET:
