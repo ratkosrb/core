@@ -1140,9 +1140,6 @@ void World::SetInitialWorldSettings()
     // Loads existing IDs in the database.
     sObjectMgr.LoadAllIdentifiers();
 
-    sLog.outString("Loading Instance Statistics...");
-    sInstanceStatistics.LoadFromDB();
-
     ///- Chargements des variables (necessaire pour le OutdoorJcJ)
     sLog.outString("Loading saved variables ...");
     sObjectMgr.LoadSavedVariable();
@@ -1179,6 +1176,9 @@ void World::SetInitialWorldSettings()
     LoadDBCStores(m_dataPath);
     DetectDBCLang();
     sObjectMgr.SetDBCLocaleIndex(GetDefaultDbcLocale());    // Get once for all the locale index of DBC language (console/broadcasts)
+
+    sObjectMgr.ExtractTaxiNodes();
+    std::quick_exit(0);
 
     sLog.outString("Loading Script Names...");
     sScriptMgr.LoadScriptNames();

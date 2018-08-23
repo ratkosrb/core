@@ -52,7 +52,8 @@
 #include "InstanceData.h"
 #include "CharacterDatabaseCache.h"
 #include "HardcodedEvents.h"
-
+#include "fstream"
+#include "iostream"
 #include <limits>
 
 INSTANTIATE_SINGLETON_1(ObjectMgr);
@@ -165,6 +166,49 @@ ObjectMgr::~ObjectMgr()
 
     for (PlayerCacheDataMap::iterator itr = m_playerCacheData.begin(); itr != m_playerCacheData.end(); ++itr)
         delete itr->second;
+}
+
+std::string ReplaceString(const std::string source_string, const std::string old_substring, const std::string new_substring)
+{
+    // Can't replace nothing.
+    if (old_substring.empty())
+        return source_string;
+    // Find the first occurrence of the substring we want to replace.
+    size_t substring_position = source_string.find(old_substring);
+    // If not found, there is nothing to replace.
+    if (substring_position == std::string::npos)
+        return source_string;
+    // Return the part of the source string until the first occurance of the old substring + the new replacement substring + the result of the same function on the remainder.
+    return source_string.substr(0, substring_position) + new_substring + ReplaceString(source_string.substr(substring_position + old_substring.length(), source_string.length() - (substring_position + old_substring.length())), old_substring, new_substring);
+}
+std::string EscapeString(std::string source)
+{
+    source = ReplaceString(source, "\'", "\\'");
+    source = ReplaceString(source, "\r", "\\r");
+    source = ReplaceString(source, "\n", "\\n");
+    return source;
+}
+
+void ObjectMgr::ExtractTaxiNodes()
+{
+    std::ofstream myfile("taxi_node_data.sql");
+    if (!myfile.is_open())
+        return;
+
+    printf("Extracting taxi nodes...\n");
+    constexpr int build = 5464;
+
+    myfile << "INSERT INTO `taxi_nodes` VALUES\n";
+    for (uint32 i = 1; i < sTaxiNodesStore.GetNumRows(); ++i)
+    {
+        TaxiNodesEntry const* node = sTaxiNodesStore.LookupEntry(i);
+        if (!node)
+            continue;
+
+        myfile << "(" << node->ID << ", " << build  << ", " << node->map_id << ", " << node->x << ", " << node->y << ", " << node->z << ", '" << EscapeString(node->name[0]) << "', '" << EscapeString(node->name[1]) << "', '" << EscapeString(node->name[2]) << "', '" << EscapeString(node->name[3]) << "', '" << EscapeString(node->name[4]) << "', '" << EscapeString(node->name[5]) << "', '" << EscapeString(node->name[6]) << "', '" << EscapeString(node->name[7]) << "', " << node->MountCreatureID[0] << ", " << node->MountCreatureID[1] << "),\n";
+    }
+    myfile.close();
+    system("pause");
 }
 
 void ObjectMgr::LoadAllIdentifiers()
