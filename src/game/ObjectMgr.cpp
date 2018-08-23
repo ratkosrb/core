@@ -196,7 +196,7 @@ void ObjectMgr::ExtractTaxiNodes()
         return;
 
     printf("Extracting taxi nodes...\n");
-    constexpr int build = 5464;
+    constexpr int build = 5302;
 
     myfile << "INSERT INTO `taxi_nodes` VALUES\n";
     for (uint32 i = 1; i < sTaxiNodesStore.GetNumRows(); ++i)
@@ -205,7 +205,7 @@ void ObjectMgr::ExtractTaxiNodes()
         if (!node)
             continue;
 
-        myfile << "(" << node->ID << ", " << build  << ", " << node->map_id << ", " << node->x << ", " << node->y << ", " << node->z << ", '" << EscapeString(node->name[0]) << "', '" << EscapeString(node->name[1]) << "', '" << EscapeString(node->name[2]) << "', '" << EscapeString(node->name[3]) << "', '" << EscapeString(node->name[4]) << "', '" << EscapeString(node->name[5]) << "', '" << EscapeString(node->name[6]) << "', '" << EscapeString(node->name[7]) << "', " << node->MountCreatureID[0] << ", " << node->MountCreatureID[1] << "),\n";
+        myfile << "(" << node->ID << ", " << build  << ", " << node->map_id << ", " << node->x << ", " << node->y << ", " << node->z << ", '" << EscapeString(node->name[0]) << "', '" << EscapeString(node->name[1]) << "', '" << EscapeString(node->name[2]) << "', '" << EscapeString(node->name[3]) << "', '" << EscapeString(node->name[4]) << "', '" << EscapeString(node->name[5]) << "', '" << EscapeString(node->name[6]) << "', '" << EscapeString(node->name[7]) << "', " << 0 << ", " << 0 << "),\n";
     }
     myfile.close();
     system("pause");
@@ -5279,8 +5279,8 @@ uint32 ObjectMgr::GetNearestTaxiNode(float x, float y, float z, uint32 mapid, Te
     for (uint32 i = 1; i < sTaxiNodesStore.GetNumRows(); ++i)
     {
         TaxiNodesEntry const* node = sTaxiNodesStore.LookupEntry(i);
-        if (!node || node->map_id != mapid || !node->MountCreatureID[team == ALLIANCE ? 1 : 0])
-            continue;
+        //if (!node || node->map_id != mapid || !node->MountCreatureID[team == ALLIANCE ? 1 : 0])
+        //    continue;
 
         uint8  field   = (uint8)((i - 1) / 32);
         uint32 submask = 1 << ((i - 1) % 32);
@@ -5343,16 +5343,16 @@ uint32 ObjectMgr::GetTaxiMountDisplayId(uint32 id, Team team, bool allowed_alt_t
     {
         if (team == ALLIANCE)
         {
-            mount_entry = node->MountCreatureID[1];
+            mount_entry = 0;
             if (!mount_entry && allowed_alt_team)
-                mount_entry = node->MountCreatureID[0];
+                mount_entry = 0;
         }
         else if (team == HORDE)
         {
-            mount_entry = node->MountCreatureID[0];
+            mount_entry =0;
 
             if (!mount_entry && allowed_alt_team)
-                mount_entry = node->MountCreatureID[1];
+                mount_entry =0;
         }
     }
 
