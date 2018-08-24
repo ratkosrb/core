@@ -567,6 +567,7 @@ class ObjectMgr
         ~ObjectMgr();
 
         void ExtractTaxiNodes();
+        void ExtractAreaTriggers();
 
         // Stores all existing ids in the database, not necessarily valid or loaded.
         void LoadAllIdentifiers();

@@ -211,6 +211,29 @@ void ObjectMgr::ExtractTaxiNodes()
     system("pause");
 }
 
+void ObjectMgr::ExtractAreaTriggers()
+{
+    std::ofstream myfile("areatrigger_template.sql");
+    if (!myfile.is_open())
+        return;
+
+    printf("Extracting area triggers...\n");
+    int build = 5302;
+
+    std::cin >> build;
+
+    myfile << "INSERT INTO `areatrigger_template` VALUES\n";
+    for (uint32 id = 0; id < sAreaTriggerStore.GetNumRows(); ++id)
+    {
+        AreaTriggerEntry const *trigger = sAreaTriggerStore.LookupEntry(id);
+        if (!trigger)
+            continue;
+        myfile << "(" << trigger->id << ", " << build << ", " << trigger->mapid << ", " << trigger->x << ", " << trigger->y << ", " << trigger->z << ", " << trigger->radius << ", " << trigger->box_x << ", " << trigger->box_y << ", " << trigger->box_z << ", " << trigger->box_orientation << "),\n";
+    }
+    myfile.close();
+    system("pause");
+}
+
 void ObjectMgr::LoadAllIdentifiers()
 {
     m_ItemIdSet.clear();
