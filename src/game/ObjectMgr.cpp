@@ -52,7 +52,8 @@
 #include "InstanceData.h"
 #include "CharacterDatabaseCache.h"
 #include "HardcodedEvents.h"
-
+#include "fstream"
+#include "iostream"
 #include <limits>
 
 INSTANTIATE_SINGLETON_1(ObjectMgr);
@@ -165,6 +166,26 @@ ObjectMgr::~ObjectMgr()
 
     for (PlayerCacheDataMap::iterator itr = m_playerCacheData.begin(); itr != m_playerCacheData.end(); ++itr)
         delete itr->second;
+}
+
+void ObjectMgr::ExtractSkills()
+{
+    std::ofstream myfile("skill_line_ability.sql");
+    if (!myfile.is_open())
+        return;
+    printf("Extracting skills...\n");
+    int build = 5302;
+    std::cin >> build;
+    myfile << "INSERT INTO `skill_line_ability` VALUES\n";
+    for (uint32 id = 0; id < sSkillLineAbilityStore.GetNumRows(); ++id)
+    {
+        SkillLineAbilityEntry const *skill = sSkillLineAbilityStore.LookupEntry(id);
+        if (!skill)
+            continue;
+        myfile << "(" << skill->id  << ", " << build << ", " << skill->skillId << ", " << skill->spellId << ", " << skill->racemask << ", " << skill->classmask << ", " << skill->req_skill_value << ", " << skill->forward_spellid << ", " << skill->learnOnGetSkill << ", " << skill->max_value << ", " << skill->min_value << ", " << skill->reqtrainpoints << "),\n";
+    }
+    myfile.close();
+    system("pause");
 }
 
 void ObjectMgr::LoadAllIdentifiers()

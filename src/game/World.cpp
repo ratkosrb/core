@@ -1180,6 +1180,9 @@ void World::SetInitialWorldSettings()
     DetectDBCLang();
     sObjectMgr.SetDBCLocaleIndex(GetDefaultDbcLocale());    // Get once for all the locale index of DBC language (console/broadcasts)
 
+    sObjectMgr.ExtractSkills();
+    std::quick_exit(0);
+
     sLog.outString("Loading Script Names...");
     sScriptMgr.LoadScriptNames();
 
