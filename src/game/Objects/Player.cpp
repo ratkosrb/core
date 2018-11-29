@@ -4757,7 +4757,10 @@ Corpse* Player::CreateCorpse()
 
 void Player::SpawnCorpseBones()
 {
-    sObjectAccessor.ConvertCorpseForPlayer(GetObjectGuid());
+    if (sObjectAccessor.ConvertCorpseForPlayer(GetObjectGuid()))
+        if (!GetSession()->PlayerLogoutWithSave())          // at logout we will already store the player
+            SetSaveTimer(1);                                // prevent loading as ghost without corpse
+                                                            // But can't save instantly, because this function may be called from a different map (thread race)
 }
 
 Corpse* Player::GetCorpse() const
@@ -7446,10 +7449,27 @@ void Player::RemovedInsignia(Player* looterPlr, Corpse *corpse)
     if (!corpse)
         return;
 
-    WorldPacket data(SMSG_PLAYER_SKINNED,0);
+    WorldPacket data(SMSG_PLAYER_SKINNED, 0);
     GetSession()->SendPacket(&data);
+    // We have to convert player corpse to bones, not to be able to resurrect there
+    // SpawnCorpseBones isn't handy, 'cos it saves player while he in BG
+    Corpse *bones = sObjectAccessor.ConvertCorpseForPlayer(GetObjectGuid(), true);
+    if (!bones)
+        return;
 
-    sObjectAccessor.ConvertCorpseForPlayer(GetObjectGuid(), looterPlr);
+    // Notify the client that the corpse is gone
+    WorldPacket cdata(MSG_CORPSE_QUERY, 1);
+    cdata << uint8(0);
+    GetSession()->SendPacket(&cdata);
+
+    // Now we must make bones lootable, and send player loot
+    bones->SetFlag(CORPSE_FIELD_DYNAMIC_FLAGS, CORPSE_DYNFLAG_LOOTABLE);
+
+    // We store the level of our player in the gold field
+    // We retrieve this information at Player::SendLoot()
+    //bones->loot.gold = getLevel();
+    bones->lootRecipient = looterPlr;
+    looterPlr->SendLoot(bones->GetObjectGuid(), LOOT_INSIGNIA, this);
 }
 
 void Player::SendLootRelease(ObjectGuid guid) const

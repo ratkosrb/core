@@ -247,15 +247,17 @@ void MapManager::Update(uint32 diff)
     int continentsIdx = 0;
     uint32 now = WorldTimer::getMSTime();
 
-    uint32 inactiveTimeLimit = sWorld.getConfig(CONFIG_UINT32_EMPTY_MAPS_UPDATE_TIME);
     std::vector<std::function<void()>> continentsUpdaters;
     std::vector<std::function<void()>> instancesUpdaters;
 
     for (MapMapType::iterator iter = i_maps.begin(); iter != i_maps.end(); ++iter)
     {
         // If this map has been empty for too long, we no longer update it.
-        if (!iter->second->ShouldUpdateMap(now, inactiveTimeLimit))
-            continue;
+        if (!iter->second->HavePlayers() && sWorld.getConfig(CONFIG_UINT32_EMPTY_MAPS_UPDATE_TIME))
+        {
+            if (WorldTimer::getMSTimeDiff(iter->second->GetLastPlayerLeftTime(), now) > sWorld.getConfig(CONFIG_UINT32_EMPTY_MAPS_UPDATE_TIME))
+                continue;
+        }
 
         iter->second->UpdateSync(mapsDiff);
         iter->second->MarkNotUpdated();
@@ -320,7 +322,7 @@ void MapManager::Update(uint32 diff)
         {
             sZoneScriptMgr.OnMapCrashed(crashedMapsIter->second);
             crashedMapsIter->second->CrashUnload();
-            crashedMapsIter = i_maps.erase(crashedMapsIter);
+            i_maps.erase(crashedMapsIter++);
         }
         else
             ++crashedMapsIter;
@@ -338,7 +340,7 @@ void MapManager::Update(uint32 diff)
             pMap->UnloadAll(true);
             delete pMap;
 
-            iter = i_maps.erase(iter);
+            i_maps.erase(iter++);
         }
         else
             ++iter;
