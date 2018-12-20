@@ -174,7 +174,7 @@ inline void MaNGOS::DynamicObjectUpdater::VisitHelper(Unit* target)
 
     // Mise en combat
     // Exception : fusee eclairante, piege de givre
-    if (!i_positive && i_dynobject.GetSpellId() != 1543 && i_dynobject.GetSpellId() != 13810)
+    if (!i_positive && i_dynobject.GetSpellId() != 1543 && i_dynobject.GetSpellId() != 13810 && i_dynobject.GetSpellId() != 25996)
     {
         if (CreatureAI* pAi = target->AI())
             pAi->AttackedBy(i_check);
