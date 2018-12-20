@@ -170,6 +170,7 @@ class MANGOS_DLL_SPEC ChatHandler
         void FillFullCommandsName(ChatCommand* table, std::string prefix);
         ChatCommand* getCommandTable();
 
+        bool HandleXPCommand(char *);
         bool HandleGodCommand(char *);
         bool HandleGMOptionsCommand(char *);
         bool HandleAnticheatCommand(char *);

@@ -185,6 +185,28 @@ bool ChatHandler::HandleDismountCommand(char* /*args*/)
     return true;
 }
 
+bool ChatHandler::HandleXPCommand(char* args)
+{
+    if (!m_session || !m_session->GetPlayer())
+        return false;
+
+    float xp;
+    if (!ExtractFloat(&args, xp))
+        return false;
+
+    if (xp < 0.0f)
+        return false;
+
+    if (xp > sWorld.getConfig(CONFIG_FLOAT_RATE_XP_KILL))
+    {
+        PSendSysMessage("You can't set XP rate above %g!", sWorld.getConfig(CONFIG_FLOAT_RATE_XP_KILL));
+        return false;
+    }
+    m_session->GetPlayer()->m_fXPMultiplier = xp;
+    PSendSysMessage("You have changed your XP rate to %g times normal experience gain.", xp);
+    return true;
+}
+
 bool ChatHandler::HandleSaveCommand(char* /*args*/)
 {
     Player *player = m_session->GetPlayer();

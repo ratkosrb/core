@@ -130,7 +130,7 @@ namespace MaNGOS
                 xp_gain *= pCreature->GetCreatureInfo()->ExperienceMultiplier;
                 xp_gain *= pCreature->GetXPModifierDueToDamageOrigin();
 
-                return (uint32)(xp_gain*sWorld.getConfig(CONFIG_FLOAT_RATE_XP_KILL));
+                return (uint32)(xp_gain*pl->m_fXPMultiplier);
             }
             
             return 0;

@@ -605,6 +605,7 @@ Player::Player(WorldSession *session) : Unit(),
 
     m_longSightSpell = 0;
     m_longSightRange = 0.0f;
+    m_fXPMultiplier = sWorld.getConfig(CONFIG_FLOAT_RATE_XP_KILL);
 }
 
 Player::~Player()
@@ -12977,7 +12978,7 @@ void Player::RewardQuest(Quest const *pQuest, uint32 reward, WorldObject* questG
     q_status.m_reward_choice = pQuest->RewChoiceItemId[reward];
 
     // Not give XP in case already completed once repeatable quest
-    uint32 XP = q_status.m_rewarded ? 0 : uint32(pQuest->XPValue(this) * sWorld.getConfig(CONFIG_FLOAT_RATE_XP_QUEST));
+    uint32 XP = q_status.m_rewarded ? 0 : uint32(pQuest->XPValue(this) * std::min(m_fXPMultiplier, sWorld.getConfig(CONFIG_FLOAT_RATE_XP_QUEST)));
 
     if (getLevel() < sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL))
         GiveXP(XP , NULL);

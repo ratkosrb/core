@@ -2116,6 +2116,7 @@ class MANGOS_DLL_SPEC Player final: public Unit
         uint32 GetDeathTimer() const { return m_deathTimer; }
         uint32 GetCorpseReclaimDelay(bool pvp) const;
         void SendCorpseReclaimDelay(bool load = false) const;
+        float m_fXPMultiplier = 1.0f;
 
         /*********************************************************/
         /***                    CHAT SYSTEM                    ***/
