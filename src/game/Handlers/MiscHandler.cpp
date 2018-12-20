@@ -674,6 +674,13 @@ void WorldSession::HandleReclaimCorpseOpcode(WorldPacket &recv_data)
     if (corpse->GetGhostTime() + GetPlayer()->GetCorpseReclaimDelay(corpse->GetType() == CORPSE_RESURRECTABLE_PVP) > time(NULL))
         return;
 
+    if (GetPlayer()->GetMapId() == 25)
+    {
+        GetPlayer()->TeleportTo(1, -592.601f, -2523.492f, 92.0f, 0);
+        GetPlayer()->ScheduleDelayedOperation(DELAYED_RESURRECT_PLAYER);
+        return;
+    }
+
     if (!corpse->IsWithinDistInMap(GetPlayer(), CORPSE_RECLAIM_RADIUS, true))
         return;
 
