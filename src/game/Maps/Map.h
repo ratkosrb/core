@@ -610,6 +610,8 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>, public MaNGOS::Obj
 
         bool ShouldUpdateInactiveMap(uint32 now, uint32 inactiveTimeLimit);
 
+        void removeBones(Corpse *c);
+
     private:
         void LoadMapAndVMap(int gx, int gy);
 
