@@ -47,6 +47,9 @@ Corpse::Corpse(CorpseType type) : WorldObject(), loot(NULL), lootRecipient(NULL)
 
 Corpse::~Corpse()
 {
+    if (GetType() == CORPSE_BONES) {
+        GetMap()->removeBones(this);
+    }
 }
 
 void Corpse::AddToWorld()

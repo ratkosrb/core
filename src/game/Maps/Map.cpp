@@ -141,6 +141,12 @@ Map::Map(uint32 id, time_t expiry, uint32 InstanceId)
     }
 }
 
+void Map::removeBones(Corpse *c)
+{
+    std::unique_lock<MapMutexType> guard(_bonesLock);
+    _bones.remove(c);
+}
+
 // Nostalrius
 // Active objects system
 class ActiveObjectsGridLoader
@@ -1448,8 +1454,11 @@ void Map::UnloadAll(bool pForce)
         Remove<Transport>(transport, true);
     }
 
-    // Bones are already added to the grid, and hence deleted when unloading
-    _bones.clear();
+    // Bones list should be empty at this point.
+    if (!_bones.empty()) {
+        sLog.outError("Non empty bones list, probably leaking. Please report.");
+        _bones.clear();
+    }
 }
 
 bool Map::CheckGridIntegrity(Creature* c, bool moved) const

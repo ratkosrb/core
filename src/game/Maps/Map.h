@@ -589,6 +589,8 @@ class MANGOS_DLL_SPEC Map : public GridRefManager<NGridType>
 
         bool ShouldUpdateMap(uint32 now, uint32 inactiveTimeLimit);
 
+        void removeBones(Corpse *c);
+
     private:
         void LoadMapAndVMap(int gx, int gy);
 
