@@ -8308,6 +8308,7 @@ void Unit::SetSpeedRate(UnitMoveType mtype, float rate, bool forced)
 #endif
             if (Player* me = ToPlayer())
             {
+                auto const counter = me->GetSession()->GetOrderCounter();
                 data << GetSpeed(mtype);
 
                 me->GetSession()->SendPacket(&data);
