@@ -49,10 +49,10 @@
 #include "CellImpl.h"
 #include "MapManager.h"
 #include "MoveSpline.h"
-
+#include "Anticheat.hpp"
 #include "ZoneScript.h"
 #include "PlayerAI.h"
-#include "Anticheat.h"
+
 
 #define NULL_AURA_SLOT 0xFF
 

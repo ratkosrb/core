@@ -19,6 +19,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <functional>
+
 #include "AccountMgr.h"
 #include "Database/DatabaseEnv.h"
 #include "ObjectAccessor.h"
@@ -32,14 +34,22 @@
 #include "WorldSession.h"
 #include "Chat.h"
 #include "MasterPlayer.h"
-#include "Anticheat.h"
+#include "Anticheat.hpp"
+#include "SharedDefines.h"
 
 extern DatabaseType LoginDatabase;
 
 INSTANTIATE_SINGLETON_1(AccountMgr);
 
 AccountMgr::AccountMgr() : _banlistUpdateTimer(0)
-{}
+{
+    auto cmp = [](const DelayedAction* lhs, const DelayedAction* rhs)
+    {
+        return lhs->GetTimer() < rhs->GetTimer();
+    };
+
+    _delayedActions = std::set<DelayedAction*, std::function<bool(const DelayedAction* lhs, const DelayedAction* rhs)>>(cmp);
+}
 
 AccountMgr::~AccountMgr()
 {}
@@ -325,6 +335,8 @@ void AccountMgr::Update(uint32 diff)
     }
     else
         _banlistUpdateTimer -= diff;
+
+    ProcessDelayedActions();
 }
 
 void AccountMgr::LoadIPBanList(bool silent)
@@ -476,12 +488,7 @@ uint32 AccountPersistentData::CountWhispersTo(MasterPlayer* from, MasterPlayer* 
     ++data.whispers_count;
     if (data.whispers_count == 1)
         data.score = GetWhisperScore(from, player);
-    return data.whispers_count-1;
-}
-
-bool AccountPersistentData::CanWhisper(MasterPlayer* player) const
-{
-    return sAnticheatLib->CanWhisper(*this, player);
+    return data.whispers_count - 1;
 }
 
 uint32 AccountPersistentData::GetWhisperScore(MasterPlayer* from, MasterPlayer* target) const
@@ -516,4 +523,58 @@ bool AccountPersistentData::CanMail(uint32 targetAccount)
             totalScore++;
     uint32 allowedScore = sWorld.getConfig(CONFIG_UINT32_MAILSPAM_MAX_MAILS);
     return totalScore < allowedScore;
+}
+
+void AccountMgr::AddDelayedAction(DelayedAction* action)
+{
+    ACE_Guard<ACE_Thread_Mutex> guard(_delayedActionMutex);
+    _delayedActions.insert(action);
+}
+
+void AccountMgr::ProcessDelayedActions()
+{
+    ACE_Guard<ACE_Thread_Mutex> guard(_delayedActionMutex);
+    auto now = time(nullptr);
+    for (auto iter = _delayedActions.begin(); iter != _delayedActions.end();)
+    {
+        auto action = *iter;
+        // Actions are sorted by execute time on insert. If we hit an action that
+        // will not be executed at this time, then none of the following will be
+        // either.
+        if (action->GetTimer() > now)
+            break;
+
+        action->Execute();
+        delete action;
+        iter = _delayedActions.erase(iter);
+    }
+}
+
+DelayedBanAction::DelayedBanAction(uint32 banAccountId, const std::string& source, uint32 duration, const std::string& reason, uint32 delay)
+    : DelayedAction(DAA_BAN, delay), _banAccountId(banAccountId), _author(source), _reason(reason), _duration(duration), _mode(BAN_ACCOUNT)
+{
+}
+
+void DelayedBanAction::Execute()
+{
+    sWorld.BanAccount(_banAccountId, _duration, _reason, _author);
+}
+
+void DelayedKickAction::Execute()
+{
+    if (WorldSession* session = sWorld.FindSession(_kickAccountId))
+    {
+        session->KickPlayer();
+    }
+}
+
+void DelayedSilenceAction::Execute()
+{
+    if (WorldSession* session = sWorld.FindSession(_silenceAccountId))
+    {
+        if (auto anticheat = session->GetAnticheat())
+        {
+            anticheat->Silence();
+        }
+    }
 }

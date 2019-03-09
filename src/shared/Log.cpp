@@ -56,14 +56,16 @@ LogFilterData logFilterData[LOG_FILTER_COUNT] =
 };
 
 Log::Log() :
-    logfile(nullptr), gmLogfile(nullptr), dberLogfile(nullptr),
-    wardenLogfile(nullptr), honorLogfile(nullptr), m_colored(false), m_includeTime(false), m_gmlog_per_account(false)
+    logfile(nullptr), gmLogfile(nullptr), dberLogfile(nullptr), honorLogfile(nullptr), m_colored(false),
+    m_includeTime(false), m_gmlog_per_account(false)
 {
     for (int i = 0; i < LOG_MAX_FILES; ++i)
     {
         logFiles[i] = nullptr;
         timestampPrefix[i] = true;
+        consoleWrite[i] = false;
     }
+
     Initialize();
 }
 
@@ -292,27 +294,27 @@ void Log::Initialize()
         }
     }
 
-    dberLogfile             = openLogFile("DBErrorLogFile", nullptr, "a");
-    worldLogfile            = openLogFile("WorldLogFile", "WorldLogTimestamp", "a");
-    nostalriusLogFile       = openLogFile("NostalriusLogFile", "NostalriusLogTimestamp", "a");
-    honorLogfile            = openLogFile("HonorLogFile", "HonorLogTimestamp", "a");
-    wardenLogfile           = openLogFile("WardenLogFile", "WardenLogTimestamp", "a");
-    logFiles[LOG_CHAT]      = openLogFile("ChatLogFile", "ChatLogTimestamp", "a");
-    logFiles[LOG_BG]        = openLogFile("BgLogFile", "BgLogTimestamp", "a");
-    logFiles[LOG_CHAR]      = openLogFile("CharLogFile", "CharLogTimestamp", "a");
-    logFiles[LOG_RA]        = openLogFile("RaLogFile", nullptr, "a");
-    logFiles[LOG_DBERRFIX]  = openLogFile("DBErrorFixFile", nullptr, "w+");
-    logFiles[LOG_CLIENT_IDS]= openLogFile("ClientIdsLogFile", nullptr, "a");
-    logFiles[LOG_LOOTS]     = openLogFile("LootsLogFile", nullptr, "a");
-    logFiles[LOG_LEVELUP]   = openLogFile("LevelupLogFile", nullptr, "a");
-    logFiles[LOG_PERFORMANCE]   = openLogFile("PerformanceLog.File", nullptr, "a");
-    logFiles[LOG_MONEY_TRADES]  = openLogFile("LogMoneyTrades", nullptr, "a");
-    logFiles[LOG_ANTICHEAT]     = openLogFile("AnticheatLogFile", nullptr, "a");
-    logFiles[LOG_GM_CRITICAL]   = openLogFile("CriticalCommandsLogFile", nullptr, "a");
-    logFiles[LOG_CHAT_SPAM]     = openLogFile("ChatSpamLogFile", nullptr, "a");
-    logFiles[LOG_EXPLOITS]      = openLogFile("ExploitsLogFile", nullptr, "a");
+    dberLogfile                     = openLogFile("DBErrorLogFile", nullptr, "a");
+    worldLogfile                    = openLogFile("WorldLogFile", "WorldLogTimestamp", "a");
+    nostalriusLogFile               = openLogFile("NostalriusLogFile", "NostalriusLogTimestamp", "a");
+    honorLogfile                    = openLogFile("HonorLogFile", "HonorLogTimestamp", "a");
+    logFiles[LOG_CHAT]              = openLogFile("ChatLogFile", "ChatLogTimestamp", "a");
+    logFiles[LOG_BG]                = openLogFile("BgLogFile", "BgLogTimestamp", "a");
+    logFiles[LOG_CHAR]              = openLogFile("CharLogFile", "CharLogTimestamp", "a");
+    logFiles[LOG_RA]                = openLogFile("RaLogFile", nullptr, "a");
+    logFiles[LOG_DBERRFIX]          = openLogFile("DBErrorFixFile", nullptr, "w+");
+    logFiles[LOG_CLIENT_IDS]        = openLogFile("ClientIdsLogFile", nullptr, "a");
+    logFiles[LOG_LOOTS]             = openLogFile("LootsLogFile", nullptr, "a");
+    logFiles[LOG_LEVELUP]           = openLogFile("LevelupLogFile", nullptr, "a");
+    logFiles[LOG_PERFORMANCE]       = openLogFile("PerformanceLog.File", nullptr, "a");
+    logFiles[LOG_MONEY_TRADES]      = openLogFile("LogMoneyTrades", nullptr, "a");
+    logFiles[LOG_ANTICHEAT_DEBUG]   = openLogFile("AnticheatDebugLogFile", nullptr, "a");
+    logFiles[LOG_ANTICHEAT_BASIC]   = openLogFile("AnticheatLogFile", nullptr, "a");
+    logFiles[LOG_GM_CRITICAL]       = openLogFile("CriticalCommandsLogFile", nullptr, "a");
+    logFiles[LOG_CHAT_SPAM]         = openLogFile("ChatSpamLogFile", nullptr, "a");
 
     timestampPrefix[LOG_DBERRFIX] = false;
+    consoleWrite[LOG_ANTICHEAT_BASIC] = true;
 
     // Main log file settings
     m_includeTime  = sConfig.GetBoolDefault("LogTime", false);
@@ -525,6 +527,7 @@ void Log::outHonor(const char *str, ...)
 void Log::out(LogFile type, const char* str, ...)
 {
     ASSERT(type < LOG_MAX_FILES)
+
     if (!str)
         return;
 
@@ -537,12 +540,21 @@ void Log::out(LogFile type, const char* str, ...)
         va_start(ap, str);
         vfprintf(logFiles[type], str, ap);
         fprintf(logFiles[type], "\n");
-        fflush(logFiles[type]);
         va_end(ap);
 
         fflush(logFiles[type]);
     }
-    fflush(stdout);
+
+    if (consoleWrite[type])
+    {
+        va_list ap;
+        va_start(ap, str);
+        vprintf(str, ap);
+        printf("\n");
+        va_end(ap);
+
+        fflush(stdout);
+    }
 }
 
 void Log::outError( const char * err, ... )
@@ -771,44 +783,6 @@ void Log::outDebug( const char * str, ... )
 
         fprintf(logfile, "\n" );
         fflush(logfile);
-    }
-
-    fflush(stdout);
-}
-
-void Log::outWarden(const char *wrd, ...)
-{
-    // TODO: change for warden
-    if (!wrd)
-        return;
-
-    if (m_colored)
-        SetColor(true, m_colors[LogWarden]);
-
-    if (m_includeTime)
-        outTime(stdout);
-
-    va_list ap;
-    va_start(ap, wrd);
-    vutf8printf(stdout, wrd, &ap);
-    va_end(ap);
-
-    if (m_colored)
-        ResetColor(true);
-
-    printf("\n");
-
-    if (wardenLogfile)
-    {
-        outTimestamp(wardenLogfile);
-
-        va_list ap;
-        va_start(ap, wrd);
-        vfprintf(wardenLogfile, wrd, ap);
-        va_end(ap);
-
-        fprintf(wardenLogfile, "\n");
-        fflush(wardenLogfile);
     }
 
     fflush(stdout);

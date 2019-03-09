@@ -1,11 +1,11 @@
-#ifndef USE_ANTICHEAT
+#ifdef USE_ANTICHEAT
+#error "This file should not be included when the real anticheat module is present"
+#endif
 
-#include "Anticheat.h"
+#include "Anticheat.hpp"
 
 AnticheatLibInterface* GetAnticheatLib()
 {
-    static AnticheatDefaultLib l;
+    static NullAnticheatLib l;
     return &l;
 }
-
-#endif

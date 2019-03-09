@@ -56,7 +56,7 @@ class BigNumber;
 class BehaviorAnalyzer;
 class NodeSession;
 class MasterPlayer;
-
+class SessionAnticheatInterface;
 struct OpcodeHandler;
 struct PlayerBotEntry;
 
@@ -201,26 +201,38 @@ enum PacketDumpType
 
 enum AccountFlags
 {
-    ACCOUNT_FLAG_MUTED_FROM_PUBLIC_CHANNELS     = 0x1,
+    ACCOUNT_FLAG_SILENCED       = 0x1,
+    ACCOUNT_FLAG_SHOW_ANTICHEAT = 0x2,
+    ACCOUNT_FLAG_SHOW_ANTISPAM  = 0x4,
+    ACCOUNT_FLAG_QUEUE_PRIORITY = 0x8
 };
 
 //class to deal with packet processing
 //allows to determine if next packet is safe to be processed
 class PacketFilter
 {
-    public:
-        explicit PacketFilter(WorldSession * pSession) : m_pSession(pSession), m_processLogout(false), m_processType(PACKET_PROCESS_MAX_TYPE) {}
-        virtual ~PacketFilter() {}
+public:
+    explicit PacketFilter(WorldSession * pSession) : m_pSession(pSession), m_processLogout(false), m_processType(PACKET_PROCESS_MAX_TYPE), _diff(0) {}
+    explicit PacketFilter(WorldSession* pSession, uint32 const diff) : PacketFilter(pSession)
+    {
+        _diff = diff;
+    }
 
-        virtual bool Process(WorldPacket *) { return true; }
-        inline bool ProcessLogout() const { return m_processLogout; }
-        inline PacketProcessing PacketProcessType() const { return m_processType; }
-        inline void SetProcessType(PacketProcessing t) { m_processType = t; }
+    virtual ~PacketFilter() {}
 
-    protected:
-        WorldSession * const m_pSession;
-        bool m_processLogout;
-        PacketProcessing m_processType;
+    virtual bool Process(WorldPacket *) { return true; }
+    inline bool ProcessLogout() const { return m_processLogout; }
+    inline PacketProcessing PacketProcessType() const { return m_processType; }
+    inline void SetProcessType(PacketProcessing t) { m_processType = t; }
+    inline uint32 GetDiff() const { return _diff; }
+
+protected:
+    WorldSession * const m_pSession;
+    bool m_processLogout;
+    PacketProcessing m_processType;
+
+private:
+    uint32 _diff;
 };
 //process only thread-safe packets in Map::Update()
 class MapSessionFilter : public PacketFilter
@@ -241,7 +253,7 @@ class MapSessionFilter : public PacketFilter
 class WorldSessionFilter : public PacketFilter
 {
     public:
-        explicit WorldSessionFilter(WorldSession * pSession) : PacketFilter(pSession)
+        explicit WorldSessionFilter(WorldSession * pSession, const uint32 diff) : PacketFilter(pSession, diff)
         {
             m_processLogout = true;
             m_processType = PACKET_PROCESS_WORLD;
@@ -277,7 +289,7 @@ class MANGOS_DLL_SPEC WorldSession
 {
     friend class CharacterHandler;
     public:
-        WorldSession(uint32 id, WorldSocket *sock, AccountTypes sec, time_t mute_time, LocaleConstant locale);
+        WorldSession(uint32 id, WorldSocket *sock, AccountTypes sec, time_t mute_time, LocaleConstant locale, const std::string &local_ip);
         ~WorldSession();
 
         bool PlayerLoading() const { return m_playerLoading; }
@@ -304,11 +316,14 @@ class MANGOS_DLL_SPEC WorldSession
         char const* GetPlayerName() const;
         void SetSecurity(AccountTypes security) { _security = security; }
         std::string const& GetRemoteAddress() const { return m_Address; }
+        std::string const& GetLocalAddress() const { return m_localIp; }
         std::string const& GetClientHash() const { return _clientHash; }
-        void SetPlayer(Player *plr) { _player = plr; }
+        void SetPlayer(Player *plr);
         void SetMasterPlayer(MasterPlayer *plr) { m_masterPlayer = plr; }
         void LoginPlayer(ObjectGuid playerGuid);
         WorldSocket* GetSocket() { return m_Socket; }
+
+        SessionAnticheatInterface * GetAnticheat() const { return _anticheat.get(); }
 
         /// Session in auth.queue currently
         void SetInQueue(bool state) { m_inQueue = state; }
@@ -452,6 +467,8 @@ class MANGOS_DLL_SPEC WorldSession
         uint32 getDialogStatus(Player *pPlayer, Object* questgiver, uint32 defstatus);
         uint32 GetAccountMaxLevel() const { return _characterMaxLevel; }
         void SetAccountMaxLevel(uint32 l) { _characterMaxLevel = l; }
+        uint32 GetOrderCounter() const { return _orderCounter; }
+        void IncrementOrderCounter() { ++_orderCounter; }
 
         // Public chat cooldown restriction functionality
         // Intentionally session-based to avoid login/logout hijinks
@@ -479,7 +496,7 @@ class MANGOS_DLL_SPEC WorldSession
         // Bot system
         std::stringstream _chatBotHistory;
         PlayerBotEntry* GetBot() { return m_bot; }
-        void SetBot(PlayerBotEntry* b) { m_bot = b; }
+        void SetBot(PlayerBotEntry* b);
 
         // Player online / socket offline system
         void SetDisconnectedSession(); // Remove from World::m_session. Used when an account gets disconnected.
@@ -490,16 +507,10 @@ class MANGOS_DLL_SPEC WorldSession
         uint32 m_disconnectTimer;
 
         // Warden / Anticheat
-        void InitWarden(BigNumber* K);
         bool AllowPacket(uint16 opcode);
-        void ProcessAnticheatAction(const char* detector, const char* reason, uint32 action, uint32 banTime = 0 /* Perm ban */);
         uint32 GetLastReceivedPacketTime() const { return m_lastReceivedPacketTime; }
-        void AddClientIdentifier(uint32 i, std::string str);
-        ClientIdentifiersMap const& GetClientIdentifiers() const { return _clientIdentifiers; }
-        void ComputeClientHash();
-        bool IsClientHashComputed() const { return _clientHashComputeStep != HASH_NOT_COMPUTED; }
 
-        WardenInterface* GetWarden() const { return m_warden; }
+        void InitializeAnticheat(const BigNumber &K);
 
         void AddScript(std::string name, WorldSessionScript* script)
         {
@@ -539,7 +550,6 @@ class MANGOS_DLL_SPEC WorldSession
 
         void SetAccountFlags(uint32 f) { _accountFlags = f; }
         uint32 GetAccountFlags() const { return _accountFlags; }
-        uint32      _accountFlags;
 
         uint32 m_idleTime;
 
@@ -925,9 +935,14 @@ class MANGOS_DLL_SPEC WorldSession
         ObjectGuid _clientMoverGuid;
         WorldSocket *m_Socket;
         std::string m_Address;
+        std::string m_localIp;
 
         AccountTypes _security;
         uint32 _accountId;
+        uint32 _accountFlags;
+
+        // anticheat
+        std::unique_ptr<SessionAnticheatInterface> _anticheat;
 
         time_t _logoutTime;
         bool m_inQueue;                                     // session wait in auth.queue
@@ -943,7 +958,6 @@ class MANGOS_DLL_SPEC WorldSession
         ACE_Based::LockedQueue<WorldPacket*, ACE_Thread_Mutex> _recvQueue[PACKET_PROCESS_MAX_TYPE];
         bool _receivedPacketType[PACKET_PROCESS_MAX_TYPE];
 
-        WardenInterface* m_warden;
         std::string m_username;
         uint32 _floodPacketsCount[FLOOD_MAX_OPCODES_TYPE];
         PlayerBotEntry* m_bot;
@@ -954,13 +968,7 @@ class MANGOS_DLL_SPEC WorldSession
         uint32          _gameBuild;
         uint32          _charactersCount;
         uint32          _characterMaxLevel;
-        enum ClientHashStep
-        {
-            HASH_NOT_COMPUTED,
-            HASH_COMPUTED,
-            HASH_NOTIFIED,
-        };
-        ClientHashStep  _clientHashComputeStep;
+        uint32          _orderCounter;
 
         std::set<std::string> _addons;
 

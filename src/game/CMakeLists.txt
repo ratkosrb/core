@@ -69,7 +69,6 @@ set (game_SRCS
     AI/ScriptedInstance.cpp
     AI/ScriptedPetAI.cpp
     AI/TotemAI.cpp
-    Anticheat/Anticheat.cpp
     AuctionHouse/AuctionHouseBotMgr.cpp
     AuctionHouse/AuctionHouseMgr.cpp
     AutoTesting/AutoTestingMgr.cpp
@@ -111,7 +110,6 @@ set (game_SRCS
     Group/GroupReference.cpp
     Guild/Guild.cpp
     Guild/GuildMgr.cpp
-    Handlers/AddonHandler.cpp
     Handlers/AuctionHouseHandler.cpp
     Handlers/BattleGroundHandler.cpp
     Handlers/ChannelHandler.cpp
@@ -286,7 +284,7 @@ set (game_SRCS
     AI/ScriptedInstance.h
     AI/ScriptedPetAI.h
     AI/TotemAI.h
-    Anticheat/Anticheat.h
+    Anticheat/Anticheat.hpp
     AuctionHouse/AuctionHouseBotMgr.h
     AuctionHouse/AuctionHouseMgr.h
     AutoTesting/AutoTestingMgr.h
@@ -314,7 +312,6 @@ set (game_SRCS
     Group/GroupRefManager.h
     Guild/Guild.h
     Guild/GuildMgr.h
-    Handlers/AddonHandler.h
     Handlers/NPCHandler.h
     Handlers/LFGHandler.h
     LFG/LFGMgr.h
@@ -451,23 +448,34 @@ endif()
 if(USE_ANTICHEAT)
   list(APPEND game_SRCS
       Anticheat/module/libanticheat.cpp
-      Anticheat/module/libanticheat.h
+      Anticheat/module/libanticheat.hpp
+      Anticheat/module/Config.cpp
+      Anticheat/module/Config.hpp
+      Anticheat/module/AddonHandler.cpp
       Anticheat/module/Antispam/Antispam.cpp
-      Anticheat/module/Antispam/Antispam.h
-      Anticheat/module/MovementAnticheat/Cheat.cpp
-      Anticheat/module/MovementAnticheat/Cheat.h
-      Anticheat/module/WardenAnticheat/Warden.cpp
-      Anticheat/module/WardenAnticheat/Warden.h
-      Anticheat/module/WardenAnticheat/WardenMac.cpp
-      Anticheat/module/WardenAnticheat/WardenMac.h
-      Anticheat/module/WardenAnticheat/WardenWin.cpp
-      Anticheat/module/WardenAnticheat/WardenWin.h
-      Anticheat/module/WardenAnticheat/WardenStorageMgr.cpp
-      Anticheat/module/WardenAnticheat/WardenStorageMgr.h
-      Anticheat/module/WardenAnticheat/WardenModuleMac.h
-      Anticheat/module/WardenAnticheat/WardenModuleWin.h
-      Anticheat/module/WardenAnticheat/WardenKeyGeneration.h
+      Anticheat/module/Antispam/Antispam.hpp
+      Anticheat/module/Antispam/AntispamMgr.cpp
+      Anticheat/module/Antispam/AntispamMgr.hpp
+      Anticheat/module/Movement/Movement.cpp
+      Anticheat/module/Movement/Movement.hpp
+      Anticheat/module/Warden/Warden.cpp
+      Anticheat/module/Warden/Warden.hpp
+      Anticheat/module/Warden/WardenMac.cpp
+      Anticheat/module/Warden/WardenMac.hpp
+      Anticheat/module/Warden/WardenWin.cpp
+      Anticheat/module/Warden/WardenWin.hpp
+      Anticheat/module/Warden/WardenModule.hpp
+      Anticheat/module/Warden/WardenModule.cpp
+      Anticheat/module/Warden/WardenModuleMgr.hpp
+      Anticheat/module/Warden/WardenModuleMgr.cpp
+      Anticheat/module/Warden/WardenScan.cpp
+      Anticheat/module/Warden/WardenScan.hpp
+      Anticheat/module/Warden/WardenScanMgr.cpp
+      Anticheat/module/Warden/WardenScanMgr.hpp
+      Anticheat/module/Warden/WardenKeyGeneration.h
   )
+else()
+  list(APPEND game_SRCS Anticheat/Anticheat.cpp)
 endif()
 
 

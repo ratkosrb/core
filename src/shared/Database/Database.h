@@ -30,6 +30,7 @@
 #include <ace/TSS_T.h>
 #include <ace/Atomic_Op.h>
 #include "SqlPreparedStatement.h"
+#include "QueryResult.h"
 
 class SqlTransaction;
 class SqlResultQueue;

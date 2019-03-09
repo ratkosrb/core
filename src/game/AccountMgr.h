@@ -25,6 +25,8 @@
 #include "Common.h"
 #include "Policies/Singleton.h"
 #include <string>
+#include <functional>
+#include "SharedDefines.h"
 
 enum AccountOpResult
 {
@@ -56,7 +58,6 @@ public:
     };
     void WhisperedBy(MasterPlayer* whisperer);
     uint32 CountWhispersTo(MasterPlayer* from, MasterPlayer* player);
-    bool CanWhisper(MasterPlayer* player) const;
     uint32 GetWhisperScore(MasterPlayer* from, MasterPlayer* player) const;
     uint32 CountDifferentWhispTargets() const { return _whisperTargets.size(); }
 
@@ -70,6 +71,79 @@ public:
 protected:
     typedef std::map<uint32, time_t> MailsSentMap;
     MailsSentMap _mailsSent;
+};
+
+enum DelayedActionType
+{
+    DAA_SILENCE,
+    DAA_KICK,
+    DAA_BAN
+};
+
+class DelayedAction
+{
+public:
+    DelayedActionType GetActionType() const { return _action; }
+    virtual void Execute() = 0;
+    uint32 GetDelay() const { return _delay; }
+    uint32 GetTimer() const { return _timer; }
+
+protected:
+    DelayedAction(DelayedActionType action, uint32 delay) : _action(action), _delay(delay)
+    {
+        _timer = time(nullptr) + delay;
+    }
+
+    DelayedActionType _action;
+    uint32 _delay;
+    uint32 _timer;
+};
+
+class DelayedBanAction : public DelayedAction
+{
+public:
+    DelayedBanAction(uint32 banAccountId, const std::string& source, uint32 duration, const std::string& reason, uint32 delay);
+    BanMode GetBanMode() const { return _mode; }
+    uint32 GetDuration() const { return _duration; }
+    std::string& GetReason() { return _reason; }
+    std::string& GetAuthor() { return _author; }
+    uint32 GetBanAccountId() { return _banAccountId; }
+
+    void Execute() override;
+
+private:
+    DelayedActionType _action;
+    BanMode _mode;
+    uint32 _duration;
+    std::string _reason;
+    std::string _author;
+    uint32 _banAccountId;
+};
+
+class DelayedKickAction : public DelayedAction
+{
+public:
+    DelayedKickAction(uint32 kickAccountId, uint32 delay)
+        : DelayedAction(DAA_KICK, delay), _kickAccountId(kickAccountId)
+    {
+    }
+
+    void Execute() override;
+private:
+    uint32 _kickAccountId;
+};
+
+class DelayedSilenceAction : public DelayedAction
+{
+public:
+    DelayedSilenceAction(uint32 silenceAccountId, uint32 delay)
+        : DelayedAction(DAA_SILENCE, delay), _silenceAccountId(silenceAccountId)
+    {
+    }
+
+    void Execute() override;
+private:
+    uint32 _silenceAccountId;
 };
 
 class AccountMgr
@@ -109,6 +183,8 @@ class AccountMgr
         bool CheckInstanceCount(uint32 accountId, uint32 instanceId, uint32 maxCount);
         void AddInstanceEnterTime(uint32 accountId, uint32 instanceId, time_t enterTime);
 
+        void AddDelayedAction(DelayedAction* action);
+
         AccountPersistentData& GetAccountPersistentData(uint32 accountId) { return _accountPersistentData[accountId]; }
     protected:
         std::map<uint32, AccountTypes> _accountSecurity;
@@ -119,6 +195,11 @@ class AccountMgr
         typedef std::map<uint32 /* accountId */, InstanceEnterTimesMap> AccountInstanceEnterTimesMap;
         AccountInstanceEnterTimesMap _instanceEnterTimes;
         std::map<uint32, AccountPersistentData> _accountPersistentData;
+
+        void ProcessDelayedActions();
+
+        ACE_Thread_Mutex _delayedActionMutex;
+        std::set<DelayedAction*, std::function<bool(const DelayedAction* lhs, const DelayedAction* rhs)>> _delayedActions;
 };
 
 #define sAccountMgr MaNGOS::Singleton<AccountMgr>::Instance()

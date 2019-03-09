@@ -32,7 +32,7 @@
 #include "Mail.h"
 #include "Util.h"
 #include "Chat.h"
-#include "Anticheat.h"
+#include "Anticheat.hpp"
 
 // please DO NOT use iterator++, because it is slower than ++iterator!!!
 // post-incrementation is always slower than pre-incrementation !
@@ -260,12 +260,12 @@ void WorldSession::HandleAuctionSellItem(WorldPacket & recv_data)
     // Client limit
     if (bid > 2000000000 || buyout > 2000000000)
     {
-        ProcessAnticheatAction("GoldDupe", "Putting too high auction price", CHEAT_ACTION_LOG);
+        _anticheat->RecordCheat(CHEAT_ACTION_INFO_LOG, "GoldDupe", "Putting too high auction price.  Bid: %u buyout: %u", bid, buyout);
         return;
     }
     if (buyout && bid > buyout)
     {
-        ProcessAnticheatAction("GoldDupe", "bid > buyout", CHEAT_ACTION_LOG);
+        _anticheat->RecordCheat(CHEAT_ACTION_INFO_LOG, "GoldDupe", "bid (%u) > buyout (%u)", bid, buyout);
         return;
     }
 

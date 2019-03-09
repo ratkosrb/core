@@ -1949,6 +1949,7 @@ class MANGOS_DLL_SPEC Player final: public Unit
         /*********************************************************/
 
     private:
+        // has a value of zero when the player needs to see the initial cinematic for their race
         uint32 m_cinematic;
         void UpdateCinematic(uint32 diff);
     public:
@@ -2366,9 +2367,7 @@ class MANGOS_DLL_SPEC Player final: public Unit
         void ChangeSpeakTime(int utime);
         bool FallGround(uint8 fallMode);
 
-        /// Anticheat
-        PlayerAnticheatInterface* _cheatData;
-        PlayerAnticheatInterface* GetCheatData() const { return _cheatData; }
+        /// Anticheat XXX FIXME TODO CHECK THESE OTHER FUNCTIONS!!
         void OnDisconnected();
         void RelocateToLastClientPosition();
         void GetSafePosition(float &x, float &y, float &z, Transport* onTransport = nullptr) const;

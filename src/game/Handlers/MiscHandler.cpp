@@ -45,7 +45,7 @@
 #include "SocialMgr.h"
 #include "Spell.h"
 #include "ZoneScript.h"
-#include "Anticheat.h"
+#include "Anticheat.hpp"
 #include "MasterPlayer.h"
 #include "GossipDef.h"
 #include "GameEventMgr.h"
@@ -708,7 +708,7 @@ void WorldSession::HandleResurrectResponseOpcode(WorldPacket & recv_data)
 
     if (!guid) // Cheating attempt
     {
-        ProcessAnticheatAction("SAC", "Instant resurrect hack detected", CHEAT_ACTION_LOG);
+        _anticheat->RecordCheat(CHEAT_ACTION_INFO_LOG, "SAC", "Instant resurrect hack detected");
         return;
     }
 
@@ -1274,11 +1274,5 @@ void WorldSession::HandleRequestPetInfoOpcode(WorldPacket & /*recv_data */)
 
 void WorldSession::HandleWardenDataOpcode(WorldPacket & recv_data)
 {
-    if (!m_warden)
-    {
-        sLog.outWarden("HandleWardenDataOpcode: warden interface not found!");
-        return;
-    }
-
-    m_warden->HandleWardenDataOpcode(recv_data);
+    _anticheat->WardenPacket(recv_data);
 }

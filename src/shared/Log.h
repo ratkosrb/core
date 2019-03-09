@@ -99,10 +99,10 @@ enum LogFile
     LOG_LEVELUP,
     LOG_PERFORMANCE,
     LOG_MONEY_TRADES,
-    LOG_ANTICHEAT,
+    LOG_ANTICHEAT_DEBUG,
+    LOG_ANTICHEAT_BASIC,
     LOG_GM_CRITICAL,
     LOG_CHAT_SPAM,
-    LOG_EXPLOITS,
     LOG_MAX_FILES
 };
 
@@ -112,7 +112,6 @@ enum LogType
     LogDetails,
     LogDebug,
     LogError,
-    LogWarden,
     LOG_TYPE_MAX // add new entries *before* this value!
 };
 
@@ -178,8 +177,6 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
         void outDetail( const char * str, ... )      ATTR_PRINTF(2,3);
                                                             // log level >= 3
         void outDebug( const char * str, ... )       ATTR_PRINTF(2,3);
-        void outWarden(const char * wrd, ...)        ATTR_PRINTF(2,3);
-
         void outErrorDb();                                  // any log level
                                                             // any log level
         void outErrorDb( const char * str, ... )     ATTR_PRINTF(2,3);
@@ -213,12 +210,12 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
         FILE* logfile;
         FILE* gmLogfile;
         FILE* dberLogfile;
-        FILE* wardenLogfile;
         FILE* worldLogfile;
         FILE* nostalriusLogFile;
         FILE* honorLogfile;
         FILE* logFiles[LOG_MAX_FILES];
         bool  timestampPrefix[LOG_MAX_FILES];
+        bool  consoleWrite[LOG_MAX_FILES];
 
         bool m_bIsChatLogFileActivated;
 

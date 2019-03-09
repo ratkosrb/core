@@ -28,7 +28,7 @@
 #include "WorldSession.h"
 #include "WorldSocket.h"
 #include "WorldSocketMgr.h"
-#include "AddonHandler.h"
+#include "Anticheat.hpp"
 
 #include "Opcodes.h"
 #include "MangosSocketImpl.h"
@@ -130,7 +130,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     LocaleConstant locale;
     std::string account, os;
     BigNumber v, s, g, N, K;
-    WorldPacket packet, SendAddonPacked;
+    WorldPacket packet;
 
     // Read the content of the packet
     recvPacket >> BuiltNumberClient;
@@ -163,8 +163,21 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     LoginDatabase.escape_string(safe_account);
     // No SQL injection, username escaped.
 
-    QueryResult *result = LoginDatabase.PQuery("SELECT a.id, aa.gmLevel, a.sessionkey, a.last_ip, a.locked, a.v, a.s, a.mutetime, a.locale, a.os, a.flags, "
-        "ab.unbandate > UNIX_TIMESTAMP() OR ab.unbandate = ab.bandate FROM account a LEFT JOIN account_access aa ON a.id = aa.id AND aa.RealmID IN (-1, %u) "
+    QueryResult *result = LoginDatabase.PQuery("SELECT "
+        "a.id, "                // 0
+        "aa.gmLevel, "          // 1
+        "a.sessionkey, "        // 2
+        "a.last_ip, "           // 3
+        "a.last_local_ip, "     // 4
+        "a.locked, "            // 5
+        "a.v, "                 // 6
+        "a.s, "                 // 7
+        "a.mutetime, "          // 8
+        "a.locale, "            // 9
+        "a.os, "                // 10
+        "a.flags, "             // 11
+        "ab.unbandate > UNIX_TIMESTAMP() OR ab.unbandate = ab.bandate " // 12
+        "FROM account a LEFT JOIN account_access aa ON a.id = aa.id AND aa.RealmID IN (-1, %u) "
         "LEFT JOIN account_banned ab ON a.id = ab.id AND ab.active = 1 WHERE a.username = '%s' ORDER BY aa.RealmID DESC LIMIT 1", realmID, safe_account.c_str());
 
     // Stop if the account is not found
@@ -184,8 +197,8 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     N.SetHexStr("894B645E89E1535BBDAD5B8B290650530801B18EBFBF5E8FAB3C82872A3E9BB7");
     g.SetDword(7);
 
-    v.SetHexStr(fields[5].GetString());
-    s.SetHexStr(fields[6].GetString());
+    v.SetHexStr(fields[6].GetString());
+    s.SetHexStr(fields[7].GetString());
 
     const char* sStr = s.AsHexStr();                        //Must be freed by OPENSSL_free()
     const char* vStr = v.AsHexStr();                        //Must be freed by OPENSSL_free()
@@ -197,8 +210,10 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     OPENSSL_free((void*) sStr);
     OPENSSL_free((void*) vStr);
 
+    auto const local_ip = fields[4].GetCppString();
+
     ///- Re-check ip locking (same check as in realmd).
-    if (fields[4].GetUInt8() == 1)  // if ip is locked
+    if (fields[5].GetUInt8() == 1)  // if ip is locked
     {
         if (strcmp(fields[3].GetString(), GetRemoteAddress().c_str()))
         {
@@ -225,14 +240,15 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
         return -1;
     }
 
-    time_t mutetime = time_t (fields[7].GetUInt64());
+    time_t mutetime = time_t (fields[8].GetUInt64());
 
-    locale = LocaleConstant(fields[8].GetUInt8());
+    locale = LocaleConstant(fields[9].GetUInt8());
     if (locale >= MAX_LOCALE)
         locale = LOCALE_enUS;
-    os = fields[9].GetString();
-    uint32 accFlags = fields[10].GetUInt32();
-    bool isBanned = fields[11].GetBool();
+    os = fields[10].GetString();
+    uint32 accFlags = fields[11].GetUInt32();
+    bool isBanned = fields[12].GetBool();
+
     delete result;
 
     
@@ -309,7 +325,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     }
 
     // NOTE ATM the socket is single-threaded, have this in mind ...
-    ACE_NEW_RETURN(m_Session, WorldSession(id, this, AccountTypes(security), mutetime, locale), -1);
+    ACE_NEW_RETURN(m_Session, WorldSession(id, this, AccountTypes(security), mutetime, locale, local_ip), -1);
 
     m_Crypt.SetKey(K.AsByteArray());
     m_Crypt.Init();
@@ -319,16 +335,25 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     m_Session->SetAccountFlags(accFlags);
     m_Session->SetOS(clientOs);
     m_Session->LoadTutorialsData();
-    m_Session->InitWarden(&K);
+    m_Session->InitializeAnticheat(K);
 
     // In case needed sometime the second arg is in microseconds 1 000 000 = 1 sec
     ACE_OS::sleep(ACE_Time_Value(0, 10000));
 
     sWorld.AddSession(m_Session);
 
-    // Create and send the Addon packet
-    if (sAddOnHandler.BuildAddonPacket(&recvPacket, &SendAddonPacked))
-        SendPacket(SendAddonPacked);
+    // when false, the client sent invalid addon data.  kick!
+    WorldPacket addonPacket;
+    if (!m_Session->GetAnticheat()->ReadAddonInfo(&recvPacket, addonPacket))
+    {
+        sLog.out(LOG_ANTICHEAT_BASIC, "WorldSocket::HandleAuthSession: Account %s (id %u) IP %s sent bad addon info.  Kicking.",
+            account.c_str(), id, address.c_str());
+        return -1;
+    }
+
+    // if anything was written to the packet, send it
+    if (addonPacket.wpos())
+        SendPacket(addonPacket);
 
     return 0;
 }

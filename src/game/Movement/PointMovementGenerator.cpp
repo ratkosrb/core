@@ -25,7 +25,7 @@
 #include "World.h"
 #include "MoveSplineInit.h"
 #include "MoveSpline.h"
-#include "Anticheat.h"
+#include "Anticheat.hpp"
 
 //----- Point Movement Generator
 template<class T>
@@ -251,7 +251,6 @@ void ChargeMovementGenerator<T>::ComputePath(T& attacker, Unit& victim)
     Vector3 victimPos; // victim position
     Vector3 chargeVect; // vector of the charge
     Vector3 victimSpd; // speed vector of victim
-    float o;
 
     if (Transport* t = attacker.GetTransport())
         path.SetTransport(t);
@@ -266,16 +265,25 @@ void ChargeMovementGenerator<T>::ComputePath(T& attacker, Unit& victim)
     chargeVect = victimPos - attackPos;
     chargeVect = chargeVect.direction(); // unit vector
 
-    // Base path is to current victim position
+                                         // Base path is to current victim position
     path.calculate(victimPos.x, victimPos.y, victimPos.z, false);
 
     // Improved path to victim future estimated position
     if (Player* victimPlayer = victim.ToPlayer())
     {
-        PlayerAnticheatInterface* data = victimPlayer->GetCheatData();
-        if ((data->InterpolateMovement(victimPlayer->m_movementInfo, 1000, victimSpd.x, victimSpd.y, victimSpd.z, o)) &&
-                (data->InterpolateMovement(victimPlayer->m_movementInfo, 0, victimPos.x, victimPos.y, victimPos.z, o)))
+        auto const anticheat = victimPlayer->GetSession()->GetAnticheat();
+
+        Position posSpd, posPos;
+        posSpd.x = victimSpd.x; posSpd.y = victimSpd.y; posSpd.z = victimSpd.z;
+        posPos.x = victimPos.x; posPos.y = victimPos.y; posPos.z = victimPos.z;
+
+        if (!!anticheat &&
+            anticheat->ExtrapolateMovement(victimPlayer->m_movementInfo, 1000, posSpd) &&
+            anticheat->ExtrapolateMovement(victimPlayer->m_movementInfo, 0, posPos))
         {
+            victimSpd = { posSpd.x, posSpd.y, posSpd.z };
+            victimPos = { posPos.x, posPos.y, posPos.z };
+
             // Victim speed per sec.
             victimSpd -= victimPos;
             // We get only the component of the speed in the direction of charge vector
@@ -293,9 +301,10 @@ void ChargeMovementGenerator<T>::ComputePath(T& attacker, Unit& victim)
                     pathTravelTime = (uint32)(1000 * 2 * currDistance / _speed);
 
                 pathTravelTime *= 0.45f; // Attenuation factor (empirical)
-                _interpolateDelay = (WorldTimer::getMSTime() - victimPlayer->m_movementInfo.time) + pathTravelTime;
-                if (_interpolateDelay > 1500) _interpolateDelay = 1500;
-                if (data->InterpolateMovement(victimPlayer->m_movementInfo, _interpolateDelay, victimPos.x, victimPos.y, victimPos.z, o))
+
+                _interpolateDelay = std::min(1500u, (WorldTimer::getMSTime() - victimPlayer->m_movementInfo.time) + pathTravelTime);
+
+                if (anticheat->ExtrapolateMovement(victimPlayer->m_movementInfo, _interpolateDelay, posPos))
                 {
                     victim.UpdateAllowedPositionZ(victimPos.x, victimPos.y, victimPos.z);
                     path.calculate(victimPos.x, victimPos.y, victimPos.z, false);

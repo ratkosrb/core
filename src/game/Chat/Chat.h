@@ -182,10 +182,6 @@ class MANGOS_DLL_SPEC ChatHandler
         bool HandleGodCommand(char *);
         bool HandleGMOptionsCommand(char *);
         bool HandleAnticheatCommand(char *);
-        bool HandleWardenCommand(char *);
-        bool HandleWardenReadCommand(char *);
-        bool HandleClientInfosCommand(char* );
-        bool HandleClientSearchCommand(char* );
         bool HandleReloadAnticheatCommand(char*);
         bool HandleRunTestCommand(char* );
         bool HandleViewLogCommand(char* );
@@ -204,9 +200,6 @@ class MANGOS_DLL_SPEC ChatHandler
         bool HandleDebugItemEnchantCommand(int lootid, unsigned int simCount);
         bool HandleServiceDeleteCharacters(char* args);
 
-        bool HandleSpamerMute(char* args);
-        bool HandleSpamerUnmute(char* args);
-        bool HandleSpamerList(char* args);
         bool HandleWhisperRestrictionCommand(char* args);
         bool HandleUnstuckCommand(char* args);
         bool HandleGoldRemoval(char* args);

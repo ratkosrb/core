@@ -37,7 +37,7 @@
 #include "WorldSession.h"
 #include "Opcodes.h"
 #include "Chat.h"
-#include "Anticheat.h"
+#include "Anticheat.hpp"
 #include "AccountMgr.h"
 #include "Database/DatabaseImpl.h"
 
@@ -195,6 +195,8 @@ void WorldSession::HandleSendMail(WorldPacket & recv_data)
 
     req->receiverPtr = sObjectMgr.GetPlayer(req->receiver);
 
+    _anticheat->Mail(req->subject, req->body, req->receiver);
+
     if (req->receiverPtr)
     {
         MasterPlayer* receiverMasterPlayer = req->receiverPtr->GetSession()->GetMasterPlayer();
@@ -223,10 +225,11 @@ void WorldSession::HandleSendMailCallback(WorldSession::AsyncMailSendRequest* re
     // Check for overflow
     if (reqmoney < req->money)
     {
-        ProcessAnticheatAction("MailCheck", "Attempt to send free mails with money overflow", CHEAT_ACTION_LOG);
+        _anticheat->RecordCheat(CHEAT_ACTION_INFO_LOG, "MailCheck", "Attempt to send free mails with money overflow");
         pl->SendMailResult(0, MAIL_SEND, MAIL_ERR_NOT_ENOUGH_MONEY);
         return;
     }
+
     if (reqmoney && (!loadedPlayer || loadedPlayer->GetMoney() < reqmoney))
     {
         pl->SendMailResult(0, MAIL_SEND, MAIL_ERR_NOT_ENOUGH_MONEY);
@@ -263,7 +266,7 @@ void WorldSession::HandleSendMailCallback(WorldSession::AsyncMailSendRequest* re
         }
 
         // prevent sending item from bank slot
-        if (_player->IsBankPos(item->GetPos())) 
+        if (_player->IsBankPos(item->GetPos()))
         {
             pl->SendMailResult(0, MAIL_SEND, MAIL_ERR_MAIL_ATTACHMENT_INVALID);
             return;
@@ -297,22 +300,31 @@ void WorldSession::HandleSendMailCallback(WorldSession::AsyncMailSendRequest* re
         return;
     }
 
+    if (loadedPlayer->GetSession()->GetAnticheat()->IsSilenced())
+    {
+        pl->SendMailResult(0, MAIL_SEND, MAIL_OK);
+        return;
+    }
+
     AccountPersistentData& data = sAccountMgr.GetAccountPersistentData(GetAccountId());
     if (!data.CanMail(rc_account))
     {
         std::stringstream details;
         std::string from = ChatHandler(this).playerLink(GetMasterPlayer()->GetName());
         std::string to = ChatHandler(this).playerLink(req->receiverName);
+
         details << from << " -> " << to << "\n";
         details << req->subject << "\n";
         details << req->body << "\n";
-        if (req->COD)
-            details << "COD: " << req->COD << " coppers\n";
-        uint32 logId = sWorld.InsertLog(details.str(), SEC_GAMEMASTER);
 
-        std::stringstream oss;
-        oss << "Mail limit reached (\"" << req->body.substr(0, 30) << "...\") [log #" << logId << "]";
-        ProcessAnticheatAction("ChatSpam", oss.str().c_str(), CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
+        if (req->COD)
+            details << "COD: " << req->COD << " copper\n";
+
+        auto const logId = sWorld.InsertLog(details.str(), SEC_GAMEMASTER);
+
+        // Why 'ChatSpam'?
+        _anticheat->RecordCheat(CHEAT_ACTION_INFO_LOG, "ChatSpam", "Mail limit reached (\"%s...\") [log #%u]", req->body.substr(0, 30).c_str(), logId);
+
         pl->SendMailResult(0, MAIL_SEND, MAIL_OK);
         return;
     }
@@ -374,13 +386,14 @@ void WorldSession::HandleSendMailCallback(WorldSession::AsyncMailSendRequest* re
     }
 
     // If theres is an item, there is a one hour delivery delay if sent to another account's character.
-    uint32 deliver_delay = needItemDelay ? sWorld.getConfig(CONFIG_UINT32_MAIL_DELIVERY_DELAY) : 0;
+    const uint32 deliver_delay = needItemDelay ? sWorld.getConfig(CONFIG_UINT32_MAIL_DELIVERY_DELAY) : 0;
 
     if (!item && req->COD)
     {
         req->COD = 0;
-        ProcessAnticheatAction("MailCheck", "Attempt to send COD mail without any item", CHEAT_ACTION_LOG);
+        _anticheat->RecordCheat(CHEAT_ACTION_INFO_LOG, "MailCheck", "Attempt to send COD mail without any item");
     }
+
     // will delete item or place to receiver mail list
     draft
     .SetMoney(req->money)
@@ -420,9 +433,11 @@ void WorldSession::HandleMailMarkAsRead(WorldPacket & recv_data)
     {
         if (m->state == MAIL_STATE_DELETED)
         {
-            ProcessAnticheatAction("MailCheck", "Attempt to mark deleted mail as read", CHEAT_ACTION_LOG);
+            // This occurs normally when using various addons. Just return
+            //_anticheat->RecordCheat(CHEAT_ACTION_INFO_LOG, "MailCheck", "Attempt to mark deleted mail as read");
             return;
         }
+
         pl->DecreaseUnreadMailsCount();
         m->checked = m->checked | MAIL_CHECK_MASK_READ;
         pl->MarkMailsUpdated();

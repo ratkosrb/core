@@ -50,7 +50,7 @@
 #include "VMapFactory.h"
 #include "MovementGenerator.h"
 #include "Transport.h"
-
+#include "Anticheat.hpp"
 #include "ZoneScript.h"
 #include "Nostalrius.h"
 #include "InstanceData.h"
@@ -60,7 +60,6 @@
 #include "MoveSpline.h"
 #include "packet_builder.h"
 #include "Chat.h"
-#include "Anticheat.h"
 #include "CreatureLinkingMgr.h"
 #include "InstanceStatistics.h"
 
@@ -8287,26 +8286,44 @@ void Unit::SetSpeedRate(UnitMoveType mtype, float rate, bool forced)
 
         if (forced)
         {
-            if (Player* me = GetAffectingPlayer())
-            {
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_9_4
-                WorldPacket dataForMe(SetSpeed2Opc_table[mtype][1], 18);
-                dataForMe << GetPackGUID();
-                dataForMe << uint32(0);
+            WorldPacket data(SetSpeed2Opc_table[mtype][1], 18);
+            data << GetPackGUID();
+            if (Player* me = ToPlayer())
+            {
+                auto const counter = me->GetSession()->GetOrderCounter();
+                data << counter;
+                data << GetSpeed(mtype);
+
+                me->GetSession()->SendPacket(&data);
+                me->GetSession()->GetAnticheat()->OrderSent(data.GetOpcode(), counter);
+                me->GetSession()->IncrementOrderCounter();
+            }
 #else
-                WorldPacket dataForMe(SetSpeed2Opc_table[mtype][1], 14);
+            WorldPacket data(SetSpeed2Opc_table[mtype][1], 14);
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
-                dataForMe << GetPackGUID();
+            data << GetPackGUID();
 #else
-                dataForMe << GetGUID();
+            data << GetGUID();
 #endif
+            if (Player* me = ToPlayer())
+            {
+                data << GetSpeed(mtype);
+
+                me->GetSession()->SendPacket(&data);
+                me->GetSession()->GetAnticheat()->OrderSent(data.GetOpcode(), counter);
+                me->GetSession()->IncrementOrderCounter();
+            }
 #endif
-                dataForMe << float(GetSpeed(mtype));
-                me->GetSession()->SendPacket(&dataForMe);
-                me->GetCheatData()->OrderSent(&dataForMe);
-                //if (this == me)
-                    //if (WardenInterface* warden = me->GetSession()->GetWarden())
-                        //warden->SendSpeedChange(mtype, GetSpeed(mtype));
+            else if (Unit* owner = GetCharmerOrOwner())
+            {
+                if (Player* ownerPlayer = owner->ToPlayer())
+                {
+                    data.SetOpcode(SetSpeed2Opc_table[mtype][0]);
+                    data << m_movementInfo;
+                    data << GetSpeed(mtype);
+                    ownerPlayer->GetSession()->SendPacket(&data);
+                }
             }
         }
 
@@ -10625,7 +10642,7 @@ void Unit::KnockBack(float angle, float horizontalSpeed, float verticalSpeed)
         data << float(-verticalSpeed);                      // Z Movement speed (vertical)
         SendMovementMessageToSet(std::move(data), true);
 
-        ToPlayer()->GetCheatData()->KnockBack(horizontalSpeed, verticalSpeed, vcos, vsin);
+        ToPlayer()->GetSession()->GetAnticheat()->KnockBack(horizontalSpeed, verticalSpeed, vcos, vsin);
     }
 }
 
@@ -10990,32 +11007,32 @@ void Unit::GetRandomAttackPoint(const Unit* attacker, float &x, float &y, float 
     angle += (attacker_number ? ((float(M_PI / 2) - float(M_PI) * rand_norm_f()) * attacker_number / sizeFactor) * 0.3f : 0);
 
     float dist = attacker->GetObjectBoundingRadius() + GetObjectBoundingRadius() + rand_norm_f() * (attacker->GetMeleeReach() - attacker->GetObjectBoundingRadius());
-    float initialPosX, initialPosY, initialPosZ, o;
-    GetPosition(initialPosX, initialPosY, initialPosZ);
+    Position initialPos;
+    GetPosition(initialPos.x, initialPos.y, initialPos.z);
 
-    // Moving player: try to interpolate movement a bit
+    // Moving player: try to extrapolate movement a bit
     if (GetTypeId() == TYPEID_PLAYER && IsMoving())
-        if (!ToPlayer()->GetCheatData()->InterpolateMovement(m_movementInfo, 200, initialPosX, initialPosY, initialPosZ, o))
-            GetPosition(initialPosX, initialPosY, initialPosZ);
+        if (!ToPlayer()->GetSession()->GetAnticheat()->ExtrapolateMovement(m_movementInfo, 200, initialPos))
+            GetPosition(initialPos.x, initialPos.y, initialPos.z);
 
-    float attackerTargetDistance = sqrt(pow(initialPosX - attacker->GetPositionX(), 2) +
-                                        pow(initialPosY - attacker->GetPositionY(), 2) +
-                                        pow(initialPosZ - attacker->GetPositionZ(), 2));
+    float attackerTargetDistance = sqrt(pow(initialPos.x - attacker->GetPositionX(), 2) +
+        pow(initialPos.y - attacker->GetPositionY(), 2) +
+        pow(initialPos.z - attacker->GetPositionZ(), 2));
     if (dist > attackerTargetDistance)
     {
         // On ne bouge pas, on est deja a portee.
         attacker->GetPosition(x, y, z);
         return;
     }
-    float normalizedVectZ = (attacker->GetPositionZ() - initialPosZ) / attackerTargetDistance;
+    float normalizedVectZ = (attacker->GetPositionZ() - initialPos.z) / attackerTargetDistance;
     float normalizedVectXY = sqrt(1 - normalizedVectZ * normalizedVectZ);
-    x = initialPosX + dist * cos(angle) * normalizedVectXY;
-    y = initialPosY + dist * sin(angle) * normalizedVectXY;
-    z = initialPosZ + dist * normalizedVectZ;
+    x = initialPos.x + dist * cos(angle) * normalizedVectXY;
+    y = initialPos.y + dist * sin(angle) * normalizedVectXY;
+    z = initialPos.z + dist * normalizedVectZ;
 
     if ((attacker->CanFly() || (attacker->CanSwim() && IsInWater())))
     {
-        GetMap()->GetLosHitPosition(initialPosX, initialPosY, initialPosZ, x, y, z, -0.2f);
+        GetMap()->GetLosHitPosition(initialPos.x, initialPos.y, initialPos.z, x, y, z, -0.2f);
         if (attacker->CanFly())
             return;
         float ground = 0.0f;
@@ -11033,7 +11050,7 @@ void Unit::GetRandomAttackPoint(const Unit* attacker, float &x, float &y, float 
         if (attacker->GetTypeId() != TYPEID_PLAYER)
             nav |= NAV_MAGMA | NAV_SLIME;
         // Try mmaps. On fail, use target position (but should not fail)
-        if (!GetMap()->GetWalkHitPosition(GetTransport(), initialPosX, initialPosY, initialPosZ, x, y, z, nav))
+        if (!GetMap()->GetWalkHitPosition(GetTransport(), initialPos.x, initialPos.y, initialPos.z, x, y, z, nav))
             GetPosition(x, y, z);
     }
 }
@@ -11475,9 +11492,9 @@ void Unit::SetFly(bool enable)
 void Unit::SetFeatherFall(bool enable)
 {
     if (enable)
-        m_movementInfo.AddMovementFlag(MOVEFLAG_SAFE_FALL);
+        m_movementInfo.AddMovementFlag(MOVEFLAG_SLOW_FALL);
     else
-        m_movementInfo.RemoveMovementFlag(MOVEFLAG_SAFE_FALL);
+        m_movementInfo.RemoveMovementFlag(MOVEFLAG_SLOW_FALL);
 }
 
 void Unit::SetHover(bool enable)
@@ -11573,7 +11590,7 @@ void Unit::Debug(uint32 flags, const char* format, ...) const
     va_list ap;
     va_start(ap, format);
     char str[2048];
-    vsnprintf(str, 2048, format, ap);
+    vsnprintf(str, sizeof(str), format, ap);
     va_end(ap);
     ChatHandler(player).SendSysMessage(str);
 }
@@ -11719,24 +11736,42 @@ void Unit::SetMovement(UnitMovementType pType)
 #else
     data << GetGUID();
 #endif
-    data << uint32(WorldTimer::getMSTime()); // Peut etre msTime : WorldTimer::getMSTime() ?
+    auto const counterPos = data.wpos();
+
+    data << static_cast<uint32>(0); // place holder
+
     if (mePlayer)
     {
-        mePlayer->GetCheatData()->OrderSent(&data);
-        mePlayer->GetSession()->SendPacket(&data);
+        auto const session = mePlayer->GetSession();
+        auto const orderCounter = session->GetOrderCounter();
+
+        data.put(counterPos, orderCounter);
+
+        session->GetAnticheat()->OrderSent(data.GetOpcode(), orderCounter);
+        session->SendPacket(&data);
+        session->IncrementOrderCounter();
 
         // We can't send movement info here because it is out-of-date with the client
         // and causes issues with unit speed updates on death/res
         /*if (pType == MOVE_ROOT || pType == MOVE_UNROOT) {
-            WorldPacket rootData(pType == MOVE_ROOT ? MSG_MOVE_ROOT : MSG_MOVE_UNROOT, 31);
-            rootData << GetPackGUID();
-            rootData << m_movementInfo;
-
-            mePlayer->SendMovementMessageToSet(std::move(rootData), false);
+        WorldPacket rootData(pType == MOVE_ROOT ? MSG_MOVE_ROOT : MSG_MOVE_UNROOT, 31);
+        rootData << GetPackGUID();
+        rootData << m_movementInfo;
+        mePlayer->SendMovementMessageToSet(std::move(rootData), false);
         }*/
     }
+
     if (controller)
-        controller->GetSession()->SendPacket(&data);
+    {
+        auto const session = controller->GetSession();
+        auto const orderCounter = session->GetOrderCounter();
+
+        data.put(counterPos, orderCounter);
+
+        session->GetAnticheat()->OrderSent(data.GetOpcode(), orderCounter);
+        session->SendPacket(&data);
+        session->IncrementOrderCounter();
+    }
 }
 
 bool Unit::HasBreakableByDamageAuraType(AuraType type, uint32 excludeAura) const

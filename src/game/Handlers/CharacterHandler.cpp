@@ -41,9 +41,9 @@
 #include "Util.h"
 #include "Language.h"
 #include "Chat.h"
-#include "Anticheat.h"
 #include "MasterPlayer.h"
 #include "PlayerBroadcaster.h"
+#include "Anticheat.hpp"
 
 // config option SkipCinematics supported values
 enum CinematicsSkipMode
@@ -442,6 +442,12 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket & recv_data)
     }
     m_playerLoading = true;
     CharacterDatabase.DelayQueryHolderUnsafe(&chrHandler, &CharacterHandler::HandlePlayerLoginCallback, holder);
+}
+
+void WorldSession::SetPlayer(Player *plr)
+{
+    _player = plr;
+    _anticheat->NewPlayer();
 }
 
 void WorldSession::LoginPlayer(ObjectGuid loginPlayerGuid)

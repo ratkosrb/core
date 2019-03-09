@@ -183,7 +183,7 @@ enum MovementFlags
     MOVEFLAG_SPLINE_ELEVATION   = 0x04000000,               // used for flight paths
 
     MOVEFLAG_WATERWALKING       = 0x10000000,               // prevent unit from falling through water
-    MOVEFLAG_SAFE_FALL          = 0x20000000,               // active rogue safe fall spell (passive)
+    MOVEFLAG_SLOW_FALL          = 0x20000000,
     MOVEFLAG_HOVER              = 0x40000000,
     MOVEFLAG_INTERNAL           = 0x80000000,
 
@@ -269,7 +269,7 @@ class MovementInfo
     //private:
         // common
         uint32  moveFlags;                                  // see enum MovementFlags
-        uint32  time;
+        uint32  time;  // Server time
         uint32  ctime; // Client time
         Position pos;
         // transport

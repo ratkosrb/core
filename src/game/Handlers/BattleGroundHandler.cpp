@@ -34,7 +34,7 @@
 #include "Language.h"
 #include "ScriptMgr.h"
 #include "World.h"
-#include "Anticheat.h"
+#include "Anticheat.hpp"
 
 void WorldSession::HandleBattlemasterHelloOpcode(WorldPacket & recv_data)
 {
@@ -119,7 +119,7 @@ void WorldSession::HandleBattlemasterJoinOpcode(WorldPacket & recv_data)
     }
     if (bgTypeId == BATTLEGROUND_AV && joinAsGroup)
     {
-        ProcessAnticheatAction("SAC", "Attempt to queue AV as group.", CHEAT_ACTION_LOG);
+        _anticheat->RecordCheat(CHEAT_ACTION_INFO_LOG, "SAC", "Attempt to queue AV as group.");
         return;
     }
 

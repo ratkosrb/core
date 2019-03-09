@@ -40,7 +40,7 @@
 #include "MapPersistentStateMgr.h"
 #include "Mail.h"
 #include "Util.h"
-#include "Anticheat.h"
+#include "Anticheat.hpp"
 #include "SQLStorages.h"
 #include "AsyncCommandHandlers.h"
 #include "WaypointMovementGenerator.h"
@@ -978,11 +978,6 @@ bool ChatHandler::HandleModifyASpeedCommand(char* args)
         return false;
     }
 
-    // check online security
-    /*  if (HasLowerSecurity(chr))
-            return false;
-
-        std::string chrNameLink = GetNameLink(chr);*/
     std::string chrNameLink = (chr->GetTypeId() == TYPEID_PLAYER) ? ((Player*)chr)->GetName() : "<creature>";
 
     if (chr->IsTaxiFlying())
@@ -2375,7 +2370,7 @@ bool ChatHandler::HandleSetViewCommand(char* /*args*/)
 
 bool ChatHandler::HandleReloadAnticheatCommand(char*)
 {
-    sAnticheatLib->LoadAnticheatData();
+    sAnticheatLib->Reload();
     SendSysMessage(">> Anticheat data reloaded");
     return true;
 }

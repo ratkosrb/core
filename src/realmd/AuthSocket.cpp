@@ -48,6 +48,8 @@
 #include <ace/OS_NS_fcntl.h>
 #include <ace/OS_NS_sys_stat.h>
 
+#include <sstream>
+
 extern DatabaseType LoginDatabase;
 
 enum AccountFlags
@@ -394,6 +396,15 @@ bool AuthSocket::_HandleLogonChallenge()
 
     _login = (const char*)ch->I;
     _build = ch->build;
+
+    std::stringstream ip;
+
+    ip << (uint32)((ch->ip >> 0) & 0xFF) << "."
+        << (uint32)((ch->ip >> 8) & 0xFF) << "."
+        << (uint32)((ch->ip >> 16) & 0xFF) << "."
+        << (uint32)((ch->ip >> 24) & 0xFF);
+
+    _localIp = ip.str();
 
     memcpy(&_os, ch->os, sizeof(_os));
     memcpy(&_platform, ch->platform, sizeof(_platform));
@@ -875,8 +886,8 @@ bool AuthSocket::_HandleLogonProof()
         // No SQL injection (escaped user name) and IP address as received by socket
         const char* K_hex = K.AsHexStr();
         const char *os = reinterpret_cast<char *>(&_os);    // no injection as there are only two possible values
-        auto result = LoginDatabase.PQuery("UPDATE account SET sessionkey = '%s', last_ip = '%s', last_login = NOW(), locale = '%u', failed_logins = 0, os = '%s' WHERE username = '%s'",
-            K_hex, get_remote_address().c_str(), GetLocaleByName(_localizationName), os, _safelogin.c_str() );
+        auto result = LoginDatabase.PQuery("UPDATE account SET sessionkey = '%s', last_ip = '%s', last_local_ip = '%s', last_login = NOW(), locale = '%u', failed_logins = 0, os = '%s' WHERE username = '%s'",
+            K_hex, get_remote_address().c_str(), _localIp.c_str(), GetLocaleByName(_localizationName), os, _safelogin.c_str());
         delete result;
         OPENSSL_free((void*)K_hex);
 

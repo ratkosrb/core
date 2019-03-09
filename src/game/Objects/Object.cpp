@@ -49,7 +49,6 @@
 #include "ZoneScriptMgr.h"
 #include "InstanceData.h"
 #include "Chat.h"
-#include "Anticheat.h"
 
 #include "packet_builder.h"
 #include "MovementBroadcaster.h"

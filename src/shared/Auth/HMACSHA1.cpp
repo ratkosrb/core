@@ -19,14 +19,14 @@
 #include "Auth/HMACSHA1.h"
 #include "BigNumber.h"
 
-HMACSHA1::HMACSHA1(uint32 len, uint8 *seed)
+HMACSHA1::HMACSHA1(const uint8 *seed, size_t len)
 {
 #if defined(OPENSSL_VERSION_NUMBER) && OPENSSL_VERSION_NUMBER >= 0x10100000L
     m_ctx = HMAC_CTX_new();
-    HMAC_Init_ex(m_ctx, seed, len, EVP_sha1(), nullptr);
+    HMAC_Init_ex(m_ctx, seed, static_cast<int>(len), EVP_sha1(), nullptr);
 #else
     HMAC_CTX_init(&m_ctx);
-    HMAC_Init_ex(&m_ctx, seed, len, EVP_sha1(), NULL);
+    HMAC_Init_ex(&m_ctx, seed, static_cast<int>(len), EVP_sha1(), nullptr);
 #endif
 }
 
@@ -39,7 +39,7 @@ HMACSHA1::~HMACSHA1()
 #endif
 }
 
-void HMACSHA1::UpdateBigNumber(BigNumber *bn)
+void HMACSHA1::UpdateBigNumber(const BigNumber *bn)
 {
     UpdateData(bn->AsByteArray());
 }
@@ -53,7 +53,7 @@ void HMACSHA1::UpdateData(const std::vector<uint8>& data)
 #endif
 }
 
-void HMACSHA1::UpdateData(const uint8 *data, int length)
+void HMACSHA1::UpdateData(const uint8 *data, size_t length)
 {
 #if defined(OPENSSL_VERSION_NUMBER) && OPENSSL_VERSION_NUMBER >= 0x10100000L
     HMAC_Update(m_ctx, data, length);
@@ -73,12 +73,12 @@ void HMACSHA1::Finalize()
 #if defined(OPENSSL_VERSION_NUMBER) && OPENSSL_VERSION_NUMBER >= 0x10100000L
     HMAC_Final(m_ctx, (uint8*)m_digest, &length);
 #else
-    HMAC_Final(&m_ctx, (uint8*)m_digest, &length);
+    HMAC_Final(&m_ctx, m_digest, &length);
 #endif
     //MANGOS_ASSERT(length == SHA_DIGEST_LENGTH);
 }
 
-uint8 *HMACSHA1::ComputeHash(BigNumber *bn)
+const uint8 *HMACSHA1::ComputeHash(const BigNumber *bn)
 {
     auto byteArray = bn->AsByteArray();
 #if defined(OPENSSL_VERSION_NUMBER) && OPENSSL_VERSION_NUMBER >= 0x10100000L
@@ -87,5 +87,5 @@ uint8 *HMACSHA1::ComputeHash(BigNumber *bn)
     HMAC_Update(&m_ctx, byteArray.data(), byteArray.size());
 #endif
     Finalize();
-    return (uint8*)m_digest;
+    return m_digest;
 }

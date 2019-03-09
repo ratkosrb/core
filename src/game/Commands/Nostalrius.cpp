@@ -36,7 +36,7 @@
 
 #include "Formulas.h"
 #include "Nostalrius.h"
-#include "Anticheat.h"
+#include "Anticheat.hpp"
 #include "BattleGround.h"
 #include "BattleGroundMgr.h"
 #include "SpellModMgr.h"
@@ -2191,88 +2191,7 @@ bool ChatHandler::HandleDebugMoveSplineCommand(char* args)
 
 bool ChatHandler::HandleAnticheatCommand(char* args)
 {
-    Player* player = NULL;
-    if (!ExtractPlayerTarget(&args, &player) && m_session)
-        player = m_session->GetPlayer();
-    if (!player)
-        return false;
-
-    PSendSysMessage("Cheat report on player '%s' (GUID %u)", player->GetName(), player->GetGUIDLow());
-    if (player->GetCheatData())
-        player->GetCheatData()->HandleCommand(this);
-
-    return true;
-}
-
-bool ChatHandler::HandleWardenCommand(char* args)
-{
-    /*Player* player = NULL;
-    if (!ExtractPlayerTarget(&args, &player) && m_session)
-        player = m_session->GetPlayer();
-    if (!player)
-        return false;
-
-    WardenInterface* warden = player->GetSession()->GetWarden();
-    if (!warden)
-    {
-        PSendSysMessage("No Warden loaded for account %s", player->GetSession()->GetUsername().c_str());
-        return true;
-    }
-    warden->HandleInfoCommand(this);*/
-    return true;
-}
-
-/*class WardenCommandReadQuery: public WardenMemoryQuery
-{
-public:
-    WardenCommandReadQuery(uint32 addr, uint32 length, uint32 accountId) : WardenMemoryQuery(addr, length), _accountId(accountId)
-    {
-    }
-    void DataRead(uint8 const* data, WardenInterface* warden)
-    {
-        WorldSession* sess = sWorld.FindSession(_accountId);
-        if (!sess)
-            return;
-        ChatHandler handler(sess);
-        handler.PSendSysMessage("Warden read at 0x%x", GetAddress());
-        if (!data)
-        {
-            handler.SendSysMessage("Read failed!");
-            return;
-        }
-        if (GetLength() == 4)
-        {
-            handler.PSendSysMessage("Read (uint32): 0x%8x", *((uint32*)data));
-            return;
-        }
-        std::stringstream readUint8;
-        for (uint32 i = 0; i < GetLength(); ++i)
-            readUint8 << uint32(data[i]) << " ";
-        handler.PSendSysMessage("Read (uint8*): %s", readUint8.str().c_str());
-        handler.PSendSysMessage("Read (string): %s", std::string((const char*)data, 0, GetLength()).c_str());
-    }
-protected:
-    uint32 _accountId;
-};*/
-
-bool ChatHandler::HandleWardenReadCommand(char* args)
-{
-    /*Player* player = GetSelectedPlayer();
-    if (!player)
-        return false;
-
-    uint32 addr, len = 4;
-    if (!ExtractUInt32Base(&args, addr, 0x10))
-        return false;
-    ExtractUInt32(&args, len);
-    WardenInterface* warden = player->GetSession()->GetWarden();
-    if (!warden)
-    {
-        PSendSysMessage("No Warden loaded for account %s", player->GetSession()->GetUsername().c_str());
-        return true;
-    }
-    warden->AddMemoryQuery(new WardenCommandReadQuery(addr, len, GetAccountId()));*/
-    return true;
+    return sAnticheatLib->ChatCommand(this, args);
 }
 
 bool ChatHandler::HandleListAddonsCommand(char* args)
@@ -2285,50 +2204,6 @@ bool ChatHandler::HandleListAddonsCommand(char* args)
     PSendSysMessage("%u addons on target.", addons.size());
     for (std::set<std::string>::const_iterator it = addons.begin(); it != addons.end(); ++it)
         PSendSysMessage(">> %s", it->c_str());
-    return true;
-}
-
-bool ChatHandler::HandleClientInfosCommand(char* args)
-{
-    Player* player = NULL;
-    if (!ExtractPlayerTarget(&args, &player) && m_session)
-        player = m_session->GetPlayer();
-    if (!player)
-        return false;
-
-    PSendSysMessage("Account %s has %u client identifiers.", player->GetSession()->GetUsername().c_str(), player->GetSession()->GetClientIdentifiers().size());
-    for (ClientIdentifiersMap::const_iterator it = player->GetSession()->GetClientIdentifiers().begin(); it != player->GetSession()->GetClientIdentifiers().end(); ++it)
-        PSendSysMessage("%u: %s", it->first, it->second.c_str());
-    player->GetSession()->ComputeClientHash();
-    PSendSysMessage("Hash is %s", playerLink(player->GetSession()->GetClientHash()).c_str());
-    return true;
-}
-
-bool ChatHandler::HandleClientSearchCommand(char* args)
-{
-    ASSERT(args);
-    std::string searchedHash = args;
-    uint32 i = 0;
-    World::SessionMap const& sessMap = sWorld.GetAllSessions();
-    for (World::SessionMap::const_iterator itr = sessMap.begin(); itr != sessMap.end(); ++itr)
-    {
-        if (!itr->second)
-            continue;
-
-        std::string currentHash = itr->second->GetClientHash();
-        if (currentHash.find(searchedHash) != std::string::npos)
-        {
-            PSendSysMessage("%s on account %s, %s",
-                            playerLink(itr->second->GetPlayerName()).c_str(),
-                            playerLink(itr->second->GetUsername()).c_str(),
-                            playerLink(itr->second->GetRemoteAddress()).c_str());
-            ++i;
-        }
-    }
-    if (i == 0)
-        PSendSysMessage("Not result for hash %s", playerLink(searchedHash).c_str());
-    else
-        PSendSysMessage("%u result(s) for %s", i, playerLink(searchedHash).c_str());
     return true;
 }
 

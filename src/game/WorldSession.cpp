@@ -42,7 +42,7 @@
 #include "SocialMgr.h"
 
 #include "PlayerBotMgr.h"
-#include "Anticheat.h"
+#include "Anticheat.hpp"
 #include "Language.h"
 #include "Auth/Sha1.h"
 #include "ChannelMgr.h"
@@ -52,6 +52,8 @@
 #include "NodeSession.h"
 #include "NodesOpcodes.h"
 #include "MasterPlayer.h"
+
+#include <string>
 
 // select opcodes appropriate for processing in Map::Update context for current session state
 static bool MapSessionFilterHelper(WorldSession* session, OpcodeHandler const& opHandle)
@@ -74,17 +76,17 @@ bool MapSessionFilter::Process(WorldPacket * packet)
 }
 
 /// WorldSession constructor
-WorldSession::WorldSession(uint32 id, WorldSocket *sock, AccountTypes sec, time_t mute_time, LocaleConstant locale) :
-    m_muteTime(mute_time),
+WorldSession::WorldSession(uint32 id, WorldSocket *sock, AccountTypes sec, time_t mute_time, LocaleConstant locale, const std::string &local_ip) :
+    m_muteTime(mute_time), m_localIp(local_ip),
     _pcktReading(nullptr), _pcktWriting(nullptr), _pcktRecvDump(nullptr), _pcktDumpFlags(0), _pcktReadSpeedRate(1.0f),
     _pcktReadTimer(0), _pcktReadLastUpdate(0), m_connected(true), m_disconnectTimer(0), m_who_recvd(false),
     m_ah_list_recvd(false), _scheduleBanLevel(0),
     _accountFlags(0), m_idleTime(WorldTimer::getMSTime()), _player(nullptr), m_Socket(sock), _security(sec), _accountId(id), _logoutTime(0), m_inQueue(false),
     m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false), m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)),
-    m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)), m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED), m_warden(nullptr),
-    m_bot(nullptr), m_lastReceivedPacketTime(0), _clientOS(CLIENT_OS_UNKNOWN), _gameBuild(0),
-    _charactersCount(10), _characterMaxLevel(0), _clientHashComputeStep(HASH_NOT_COMPUTED), m_masterSession(nullptr), m_nodeSession(nullptr),
-    m_masterPlayer(nullptr), m_lastPubChannelMsgTime(NULL)
+    m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)), m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED),
+    m_bot(nullptr), m_lastReceivedPacketTime(0), _clientOS(CLIENT_OS_UNKNOWN), _gameBuild(0), _orderCounter(0),
+    _charactersCount(10), _characterMaxLevel(0), m_masterSession(nullptr), m_nodeSession(nullptr), m_masterPlayer(nullptr), m_lastPubChannelMsgTime(NULL),
+    _anticheat(nullptr)
 {
     if (sock)
     {
@@ -118,9 +120,6 @@ WorldSession::~WorldSession()
     SetDumpPacket(nullptr);
     SetReadPacket(nullptr);
     SetDumpRecvPackets(nullptr);
-
-    if (m_warden)
-        delete m_warden;
 }
 
 void WorldSession::SizeError(WorldPacket const& packet, uint32 size) const
@@ -324,8 +323,11 @@ bool WorldSession::Update(PacketFilter& updater)
     if (m_masterSession)
         return true;
 
-    if (m_Socket && !m_Socket->IsClosed() && m_warden)
-        m_warden->Update();
+    // Only update in a world update
+    if (updater.PacketProcessType() == PACKET_PROCESS_WORLD && m_Socket && !m_Socket->IsClosed() && _anticheat)
+    {
+        _anticheat->Update(updater.GetDiff());
+    }
 
     //check if we are safe to proceed with logout
     //logout procedure should happen only in World::UpdateSessions() method!!!
@@ -337,11 +339,6 @@ bool WorldSession::Update(PacketFilter& updater)
             return false;
         }
 
-        if (_clientHashComputeStep == HASH_COMPUTED && GetPlayer())
-        {
-            _clientHashComputeStep = HASH_NOTIFIED;
-            sAnticheatLib->OnClientHashComputed(this);
-        }
         ///- Cleanup socket pointer if need
         if (m_Socket && m_Socket->IsClosed())
         {
@@ -365,7 +362,6 @@ bool WorldSession::Update(PacketFilter& updater)
     }
     else // Async map based update
     {
-        sAnticheatLib->MapAccountUpdate(this);
         if (GetMasterPlayer() && GetPlayer())
         {
             GetMasterPlayer()->LoadPlayer(GetPlayer());
@@ -581,32 +577,61 @@ void WorldSession::ProcessPackets(PacketFilter& updater)
             {
                 DETAIL_LOG("Disconnecting session [account id %u / address %s] for badly formatted packet.",
                            GetAccountId(), GetRemoteAddress().c_str());
-                ProcessAnticheatAction("Anticrash", "ByteBufferException", CHEAT_ACTION_KICK);
+                _anticheat->RecordCheat(CHEAT_ACTION_INFO_LOG, "Anticrash", "ByteBufferException");
+                KickPlayer();
             }
         }
         catch (std::runtime_error &e)
         {
             sLog.outInfo("CATCH Exception 'ASSERT' for account %u / IP %s", GetAccountId(), GetRemoteAddress().c_str());
             sLog.outInfo(e.what());
-            ProcessAnticheatAction("Anticrash", "ASSERT failed", CHEAT_ACTION_KICK);
+            _anticheat->RecordCheat(CHEAT_ACTION_KICK, "Anticrash", "ASSERT failed");
+            KickPlayer();
         }
         catch (...)
         {
             sLog.outInfo("CATCH Unknown exception. Account %u / IP %s", GetAccountId(), GetRemoteAddress().c_str());
-            ProcessAnticheatAction("Anticrash", "Exception raised", CHEAT_ACTION_KICK);
+            _anticheat->RecordCheat(CHEAT_ACTION_KICK, "Anticrash", "Exception raised");
+            KickPlayer();
         }
 
         delete packet;
     }
 }
 
-
 void WorldSession::ClearIncomingPacketsByType(PacketProcessing type)
 {
     ASSERT(type < PACKET_PROCESS_MAX_TYPE);
     WorldPacket* data = nullptr;
+
+    // Retain some packets in the queue that should not be discarded
+    std::list<WorldPacket*> retain;
+
     while (_recvQueue[type].next(data))
-        delete data;
+    {
+        // TODO: Extend this to be more generic and allow exclusion of many
+        // packet types based on pre-defined filters
+        if (type == PACKET_PROCESS_MOVEMENT)
+        {
+            switch (data->GetOpcode())
+            {
+            case CMSG_SET_ACTIVE_MOVER:
+                retain.push_back(data);
+                break;
+            default:
+                delete data;
+            }
+        }
+    }
+
+    for (auto iter = retain.begin(); iter != retain.end(); ++iter)
+        _recvQueue[type].add(*iter);
+}
+
+void WorldSession::SetBot(PlayerBotEntry* b)
+{
+    m_bot = b;
+    _anticheat.reset(new NullSessionAnticheat(this));
 }
 
 void WorldSession::SetDisconnectedSession()
@@ -1113,80 +1138,6 @@ void WorldSession::SetDumpRecvPackets(const char* file)
         fprintf(_pcktRecvDump, "#Begin packet dump on %s [account %s]\n", GetPlayerName(), GetUsername().c_str());
 }
 
-void WorldSession::InitWarden(BigNumber* K)
-{
-    m_warden = sAnticheatLib->CreateWardenFor(this, K);
-}
-
-void WorldSession::ProcessAnticheatAction(const char* detector, const char* reason, uint32 cheatAction, uint32 banSeconds)
-{
-    const char* action = "";
-    if (cheatAction & CHEAT_ACTION_MUTE_PUB_CHANS)
-    {
-        action = "Muted from pub chans.";
-        if (GetSecurity() == SEC_PLAYER)
-        {
-            LoginDatabase.PExecute("UPDATE account SET flags = flags | 0x%x WHERE id = %u", GetAccountId(), ACCOUNT_FLAG_MUTED_FROM_PUBLIC_CHANNELS);
-            SetAccountFlags(GetAccountFlags() | ACCOUNT_FLAG_MUTED_FROM_PUBLIC_CHANNELS);
-        }
-    }
-    if (cheatAction & CHEAT_ACTION_BAN_IP_ACCOUNT)
-    {
-        action = "Account+IP banned.";
-        if (GetSecurity() == SEC_PLAYER)
-        {
-            std::string _reason = std::string("CHEAT") + ": " + reason;
-            sWorld.BanAccount(BAN_ACCOUNT, GetUsername(), banSeconds, _reason, detector);
-            std::stringstream banIpReason;
-            banIpReason << "Cf account " << GetUsername();
-            sWorld.BanAccount(BAN_IP, GetRemoteAddress(), banSeconds, banIpReason.str().c_str(), detector);
-        }
-    }
-    else if (cheatAction & CHEAT_ACTION_BAN_ACCOUNT)
-    {
-        action = "Banned.";
-        std::string _reason = std::string("CHEAT") + ": " + reason;
-        if (GetSecurity() == SEC_PLAYER)
-            sWorld.BanAccount(BAN_ACCOUNT, GetUsername(), banSeconds, _reason, detector);
-    }
-    else if (cheatAction & CHEAT_ACTION_KICK)
-    {
-        action = "Kicked.";
-        if (GetSecurity() == SEC_PLAYER)
-            KickPlayer();
-    }
-    else if (cheatAction & CHEAT_ACTION_REPORT_GMS)
-        action = "Announced to GMs.";
-    else if (!(cheatAction & CHEAT_ACTION_LOG))
-        return;
-
-    if (cheatAction & CHEAT_ACTION_REPORT_GMS)
-    {
-        std::stringstream oss;
-        ObjectGuid pguid;
-        if (Player* p = GetPlayer())
-            pguid = p->GetObjectGuid();
-        else
-            oss << "[Account " << GetUsername() << "]";
-        oss << reason;
-        if (cheatAction >= CHEAT_ACTION_KICK)
-            oss << " " << action;
-
-        if (GetSecurity() == SEC_PLAYER)
-            ChannelMgr::AnnounceBothFactionsChannel(detector, pguid, oss.str().c_str());
-    }
-    std::string playerDesc;
-    if (_player)
-        playerDesc = _player->GetShortDescription();
-    else
-    {
-        std::stringstream oss;
-        oss << "<None> [" << GetUsername() << ":" << GetAccountId() << "@" << GetRemoteAddress().c_str() << "]";
-        playerDesc = oss.str();
-    }
-    sLog.out(LOG_ANTICHEAT, "%s %s: %s %s", playerDesc.c_str(), detector, reason, action);
-}
-
 bool WorldSession::AllowPacket(uint16 opcode)
 {
     // Do not count packets that are often spamed by the client when loading a zone for example.
@@ -1244,49 +1195,16 @@ bool WorldSession::AllowPacket(uint16 opcode)
     if (reason.str() != "")
     {
         reason << " (" << LookupOpcodeName(opcode) << ")";
-        ProcessAnticheatAction("AntiFlood", reason.str().c_str(), sWorld.getConfig(CONFIG_UINT32_ANTIFLOOD_SANCTION));
+        _anticheat->RecordCheat(CHEAT_ACTION_INFO_LOG | sWorld.getConfig(CONFIG_UINT32_ANTIFLOOD_SANCTION), "AntiFlood", reason.str().c_str());
         return false;
     }
 
     return true;
 }
 
-/**
- * Add the i-th client unique identifier.
- */
-void WorldSession::AddClientIdentifier(uint32 i, std::string str)
+void WorldSession::InitializeAnticheat(const BigNumber &K)
 {
-    _clientIdentifiers[i] = str;
-    sLog.out(LOG_CLIENT_IDS, "%s:%s Player:%s #%u \"%s\"", GetUsername().c_str(), GetRemoteAddress().c_str(), GetPlayerName(), i, str.c_str());
-    bool all_identifiers_added = false; // To be implemented
-    if (all_identifiers_added)
-    {
-        ComputeClientHash();
-        _clientHashComputeStep = HASH_COMPUTED;
-        sLog.out(LOG_CLIENT_IDS, "%s:%s Player:%s hash computed: %s", GetUsername().c_str(), GetRemoteAddress().c_str(), GetPlayerName(), _clientHash.c_str());
-    }
-}
-
-/**
- * Given a number of client identifiers, computes a unique hash.
- */
-void WorldSession::ComputeClientHash()
-{
-    std::stringstream oss;
-    for (ClientIdentifiersMap::const_iterator it = _clientIdentifiers.begin(); it != _clientIdentifiers.end(); ++it)
-    {
-        Sha1Hash sha;
-        sha.UpdateData(it->second);
-        sha.Finalize();
-        uint8* digest = sha.GetDigest();
-        char c = it->first + '0';
-        if (c > '9')
-            c = c - '9' + 'A' - 1;
-        oss << c;
-        for (int i = 0; i < 3; ++i)
-            oss << char(digest[i] % (0x24 - 0x7A + 1) + 0x20);
-    }
-    _clientHash = oss.str();
+    _anticheat = std::move(sAnticheatLib->NewSession(this, K));
 }
 
 bool WorldSession::ShouldBeBanned(uint32 currentLevel) const

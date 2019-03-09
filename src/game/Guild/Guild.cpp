@@ -32,7 +32,7 @@
 #include "Util.h"
 #include "Language.h"
 #include "World.h"
-#include "Anticheat.h"
+#include "Anticheat.hpp"
 
 //// MemberSlot ////////////////////////////////////////////
 void MemberSlot::SetMemberStats(Player* player)
@@ -129,14 +129,11 @@ bool Guild::Create(Player* leader, std::string gname)
     if (!lSession)
         return false;
 
-    // Check guild name (use whisper type - 6)
-    if (AntispamInterface *a = sAnticheatLib->GetAntispam())
+    // Check guild name
+    if (sAnticheatLib->ValidateGuildName(gname))
     {
-        if (a->filterMessage(gname))
-        {
-            sWorld.LogChat(lSession, "Guild", "Attempt to create guild with spam name" + gname);
-            return false;
-        }
+        sWorld.LogChat(lSession, "Guild", "Attempt to create guild with spam name  " + gname);
+        return false;
     }
 
     m_LeaderGuid = leader->GetObjectGuid();

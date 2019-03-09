@@ -5,6 +5,7 @@
 #include "Channel.h"
 #include "ChannelMgr.h"
 #include "Player.h"
+#include "Anticheat.hpp"
 
 // ######################## CHAT SYSTEM    ###########################
 void MasterPlayer::UpdateSpeakTime()
@@ -44,8 +45,6 @@ void MasterPlayer::Whisper(const std::string& text, uint32 language, MasterPlaye
         language = LANG_UNIVERSAL;                          // whispers should always be readable
 
     WorldPacket data;
-    ChatHandler::BuildChatPacket(data, CHAT_MSG_WHISPER, text.c_str(), Language(language), GetChatTag(), GetObjectGuid(), GetName());
-    receiver->GetSession()->SendPacket(&data);
 
     // not send confirmation for addon messages
     if (language != LANG_ADDON)
@@ -54,6 +53,11 @@ void MasterPlayer::Whisper(const std::string& text, uint32 language, MasterPlaye
         ChatHandler::BuildChatPacket(data, CHAT_MSG_WHISPER_INFORM, text.c_str(), Language(language), receiver->GetChatTag(), receiver->GetObjectGuid());
         GetSession()->SendPacket(&data);
     }
+
+    ChatHandler::BuildChatPacket(data, CHAT_MSG_WHISPER, text.c_str(), Language(language), GetChatTag(), GetObjectGuid(), GetName());
+
+    if (this == receiver || !m_session->GetAnticheat()->IsSilenced())
+        receiver->GetSession()->SendPacket(&data);
 
     ALL_SESSION_SCRIPTS(receiver->GetSession(), OnWhispered(GetObjectGuid()));
 

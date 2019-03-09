@@ -30,16 +30,17 @@ class BigNumber;
 class HMACSHA1
 {
     public:
-        HMACSHA1(uint32 len, uint8 *seed);
+        HMACSHA1(const uint8 *seed, size_t len);
         ~HMACSHA1();
-        void UpdateBigNumber(BigNumber *bn);
+
+        void UpdateBigNumber(const BigNumber *bn);
         void UpdateData(const std::vector<uint8>& data);
-        void UpdateData(const uint8 *data, int length);
+        void UpdateData(const uint8 *data, size_t length);
         void UpdateData(const std::string &str);
         void Finalize();
-        uint8 *ComputeHash(BigNumber *bn);
-        uint8 *GetDigest() { return (uint8*)m_digest; }
-        int GetLength() { return SHA_DIGEST_LENGTH; }
+        const uint8 *ComputeHash(const BigNumber *bn);
+        const uint8 *GetDigest() const { return (uint8*)m_digest; }
+        int GetLength() const { return SHA_DIGEST_LENGTH; }
     private:
 
 #if defined(OPENSSL_VERSION_NUMBER) && OPENSSL_VERSION_NUMBER >= 0x10100000L

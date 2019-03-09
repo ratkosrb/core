@@ -36,6 +36,8 @@
 #include "GuildMgr.h"
 #include "ObjectGuid.h"
 #include "AsyncCommandHandlers.h"
+#include "WorldSession.h"
+#include "Anticheat.hpp"
 
 void PInfoHandler::HandlePInfoCommand(WorldSession *session, Player *target, ObjectGuid& target_guid, std::string& name)
 {
@@ -222,6 +224,15 @@ void PInfoHandler::HandleResponse(WorldSession* session, PInfoData *data)
     cHandler.PSendSysMessage(LANG_PINFO_LEVEL, timeStr.c_str(), data->level, gold, silv, copp, gold_in, silv_in, silv_out, gold_out, silv_out, copp_out);
     if (Guild* guild = sGuildMgr.GetPlayerGuild(data->target_guid))
         cHandler.PSendSysMessage("Guild: %s", cHandler.playerLink(guild->GetName()).c_str());
+
+    if (data->online)
+    {
+        if (WorldSession* targetSession = sWorld.FindSession(data->accId))
+        {
+            if (targetSession->GetAnticheat())
+                targetSession->GetAnticheat()->SendPlayerInfo(&cHandler);
+        }
+    }
 
     delete data;
 }

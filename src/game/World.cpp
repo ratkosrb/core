@@ -75,10 +75,9 @@
 #include "MoveMap.h"
 #include "SpellModMgr.h"
 #include "NodesMgr.h"
-#include "Anticheat.h"
+#include "Anticheat.hpp"
 #include "MovementBroadcaster.h"
 #include "HonorMgr.h"
-#include "Anticheat/Anticheat.h"
 #include "AuraRemovalMgr.h"
 #include "InstanceStatistics.h"
 #include "GuardMgr.h"
@@ -250,7 +249,6 @@ void World::AddSession_(WorldSession* s)
         }
     }
 
-    sAnticheatLib->SessionAdded(s);
     m_sessions[s->GetAccountId()] = s;
 
     uint32 Sessions = GetActiveAndQueuedSessionCount();
@@ -884,7 +882,6 @@ void World::LoadConfigSettings(bool reload)
     setConfigMinMax(CONFIG_UINT32_MAX_POINTS_PER_MVT_PACKET, "Movement.MaxPointsPerPacket", 80, 5, 10000);
     setConfigMinMax(CONFIG_UINT32_RELOCATION_VMAP_CHECK_TIMER, "Movement.RelocationVmapsCheckDelay", 0, 0, 2000);
 
-    sAnticheatLib->LoadConfig();
     sPlayerBotMgr.LoadConfig();
 
     setConfigMinMax(CONFIG_UINT32_SPELLS_CCDELAY, "Spells.CCDelay", 200, 0, 20000);
@@ -1592,7 +1589,7 @@ void World::SetInitialWorldSettings()
     sObjectMgr.LoadSpellDisabledEntrys();
 
     sLog.outString("Loading anticheat library");
-    sAnticheatLib->LoadAnticheatData();
+    sAnticheatLib->Initialize();
 
     if (!isMapServer)
     {
@@ -1996,10 +1993,40 @@ void World::SendGMText(int32 string_id, ...)
     MaNGOS::LocalizedPacketListDo<MaNGOS::WorldWorldTextBuilder> wt_do(wt_builder);
     for (SessionMap::iterator itr = m_sessions.begin(); itr != m_sessions.end(); ++itr)
     {
-        if (!itr->second || !itr->second->GetPlayer() || !itr->second->GetPlayer()->IsInWorld() || itr->second->GetSecurity() == SEC_PLAYER)
+        if (!itr->second)
             continue;
 
-        wt_do(itr->second->GetPlayer());
+        if (Player* player = itr->second->GetPlayer())
+        {
+            if (!player->IsInWorld() || itr->second->GetSecurity() == SEC_PLAYER)
+                continue;
+
+            wt_do(player);
+        }
+    }
+
+    va_end(ap);
+}
+
+void World::SendGMTextFlags(uint8 flags, int32 entry, ...)
+{
+    va_list ap;
+    va_start(ap, entry);
+
+    MaNGOS::WorldWorldTextBuilder wt_builder(entry, &ap);
+    MaNGOS::LocalizedPacketListDo<MaNGOS::WorldWorldTextBuilder> wt_do(wt_builder);
+    for (SessionMap::iterator itr = m_sessions.begin(); itr != m_sessions.end(); ++itr)
+    {
+        if (!itr->second)
+            continue;
+
+        if (Player* player = itr->second->GetPlayer())
+        {
+            if (!player->IsInWorld() || itr->second->GetSecurity() == SEC_PLAYER || (!(itr->second->GetAccountFlags() & flags)))
+                continue;
+
+            wt_do(player);
+        }
     }
 
     va_end(ap);
@@ -2435,7 +2462,7 @@ void World::UpdateSessions(uint32 diff)
         ++next;
         ///- and remove not active sessions from the list
         WorldSession * pSession = itr->second;
-        WorldSessionFilter updater(pSession);
+        WorldSessionFilter updater(pSession, diff);
 
         if (!pSession->Update(updater))
         {
@@ -2740,14 +2767,12 @@ void World::LogCharacter(Player* character, const char* action)
         return;
     ASSERT(character);
     static SqlStatementID insLogChar;
-    SqlStatement logStmt = LogsDatabase.CreateStatement(insLogChar, "INSERT INTO logs_characters SET type=?, guid=?, account=?, name=?, ip=?, clientHash=?");
+    SqlStatement logStmt = LogsDatabase.CreateStatement(insLogChar, "INSERT INTO logs_characters SET type=?, guid=?, account=?, name=?, ip=?");
     logStmt.addString(action);
     logStmt.addUInt32(character->GetGUIDLow());
     logStmt.addUInt32(character->GetSession()->GetAccountId());
     logStmt.addString(character->GetName());
     logStmt.addString(character->GetSession()->GetRemoteAddress());
-    character->GetSession()->ComputeClientHash();
-    logStmt.addString(character->GetSession()->GetClientHash());
     logStmt.Execute();
 }
 
@@ -2757,14 +2782,12 @@ void World::LogCharacter(WorldSession* sess, uint32 lowGuid, std::string const& 
         return;
     ASSERT(sess);
     static SqlStatementID insLogChar;
-    SqlStatement logStmt = LogsDatabase.CreateStatement(insLogChar, "INSERT INTO logs_characters SET type=?, guid=?, account=?, name=?, ip=?, clientHash=?");
+    SqlStatement logStmt = LogsDatabase.CreateStatement(insLogChar, "INSERT INTO logs_characters SET type=?, guid=?, account=?, name=?, ip=?");
     logStmt.addString(action);
     logStmt.addUInt32(lowGuid);
     logStmt.addUInt32(sess->GetAccountId());
     logStmt.addString(charName);
     logStmt.addString(sess->GetRemoteAddress());
-    sess->ComputeClientHash();
-    logStmt.addString(sess->GetClientHash());
     logStmt.Execute();
 }
 
@@ -2832,12 +2855,18 @@ bool World::CanSkipQueue(WorldSession const* sess)
 {
     if (sess->GetSecurity() > SEC_PLAYER)
         return true;
+
+    if (sess->GetAccountFlags() & ACCOUNT_FLAG_QUEUE_PRIORITY)
+        return true;
+
     uint32 grace_period = getConfig(CONFIG_UINT32_LOGIN_QUEUE_GRACE_PERIOD_SECS);
     if (!grace_period)
         return false;
+
     auto prev_logout = m_accountsLastLogout.find(sess->GetAccountId());
     if (prev_logout == m_accountsLastLogout.end())
         return false;
+
     time_t now = time(nullptr);
     return (now - prev_logout->second) < grace_period;
 }
