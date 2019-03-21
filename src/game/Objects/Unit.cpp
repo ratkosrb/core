@@ -175,6 +175,9 @@ Unit::Unit()
     for (int i = 0; i < MAX_STATS; ++i)
         m_createStats[i] = 0.0f;
 
+    for (auto& m_createResistance : m_createResistances)
+        m_createResistance = 0;
+
     m_attacking = nullptr;
     m_modMeleeHitChance = 0.0f;
     m_modRangedHitChance = 0.0f;
@@ -6362,6 +6365,34 @@ void Unit::UnsummonAllTotems()
             totem->UnSummon();
 }
 
+bool Unit::UnsummonOldPetBeforeNewSummon(uint32 newPetEntry)
+{
+    Pet *OldSummon = GetPet();
+
+    // if pet requested type already exist
+    if (OldSummon)
+    {
+        if (newPetEntry == 0 || OldSummon->GetEntry() == newPetEntry)
+        {
+            if (OldSummon->isDead())
+            {
+                if (newPetEntry) // warlock pet
+                    OldSummon->Unsummon(PET_SAVE_NOT_IN_SLOT);
+                else
+                    return false; // pet in corpse state can't be unsummoned
+            }
+            else
+                OldSummon->GetMap()->Remove((Creature*)OldSummon, false);
+        }
+        else if (IsPlayer())
+            OldSummon->Unsummon(OldSummon->getPetType() == HUNTER_PET ? PET_SAVE_AS_DELETED : PET_SAVE_NOT_IN_SLOT, this);
+        else
+            return false;
+    }
+
+    return true;
+}
+
 int32 Unit::DealHeal(Unit *pVictim, uint32 addhealth, SpellEntry const *spellProto, bool critical)
 {
     // Script Event HealedBy
@@ -8935,6 +8966,36 @@ float Unit::GetTotalStatValue(Stats stat) const
     return value;
 }
 
+int32 Unit::GetTotalResistanceValue(SpellSchools school) const
+{
+    UnitMods unitMod = UnitMods(UNIT_MOD_RESISTANCE_START + school);
+
+    if (m_auraModifiersGroup[unitMod][TOTAL_PCT] <= 0.0f)
+        return 0.0f;
+
+    // value = ((base_value * base_pct) + total_value) * total_pct
+    float value = GetCreateResistance(school);
+
+    const bool vulnerability = (value < 0);
+
+    value += m_auraModifiersGroup[unitMod][BASE_VALUE];
+    value *= m_auraModifiersGroup[unitMod][BASE_PCT];
+    value += m_auraModifiersGroup[unitMod][TOTAL_VALUE];
+    value *= m_auraModifiersGroup[unitMod][TOTAL_PCT];
+
+    // World of Warcraft Client Patch 1.9.0 (2006-01-03)
+    // - Curse of Shadow and Curse of the Elements - These curses can no 
+    //   longer cause resistance to become negative.
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
+    // Auras can't cause resistances to dip below 0 since early vanilla
+    // PS: Actually, they can, but only visually advertised in the fields, calculations ignore it, we limit both
+    if (value < 0 && !vulnerability)
+        value = 0;
+#endif
+
+    return int32(value);
+}
+
 float Unit::GetTotalAuraModValue(UnitMods unitMod) const
 {
     if (unitMod >= UNIT_MOD_END)
@@ -8950,19 +9011,6 @@ float Unit::GetTotalAuraModValue(UnitMods unitMod) const
     value *= m_auraModifiersGroup[unitMod][BASE_PCT];
     value += m_auraModifiersGroup[unitMod][TOTAL_VALUE];
     value *= m_auraModifiersGroup[unitMod][TOTAL_PCT];
-
-    // World of Warcraft Client Patch 1.9.0 (2006-01-03)
-    // - Curse of Shadow and Curse of the Elements - These curses can no 
-    //   longer cause resistance to become negative.
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
-    // Auras can't cause resistances to dip below 0 since early vanilla
-    // PS: Actually, they can, but only visually advertised in the fields, calculations ignore it, we limit both
-    if ((unitMod >= UNIT_MOD_RESISTANCE_START) && (unitMod < UNIT_MOD_RESISTANCE_END) && 
-        (value < 0.0f) && (m_auraModifiersGroup[unitMod][BASE_VALUE] >= 0.0f))
-    {
-        value = 0.0f;
-    }
-#endif
 
     return value;
 }
