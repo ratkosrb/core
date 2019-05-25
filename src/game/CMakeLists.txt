@@ -233,6 +233,10 @@ set (game_SRCS
     vmap/VMapFactory.cpp
     vmap/VMapManager2.cpp
     vmap/WorldModel.cpp
+    Warden/Warden.cpp
+    Warden/WardenMgr.cpp
+    Warden/WardenMac.cpp
+    Warden/WardenWin.cpp
     AccountMgr.h
     AuraRemovalMgr.h
     AutoBroadCastMgr.h
@@ -429,6 +433,11 @@ set (game_SRCS
     vmap/VMapManager2.h
     vmap/VMapTools.h
     vmap/WorldModel.h
+    Warden/Warden.h
+    Warden/WardenMgr.h
+    Warden/WardenKeyGen.h
+    Warden/WardenMac.h
+    Warden/WardenWin.h
 
 )
 

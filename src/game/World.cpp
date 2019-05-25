@@ -82,6 +82,7 @@
 #include "AuraRemovalMgr.h"
 #include "InstanceStatistics.h"
 #include "GuardMgr.h"
+#include "WardenMgr.h"
 
 #include <chrono>
 
@@ -993,6 +994,18 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_BOOL_RESTORE_DELETED_ITEMS, "Progression.RestoreDeletedItems", true);
     setConfig(CONFIG_BOOL_UNLINKED_AUCTION_HOUSES, "Progression.UnlinkedAuctionHouses", true);
 
+    // Warden
+    setConfig(CONFIG_BOOL_WARDEN_WIN_ENABLED, "Warden.WinEnabled", false);
+    setConfig(CONFIG_BOOL_WARDEN_OSX_ENABLED, "Warden.OSXEnabled", false);
+    setConfig(CONFIG_UINT32_WARDEN_NUM_MEM_CHECKS, "Warden.NumMemChecks", 3);
+    setConfig(CONFIG_UINT32_WARDEN_NUM_OTHER_CHECKS, "Warden.NumOtherChecks", 7);
+    setConfigMinMax(CONFIG_UINT32_WARDEN_DEFAULT_PENALTY, "Warden.DefaultPenalty", WARDEN_ACTION_BAN, WARDEN_ACTION_LOG, WARDEN_ACTION_BAN);
+    setConfig(CONFIG_UINT32_WARDEN_CLIENT_BAN_DURATION, "Warden.BanDuration", 86400);
+    setConfig(CONFIG_UINT32_WARDEN_CLIENT_CHECK_HOLDOFF, "Warden.ClientCheckHoldOff", 30);
+    setConfig(CONFIG_UINT32_WARDEN_CLIENT_RESPONSE_DELAY, "Warden.ClientResponseDelay", 120);
+    setConfig(CONFIG_UINT32_WARDEN_DB_LOGLEVEL, "Warden.DBLogLevel", 0);
+    m_wardenModuleDirectory = sConfig.GetStringDefault("Warden.ModuleDir", "warden_modules");
+
     setConfig(CONFIG_UINT32_CREATURE_SUMMON_LIMIT, "MaxCreatureSummonLimit", DEFAULT_CREATURE_SUMMON_LIMIT);
     m_creatureSummonCountLimit = getConfig(CONFIG_UINT32_CREATURE_SUMMON_LIMIT);
 
@@ -1583,6 +1596,14 @@ void World::SetInitialWorldSettings()
         sHonorMaintenancer.Initialize();
         sHonorMaintenancer.DoMaintenance();
     }
+
+    sLog.outString();
+    sLog.outString("Loading Warden Checks...");
+    sWardenMgr->LoadWardenChecks();
+    
+    sLog.outString();
+    sLog.outString("Loading Warden Modules...");
+    sWardenMgr->LoadWardenModules();
 
     sLog.outString("Starting Game Event system...");
     uint32 nextGameEvent = sGameEventMgr.Initialize();
