@@ -622,7 +622,7 @@ void GameObject::Refresh()
 
 void GameObject::AddUniqueUse(Player* player)
 {
-    std::unique_lock<std::mutex> guard(m_UniqueUsers_lock);
+    ACE_Guard <ACE_Thread_Mutex> guard(m_UniqueUsers_lock);
 
     AddUse();
 
@@ -634,7 +634,7 @@ void GameObject::AddUniqueUse(Player* player)
 
     m_UniqueUsers.insert(player->GetObjectGuid());
 
-    guard.unlock();
+    guard.release();
 
     if (GameObjectInfo const* info = GetGOInfo())
         if (info->type == GAMEOBJECT_TYPE_SUMMONING_RITUAL &&
@@ -657,7 +657,7 @@ void GameObject::AddUniqueUse(Player* player)
 
 void GameObject::RemoveUniqueUse(Player* player)
 {
-    std::lock_guard<std::mutex> guard(m_UniqueUsers_lock);
+    ACE_Guard <ACE_Thread_Mutex> guard(m_UniqueUsers_lock);
 
     auto itr = m_UniqueUsers.find(player->GetObjectGuid());
     if (itr == m_UniqueUsers.end())
@@ -686,7 +686,7 @@ void GameObject::RemoveUniqueUse(Player* player)
 
 void GameObject::FinishRitual()
 {
-    std::unique_lock<std::mutex> guard(m_UniqueUsers_lock);
+    ACE_Guard <ACE_Thread_Mutex> guard(m_UniqueUsers_lock);
 
     if (GameObjectInfo const* info = GetGOInfo())
     {
@@ -705,7 +705,7 @@ void GameObject::FinishRitual()
             {
                 std::advance(it, urand(0, m_UniqueUsers.size() - 1));
 
-                guard.unlock();
+                guard.release();
 
                 if (Player* target = GetMap()->GetPlayer(*it))
                     target->CastSpell(target, spellid, true);
@@ -716,13 +716,13 @@ void GameObject::FinishRitual()
 
 bool GameObject::HasUniqueUser(Player* player)
 {
-    std::lock_guard<std::mutex> guard(m_UniqueUsers_lock);
+    ACE_Guard <ACE_Thread_Mutex> guard(m_UniqueUsers_lock);
     return m_UniqueUsers.find(player->GetObjectGuid()) != m_UniqueUsers.end();
 }
 
 uint32 GameObject::GetUniqueUseCount()
 {
-    std::lock_guard<std::mutex> guard(m_UniqueUsers_lock);
+    ACE_Guard <ACE_Thread_Mutex> guard(m_UniqueUsers_lock);
     return m_UniqueUsers.size();
 }
 

@@ -78,7 +78,7 @@ int GThread::numCores() {
     return System::numCores();
 }
 
-#ifdef G3D_WINDOWS
+#   ifdef G3D_WINDOWS
 // From http://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
 const DWORD MS_VC_EXCEPTION=0x406D1388;
 
@@ -98,9 +98,11 @@ static void SetThreadName(DWORD dwThreadID, const char* threadName) {
    info.dwThreadID = dwThreadID;
    info.dwFlags = 0;
 
+#ifdef _MSC_VER
    __try {
       RaiseException( MS_VC_EXCEPTION, 0, sizeof(info)/sizeof(ULONG_PTR), (ULONG_PTR*)&info );
    } __except(EXCEPTION_EXECUTE_HANDLER) {}
+#endif
 }
 #endif
 
