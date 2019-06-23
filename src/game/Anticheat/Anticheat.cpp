@@ -13,6 +13,7 @@ AnticheatLibInterface* GetAnticheatLib()
 #include "World.h"
 #include "WorldSession.h"
 
+#include "Antispam/Antispam.h"
 #include "MovementAnticheat/MovementAnticheat.h"
 #include "WardenAnticheat/Warden.h"
 #include "WardenAnticheat/WardenWin.h"
@@ -21,9 +22,13 @@ AnticheatLibInterface* GetAnticheatLib()
 void MangosAnticheatLib::LoadAnticheatData()
 {
     sLog.outString();
+    sLog.outString("Loading antispam system ...");
+    sAntispam->loadConfig();
+
+    sLog.outString();
     sLog.outString("Loading warden checks...");
     sWardenMgr->LoadWardenChecks();
-    
+
     sLog.outString();
     sLog.outString("Loading warden modules...");
     sWardenMgr->LoadWardenModules();
@@ -58,6 +63,11 @@ MangosAnticheatLib* MangosAnticheatLib::instance()
 {
     static MangosAnticheatLib i;
     return &i;
+}
+
+AntispamInterface* MangosAnticheatLib::GetAntispam() const
+{
+    return sAntispam;
 }
 
 AnticheatLibInterface* GetAnticheatLib()

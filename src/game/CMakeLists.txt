@@ -456,6 +456,8 @@ endif()
 
 if(USE_ANTICHEAT)
   list(APPEND game_SRCS
+      Anticheat/Antispam/Antispam.cpp
+      Anticheat/Antispam/Antispam.h
       Anticheat/MovementAnticheat/MovementAnticheat.cpp
       Anticheat/MovementAnticheat/MovementAnticheat.h
       Anticheat/WardenAnticheat/Warden.cpp

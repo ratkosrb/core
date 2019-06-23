@@ -135,6 +135,7 @@ class MangosAnticheatLib: public AnticheatLibInterface
         
         WardenInterface * CreateWardenFor(WorldSession* client, BigNumber* K);
         MovementAnticheatInterface* CreateAnticheatFor(Player* player);
+        AntispamInterface* GetAntispam() const override;
 
         static MangosAnticheatLib* instance();
 };
