@@ -45,7 +45,11 @@
 #   include <sys/timeb.h>
 #   include "G3D/RegistryUtil.h"
 #include <Ole2.h>
+#ifdef _MSC_VER
 #include <intrin.h>
+#else
+#include <x86intrin.h>
+#endif
 
 #elif defined(G3D_LINUX) 
 
@@ -1285,7 +1289,7 @@ public:
         RealPtr ptr = ::malloc(USERSIZE_TO_REALSIZE(bytes));
 
         if (ptr == NULL) {
-#           ifdef G3D_WINDOWS
+#           if defined(G3D_WINDOWS) && defined(_MSC_VER)
                 // Check for memory corruption
                 alwaysAssertM(_CrtCheckMemory() == TRUE, "Heap corruption detected.");
 #           endif

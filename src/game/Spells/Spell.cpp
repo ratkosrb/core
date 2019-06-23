@@ -8277,7 +8277,7 @@ public:
         }
     }
 
-#ifdef WIN32
+#ifdef _MSC_VER
     template<> void Visit(CorpseMapType &) {}
     template<> void Visit(GameObjectMapType &) {}
     template<> void Visit(DynamicObjectMapType &) {}
@@ -8285,7 +8285,7 @@ public:
 #endif
 };
 
-#ifndef WIN32
+#ifndef _MSC_VER
 template<> inline void SpellNotifierCreatureAndPlayer::Visit(CorpseMapType&) {}
 template<> inline void SpellNotifierCreatureAndPlayer::Visit(GameObjectMapType&) {}
 template<> inline void SpellNotifierCreatureAndPlayer::Visit(DynamicObjectMapType&) {}

@@ -142,7 +142,7 @@ namespace MaNGOS
         Creature &i_creature;
         CreatureRelocationNotifier(Creature &c) : i_creature(c) {}
         template<class T> void Visit(GridRefManager<T> &) {}
-        #ifdef WIN32
+        #ifdef _MSC_VER
         template<> void Visit(PlayerMapType &);
         #endif
     };
@@ -161,7 +161,7 @@ namespace MaNGOS
         }
 
         template<class T> inline void Visit(GridRefManager<T>  &) {}
-        #ifdef WIN32
+        #ifdef _MSC_VER
         template<> inline void Visit<Player>(PlayerMapType &);
         template<> inline void Visit<Creature>(CreatureMapType &);
         #endif
