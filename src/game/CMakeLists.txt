@@ -596,3 +596,11 @@ if(SCRIPT_LIB_ELUNA)
     file(GLOB SRC_GRP_ELUNA ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.cpp ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.h)
     source_group("Eluna" FILES ${SRC_GRP_ELUNA})
 endif()
+
+
+if(SCRIPT_LIB_ELUNA)
+install(
+    DIRECTORY ${CMAKE_SOURCE_DIR}/src/modules/Eluna/extensions
+    DESTINATION ${BIN_DIR}/lua_scripts
+)
+endif()
