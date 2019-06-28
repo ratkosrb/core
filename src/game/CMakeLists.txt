@@ -470,11 +470,6 @@ if(USE_ANTICHEAT)
   )
 endif()
 
-if(SCRIPT_LIB_ELUNA)
-    file(GLOB SRC_GRP_ELUNA ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.cpp ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.h)
-    source_group("Eluna" FILES ${SRC_GRP_ELUNA})
-endif()
-
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/AI
@@ -523,6 +518,7 @@ include_directories(
   ${TBB_INCLUDE_DIRS}
   ${ACE_INCLUDE_DIR}
   ${OPENSSL_INCLUDE_DIR}
+  $<$<BOOL:${SCRIPT_LIB_ELUNA}>:${SRC_GRP_ELUNA}>
 )
 
 if(WIN32)
@@ -567,6 +563,11 @@ source_group("Anticheat"
   REGULAR_EXPRESSION Anticheat
 )
 
+if(SCRIPT_LIB_ELUNA)
+    file(GLOB SRC_GRP_ELUNA ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.cpp ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.h)
+    source_group("Eluna" FILES ${SRC_GRP_ELUNA})
+endif()
+
 if(PCH)
   include_directories(${CMAKE_CURRENT_BINARY_DIR})
 endif()
@@ -581,11 +582,17 @@ SET_TARGET_PROPERTIES (game PROPERTIES FOLDER "Game Libs")
 target_link_libraries(game
   shared
   detour
+  $<$<BOOL:${SCRIPT_LIB_ELUNA}>:lualib>
 )
 
 target_compile_definitions(game
     PUBLIC
       $<$<BOOL:${SCRIPT_LIB_ELUNA}>:ENABLE_ELUNA>
+)
+
+target_include_directories(game
+    PUBLIC
+      $<$<BOOL:${SCRIPT_LIB_ELUNA}>:${CMAKE_SOURCE_DIR}/src/modules/Eluna>
 )
 
 #add_dependencies(game revision.h)
