@@ -670,7 +670,7 @@ m_obj->m_updateTracker.Reset();
                 WorldObject * const m_obj;
         };
 
-        virtual ~WorldObject ( ) {}
+        virtual ~WorldObject ( );
 
         virtual void Update(uint32 /*update_diff*/, uint32 /*time_diff*/);
 
