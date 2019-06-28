@@ -65,6 +65,11 @@
 #include "InstanceStatistics.h"
 #include "MovementPacketSender.h"
 
+#ifdef ENABLE_ELUNA
+#include "LuaEngine.h"
+#include "ElunaEventMgr.h"
+#endif /* ENABLE_ELUNA */
+
 #include <math.h>
 #include <stdarg.h>
 
@@ -247,6 +252,10 @@ void Unit::Update(uint32 update_diff, uint32 p_time)
 {
     if (!IsInWorld())
         return;
+
+#ifdef ENABLE_ELUNA
+    elunaEvents->Update(update_diff);
+#endif /* ENABLE_ELUNA */    
 
     // Nostalrius : systeme de contresort des mobs.
     // Boucle 1 pour regler les timers
@@ -1215,6 +1224,17 @@ void Unit::Kill(Unit* pVictim, SpellEntry const *spellProto, bool durabilityLoss
     if (pPlayerVictim)
         pPlayerVictim->RewardHonorOnDeath();
 
+    // Used by Eluna
+#ifdef ENABLE_ELUNA
+    if(pPlayerVictim && pPlayerTap && pPlayerTap != pPlayerVictim)
+    {
+        sEluna->OnPVPKill(pPlayerTap, pPlayerVictim);
+    }else if(pCreatureVictim && pPlayerTap)
+    {
+        sEluna->OnCreatureKill(pPlayerTap, pCreatureVictim);
+    }
+#endif /* ENABLE_ELUNA */
+
     // To be replaced if possible using ProcDamageAndSpell
     if (pVictim != this) // The one who has the fatal blow
         ProcDamageAndSpell(pVictim, PROC_FLAG_KILL, PROC_FLAG_HEARTBEAT, PROC_EX_NONE, 0);
@@ -1315,6 +1335,14 @@ void Unit::Kill(Unit* pVictim, SpellEntry const *spellProto, bool durabilityLoss
             // durability lost message
             WorldPacket data(SMSG_DURABILITY_DAMAGE_DEATH, 0);
             pPlayerVictim->GetSession()->SendPacket(&data);
+
+            // Used by Eluna
+#ifdef ENABLE_ELUNA
+        if (Creature* killer = ToCreature())
+            {
+            sEluna->OnPlayerKilledByCreature(killer, pPlayerVictim);
+            }
+#endif /* ENABLE_ELUNA */
         }
     }
     else                                                // creature died
@@ -7641,6 +7669,13 @@ void Unit::SetInCombatState(bool PvP, Unit* enemy)
         if (m_isCreatureLinkingTrigger)
             GetMap()->GetCreatureLinkingHolder()->DoCreatureLinkingEvent(LINKING_EVENT_AGGRO, pCreature, enemy);
     }
+
+    // Used by Eluna
+#ifdef ENABLE_ELUNA
+    if (GetTypeId() == TYPEID_PLAYER)
+        sEluna->OnPlayerEnterCombat(ToPlayer(), enemy);
+#endif /* ENABLE_ELUNA */
+
 }
 
 void Unit::SetInCombatWithAggressor(Unit* pAggressor, bool touchOnly/* = false*/)
@@ -7745,6 +7780,12 @@ void Unit::ClearInCombat()
     m_CombatTimer = 0;
     RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IN_COMBAT);
     RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PET_IN_COMBAT);
+
+    // Used by Eluna
+#ifdef ENABLE_ELUNA
+    if (GetTypeId() == TYPEID_PLAYER)
+        sEluna->OnPlayerLeaveCombat(ToPlayer());
+#endif /* ENABLE_ELUNA */
 
     if (GetTypeId() == TYPEID_PLAYER)
         static_cast<Player*>(this)->pvpInfo.inPvPCombat = false;

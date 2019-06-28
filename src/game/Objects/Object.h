@@ -86,6 +86,9 @@ class InstanceData;
 class TerrainInfo;
 class ZoneScript;
 class Transport;
+#ifdef ENABLE_ELUNA
+class ElunaEventProcessor;
+#endif /* ENABLE_ELUNA */
 
 typedef std::unordered_map<Player*, UpdateData> UpdateDataMapType;
 
@@ -923,6 +926,10 @@ m_obj->m_updateTracker.Reset();
 
         uint32 GetCreatureSummonLimit() const { return m_creatureSummonLimit; }
         void SetCreatureSummonLimit(uint32 limit);
+
+#ifdef ENABLE_ELUNA
+        ElunaEventProcessor* elunaEvents;
+#endif /* ENABLE_ELUNA */        
 
     protected:
         explicit WorldObject();

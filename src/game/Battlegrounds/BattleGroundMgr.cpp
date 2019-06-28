@@ -38,6 +38,9 @@
 #include "Policies/SingletonImp.h"
 #include <chrono>
 #include <random>
+#ifdef ENABLE_ELUNA
+#include "LuaEngine.h"
+#endif /* ENABLE_ELUNA */
 
 INSTANTIATE_SINGLETON_1(BattleGroundMgr);
 
@@ -1252,6 +1255,10 @@ uint32 BattleGroundMgr::CreateBattleGround(BattleGroundTypeId bgTypeId, uint32 M
 
     // add bg to update list
     AddBattleGround(bg->GetInstanceID(), bg->GetTypeID(), bg);
+
+#ifdef ENABLE_ELUNA
+    sEluna->OnBGCreate(bg, bgTypeId, bg->GetInstanceID());
+#endif /* ENABLE_ELUNA */
 
     // return some not-null value, bgTypeId is good enough for me
     return bgTypeId;

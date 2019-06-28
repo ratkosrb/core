@@ -591,3 +591,8 @@ if(PCH)
     add_precompiled_header(game ${CMAKE_CURRENT_SOURCE_DIR}/pchdef.h)
   endif()
 endif()
+
+if(SCRIPT_LIB_ELUNA)
+    file(GLOB SRC_GRP_ELUNA ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.cpp ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.h)
+    source_group("Eluna" FILES ${SRC_GRP_ELUNA})
+endif()

@@ -47,6 +47,10 @@
 #include "DynamicTree.h"
 #include "vmap/GameObjectModel.h"
 
+#ifdef ENABLE_ELUNA
+#include "LuaEngine.h"
+#endif /* ENABLE_ELUNA */
+
 GameObject::GameObject() : WorldObject(),
     loot(this),
     m_goInfo(NULL),
@@ -79,6 +83,11 @@ GameObject::~GameObject()
 
 void GameObject::AddToWorld()
 {
+
+#ifdef ENABLE_ELUNA
+    bool inWorld = IsInWorld();
+#endif /* ENABLE_ELUNA */
+
     ///- Register the gameobject for guid lookup
     if (!IsInWorld())
     {
@@ -96,6 +105,11 @@ void GameObject::AddToWorld()
 
     if (!i_AI)
         AIM_Initialize();
+
+#ifdef ENABLE_ELUNA
+    if (!inWorld)
+        sEluna->OnAddToWorld(this);
+#endif /* ENABLE_ELUNA */        
 }
 
 void GameObject::AIM_Initialize()
@@ -110,6 +124,9 @@ void GameObject::RemoveFromWorld()
     ///- Remove the gameobject from the accessor
     if (IsInWorld())
     {
+#ifdef ENABLE_ELUNA
+        sEluna->OnRemoveFromWorld(this);
+#endif /* ENABLE_ELUNA */
         if (m_zoneScript)
             m_zoneScript->OnGameObjectRemove(this);
 
@@ -196,6 +213,11 @@ bool GameObject::Create(uint32 guidlow, uint32 name_id, Map *map, float x, float
     SetGoAnimProgress(animprogress);
     SetName(goinfo->name);
 
+    // Used by Eluna
+#ifdef ENABLE_ELUNA
+    sEluna->OnSpawn(this);
+#endif /* ENABLE_ELUNA */    
+
     //Notify the map's instance data.
     //Only works if you create the object in it, not if it is moves to that map.
     //Normally non-players do not teleport to other maps.
@@ -248,6 +270,11 @@ void GameObject::Update(uint32 update_diff, uint32 /*p_time*/)
     ///- UpdateAI
     if (i_AI)
         i_AI->UpdateAI(update_diff);
+
+    // Used by Eluna
+#ifdef ENABLE_ELUNA
+    sEluna->UpdateAI(this, update_diff);
+#endif /* ENABLE_ELUNA */
 
     switch (m_lootState)
     {
@@ -2147,6 +2174,9 @@ bool GameObject::PlayerCanUse(Player* pl)
 void GameObject::SetLootState(LootState state)
 {
     m_lootState = state;
+#ifdef ENABLE_ELUNA
+    sEluna->OnLootStateChanged(this, state);
+#endif /* ENABLE_ELUNA */
     UpdateCollisionState();
 }
 
@@ -2154,6 +2184,9 @@ void GameObject::SetGoState(GOState state)
 {
     //SetByteValue(GAMEOBJECT_BYTES_1, 0, state); // 3.3.5
     SetUInt32Value(GAMEOBJECT_STATE, state);
+#ifdef ENABLE_ELUNA
+    sEluna->OnGameObjectStateChanged(this, state);
+#endif /* ENABLE_ELUNA */
     UpdateCollisionState();
 }
 

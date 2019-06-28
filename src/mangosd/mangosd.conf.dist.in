@@ -542,6 +542,10 @@ DebuffLimit = 0
 #        Log file of SQL requests to apply to fix detected database errors
 #        Default: ""
 #
+#    ElunaErrorLogFile
+#        Log file of Eluna errors detected at server run
+#        Default: "ElunaErrors.log"
+#
 #    CharLogFile
 #        Character operations logfile name
 #        Default: "Char.log"
@@ -669,6 +673,7 @@ WorldLogTimestamp = 0
 HonorLogFile = ""
 HonorLogTimestamp = 0
 DBErrorLogFile = "DBErrors.log"
+ElunaErrorLogFile = "ElunaErrors.log"
 DBErrorFixFile = ""
 ClientIdsLogFile = "client.log"
 LootsLogFile = "loot.log"
@@ -2761,6 +2766,31 @@ DynamicRespawn.AffectRespawnTimeBelow   = 0
 DynamicRespawn.AffectLevelBelow         = 0
 DynamicRespawn.PlayersThreshold         = 0
 DynamicRespawn.PlayersMaxLevelDiff      = 0
+
+###################################################################################################################
+#  ELUNA SETTINGS
+#
+#    Eluna.Enabled
+#       Enable Eluna LuaEngine
+#       Default: 1 (Enabled)
+#                0 (Disabled)
+#
+#   Eluna.TraceBack
+#       Description: Sets whether to use debug.traceback function on a lua error or not.
+#                    Notice that you can redefine the function.
+#       Default:     false - (use default error output)
+#                    true  - (use debug.traceback function)
+#
+#   Eluna.ScriptPath
+#       Description: Sets the location of the script folder to load scripts from
+#                    The path can be relative or absolute.
+#       Default:     "lua_scripts"
+#
+###################################################################################################################
+
+Eluna.Enabled    = 1
+Eluna.TraceBack  = false
+Eluna.ScriptPath = "lua_scripts"
 
 ###################################################################################################################
 #    Others settings

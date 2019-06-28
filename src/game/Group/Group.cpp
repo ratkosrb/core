@@ -39,6 +39,11 @@
 #include "LFGMgr.h"
 #include "LFGHandler.h"
 
+#ifdef ENABLE_ELUNA
+#include "LuaEngine.h"
+#endif /* ENABLE_ELUNA */
+
+
 #include <array>
 
 GroupMemberStatus GetGroupMemberStatus(const Player *member = nullptr)
@@ -164,6 +169,11 @@ bool Group::Create(ObjectGuid guid, const char * name)
 
     _updateLeaderFlag();
 
+    // Used by Eluna
+#ifdef ENABLE_ELUNA
+    sEluna->OnCreate(this, m_leaderGuid, m_groupType);
+#endif /* ENABLE_ELUNA */
+
     return true;
 }
 
@@ -255,6 +265,11 @@ bool Group::AddInvite(Player *player)
 
     player->SetGroupInvite(this);
 
+        // Used by Eluna
+#ifdef ENABLE_ELUNA
+    sEluna->OnInviteMember(this, player->GetObjectGuid());
+#endif /* ENABLE_ELUNA */
+
     return true;
 }
 
@@ -336,6 +351,11 @@ bool Group::AddMember(ObjectGuid guid, const char* name, uint8 joinMethod)
         player->SetAuraUpdateMask(player->GetAuraApplicationMask());
         if (Pet* pet = player->GetPet())
             pet->SetAuraUpdateMask(pet->GetAuraApplicationMask());
+
+        // Used by Eluna
+#ifdef ENABLE_ELUNA
+        sEluna->OnAddMember(this, player->GetObjectGuid());
+#endif /* ENABLE_ELUNA */
 
         // quest related GO state dependent from raid membership
         if (isRaidGroup())
@@ -439,6 +459,11 @@ uint32 Group::RemoveMember(ObjectGuid guid, uint8 removeMethod)
     else
         Disband(true);
 
+    // Used by Eluna
+#ifdef ENABLE_ELUNA
+    sEluna->OnRemoveMember(this, guid, removeMethod); // Kicker and Reason not a part of Mangos, implement?
+#endif /* ENABLE_ELUNA */
+
     return m_memberSlots.size();
 }
 
@@ -447,6 +472,11 @@ void Group::ChangeLeader(ObjectGuid guid)
     member_citerator slot = _getMemberCSlot(guid);
     if (slot == m_memberSlots.end())
         return;
+
+    // Used by Eluna
+#ifdef ENABLE_ELUNA
+    sEluna->OnChangeLeader(this, guid, GetLeaderGuid());
+#endif /* ENABLE_ELUNA */
 
     _setLeader(guid);
 
@@ -528,6 +558,11 @@ void Group::Disband(bool hideDestroy)
         CharacterDatabase.CommitTransaction();
         ResetInstances(INSTANCE_RESET_GROUP_DISBAND, NULL);
     }
+
+    // Used by Eluna
+#ifdef ENABLE_ELUNA
+    sEluna->OnDisband(this);
+#endif /* ENABLE_ELUNA */
 
     _updateLeaderFlag(true);
     m_leaderGuid.Clear();

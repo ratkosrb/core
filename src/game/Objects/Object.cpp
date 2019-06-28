@@ -55,6 +55,11 @@
 #include "MovementBroadcaster.h"
 #include "PlayerBroadcaster.h"
 
+#ifdef ENABLE_ELUNA
+#include "LuaEngine.h"
+#include "ElunaEventMgr.h"
+#endif /* ENABLE_ELUNA */
+
 ////////////////////////////////////////////////////////////
 // Methods of class MovementInfo
 
@@ -1292,7 +1297,11 @@ void WorldObject::SetVisibilityModifier(float f)
 }
 
 WorldObject::WorldObject()
-    :   m_isActiveObject(false), m_currMap(nullptr), m_mapId(0), m_InstanceId(0), m_lootAndXPRangeModifier(0),
+    : 
+    #ifdef ENABLE_ELUNA
+    elunaEvents(NULL),
+    #endif /* ENABLE_ELUNA */
+    m_isActiveObject(false), m_currMap(nullptr), m_mapId(0), m_InstanceId(0), m_lootAndXPRangeModifier(0),
         m_visibilityModifier(DEFAULT_VISIBILITY_MODIFIER), m_creatureSummonCount(0), m_summonLimitAlert(0)
 {
     // Phasing
@@ -1302,6 +1311,16 @@ WorldObject::WorldObject()
     m_movementInfo.time = WorldTimer::getMSTime();
     m_creatureSummonLimit = sWorld.GetCreatureSummonCountLimit();
 }
+
+WorldObject::~WorldObject()
+{
+#ifdef ENABLE_ELUNA
+    delete elunaEvents;
+    elunaEvents = NULL;
+#endif /* ENABLE_ELUNA */
+}
+
+
 
 void WorldObject::CleanupsBeforeDelete()
 {
@@ -1980,6 +1999,12 @@ void WorldObject::SetMap(Map * map)
     m_mapId = map->GetId();
     m_InstanceId = map->GetInstanceId();
 
+    #ifdef ENABLE_ELUNA
+    delete elunaEvents;
+    // On multithread replace this with a pointer to map's Eluna pointer stored in a map
+    elunaEvents = new ElunaEventProcessor(&Eluna::GEluna, this);
+    #endif
+
     // Order is important, must be done after m_currMap is set
     SetZoneScript();
 }
@@ -1992,6 +2017,10 @@ Map* WorldObject::GetMap() const
 
 void WorldObject::ResetMap()
 {
+    #ifdef ENABLE_ELUNA
+    delete elunaEvents;
+    elunaEvents = NULL;
+    #endif
     m_currMap = nullptr;
     m_zoneScript = nullptr;
 }
@@ -2034,6 +2063,11 @@ Creature *Map::SummonCreature(uint32 entry, float x, float y, float z, float ang
     // Active state set before added to map
     pCreature->SetActiveObjectState(asActiveObject);
     pCreature->Summon(spwtype, despwtime);
+
+    #ifdef ENABLE_ELUNA
+    if (Unit* summoner = ToUnit())
+        sEluna->OnSummoned(pCreature, summoner);
+    #endif /* ENABLE_ELUNA */
     
     // Creature Linking, Initial load is handled like respawn
     if (pCreature->IsLinkingEventTrigger())
@@ -2091,6 +2125,11 @@ Creature* WorldObject::SummonCreature(uint32 id, float x, float y, float z, floa
 
     if (GetTypeId() == TYPEID_UNIT && ((Creature*)this)->AI())
         ((Creature*)this)->AI()->JustSummoned(pCreature);
+
+#ifdef ENABLE_ELUNA
+    if (Unit* summoner = ToUnit())
+        sEluna->OnSummoned(pCreature, summoner);
+#endif /* ENABLE_ELUNA */
 
     // Creature Linking, Initial load is handled like respawn
     if (pCreature->IsLinkingEventTrigger())
@@ -2992,6 +3031,10 @@ void WorldObject::GetPosition(float &x, float &y, float &z, Transport* t) const
 
 void WorldObject::Update(uint32 update_diff, uint32 /*time_diff*/)
 {
+    #ifdef ENABLE_ELUNA
+    elunaEvents->Update(update_diff);
+    #endif /* ENABLE_ELUNA */
+
     if (m_summonLimitAlert)
     {
         if (m_summonLimitAlert <= update_diff)
