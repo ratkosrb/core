@@ -470,6 +470,10 @@ if(USE_ANTICHEAT)
   )
 endif()
 
+if(SCRIPT_LIB_ELUNA)
+    file(GLOB SRC_GRP_ELUNA ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.cpp ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.h)
+    source_group("Eluna" FILES ${SRC_GRP_ELUNA})
+endif()
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -520,11 +524,6 @@ include_directories(
   ${ACE_INCLUDE_DIR}
   ${OPENSSL_INCLUDE_DIR}
 )
-
-if(SCRIPT_LIB_ELUNA)
-    file(GLOB SRC_GRP_ELUNA ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.cpp ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.h)
-    source_group("Eluna" FILES ${SRC_GRP_ELUNA})
-endif()
 
 if(WIN32)
   include_directories(
