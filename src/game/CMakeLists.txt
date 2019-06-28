@@ -521,6 +521,11 @@ include_directories(
   ${OPENSSL_INCLUDE_DIR}
 )
 
+if(SCRIPT_LIB_ELUNA)
+    file(GLOB SRC_GRP_ELUNA ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.cpp ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.h)
+    source_group("Eluna" FILES ${SRC_GRP_ELUNA})
+endif()
+
 if(WIN32)
   include_directories(
     ${CMAKE_SOURCE_DIR}/dep/include-windows
@@ -569,6 +574,7 @@ endif()
 
 add_library(game STATIC
   ${game_SRCS}
+  $<$<BOOL:${SCRIPT_LIB_ELUNA}>:${SRC_GRP_ELUNA}>
 )
 
 SET_TARGET_PROPERTIES (game PROPERTIES FOLDER "Game Libs")
@@ -576,6 +582,11 @@ SET_TARGET_PROPERTIES (game PROPERTIES FOLDER "Game Libs")
 target_link_libraries(game
   shared
   detour
+)
+
+target_compile_definitions(game
+    PUBLIC
+      $<$<BOOL:${SCRIPT_LIB_ELUNA}>:ENABLE_ELUNA>
 )
 
 #add_dependencies(game revision.h)
@@ -592,10 +603,10 @@ if(PCH)
   endif()
 endif()
 
+
 if(SCRIPT_LIB_ELUNA)
-  include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/modules/Eluna
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/modules/Eluna/extensions
-  )
+install(
+    DIRECTORY ${CMAKE_SOURCE_DIR}/src/modules/Eluna/extensions
+    DESTINATION ${BIN_DIR}/lua_scripts
+)
 endif()
