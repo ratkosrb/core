@@ -589,7 +589,6 @@ target_compile_definitions(game
     PUBLIC
       $<$<BOOL:${SCRIPT_LIB_ELUNA}>:ENABLE_ELUNA>
       $<$<BOOL:${SCRIPT_LIB_ELUNA}>:CLASSIC>
-      $<$<BOOL:${SCRIPT_LIB_ELUNA}>:MANGOS>
       $<$<BOOL:${SCRIPT_LIB_ELUNA}>:VMANGOS>
 )
 
