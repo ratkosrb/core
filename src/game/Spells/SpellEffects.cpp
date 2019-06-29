@@ -3670,7 +3670,7 @@ void Spell::EffectSummonPossessed(SpellEffectIndex eff_idx)
 
 #ifdef ENABLE_ELUNA
     if (Unit* summoner = m_originalCaster->ToUnit())
-        sEluna->OnSummoned(spawnCreature, summoner);
+        sEluna->OnSummoned(pMinion, summoner);
 #endif /* ENABLE_ELUNA */
 }
 
