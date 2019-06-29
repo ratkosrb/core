@@ -1607,6 +1607,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         bool isAlive() const { return m_deathState == ALIVE; }
         bool isDead() const { return m_deathState == DEAD || m_deathState == CORPSE; }
+        // Eluna expects properties with this variant spelling
         #ifdef ENABLE_ELUNA
         bool IsAlive() const { return isAlive(); }
         bool IsDead() const { return isDead(); }
