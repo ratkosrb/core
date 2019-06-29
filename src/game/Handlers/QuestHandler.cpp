@@ -352,8 +352,9 @@ void WorldSession::HandleQuestLogRemoveQuest(WorldPacket& recv_data)
 
      // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (slot < MAX_QUEST_LOG_SIZE && uint32 quest = _player->GetQuestSlotQuestId(slot))
-        sEluna->OnQuestAbandon(_player, quest);
+    if (slot < MAX_QUEST_LOG_SIZE)
+        if(uint32 quest = _player->GetQuestSlotQuestId(slot))
+            sEluna->OnQuestAbandon(_player, quest);
 #endif /* ENABLE_ELUNA */
 
     _player->RemoveQuestAtSlot(slot);
