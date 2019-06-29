@@ -1607,11 +1607,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
 
         bool isAlive() const { return m_deathState == ALIVE; }
         bool isDead() const { return m_deathState == DEAD || m_deathState == CORPSE; }
-        // Eluna expects properties with this variant spelling
-        #ifdef ENABLE_ELUNA
-        bool IsAlive() const { return isAlive(); }
-        bool IsDead() const { return isDead(); }
-        #endif /* ENABLE_ELUNA */    
         DeathState getDeathState() const { return m_deathState; }
         virtual void SetDeathState(DeathState s);           // overwritten in Creature/Player/Pet
 
@@ -1864,6 +1859,10 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         virtual bool IsVisibleInGridForPlayer(Player* pl) const = 0;
         bool isInvisibleForAlive() const;
         bool isVisibleForDead() const;
+
+        #ifdef ENABLE_ELUNA
+        bool IsVisible() const {return GetVisibility() == VISIBILITY_ON}
+        #endif /*ENABLE_ELUNA */
 
         SingleCastSpellTargetMap      & GetSingleCastSpellTargets()       { return m_singleCastSpellTargets; }
         SingleCastSpellTargetMap const& GetSingleCastSpellTargets() const { return m_singleCastSpellTargets; }
