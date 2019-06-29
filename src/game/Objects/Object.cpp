@@ -2065,8 +2065,7 @@ Creature *Map::SummonCreature(uint32 entry, float x, float y, float z, float ang
     pCreature->Summon(spwtype, despwtime);
 
     #ifdef ENABLE_ELUNA
-    if (Unit* summoner = ToUnit())
-        sEluna->OnSummoned(pCreature, summoner);
+    sEluna->OnSummoned(pCreature, this);
     #endif /* ENABLE_ELUNA */
     
     // Creature Linking, Initial load is handled like respawn
@@ -2127,8 +2126,7 @@ Creature* WorldObject::SummonCreature(uint32 id, float x, float y, float z, floa
         ((Creature*)this)->AI()->JustSummoned(pCreature);
 
 #ifdef ENABLE_ELUNA
-    if (Unit* summoner = ToUnit())
-        sEluna->OnSummoned(pCreature, summoner);
+    sEluna->OnSummoned(pCreature, this);
 #endif /* ENABLE_ELUNA */
 
     // Creature Linking, Initial load is handled like respawn
