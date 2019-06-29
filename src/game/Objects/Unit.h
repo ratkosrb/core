@@ -1860,10 +1860,6 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         bool isInvisibleForAlive() const;
         bool isVisibleForDead() const;
 
-        #ifdef ENABLE_ELUNA
-        bool IsVisible() const {return GetVisibility() == VISIBILITY_ON}
-        #endif /*ENABLE_ELUNA */
-
         SingleCastSpellTargetMap      & GetSingleCastSpellTargets()       { return m_singleCastSpellTargets; }
         SingleCastSpellTargetMap const& GetSingleCastSpellTargets() const { return m_singleCastSpellTargets; }
         SpellImmuneList m_spellImmune[MAX_SPELL_IMMUNITY];
