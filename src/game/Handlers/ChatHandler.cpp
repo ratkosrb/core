@@ -498,14 +498,14 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket & recv_data)
                     allowSendWhisper = true;
 
                 if (masterPlr->IsGameMaster() || allowSendWhisper)
-		{
-		// Used by Eluna
+                {
+                    // Used by Eluna
 #ifdef ENABLE_ELUNA
-            	    if (!sEluna->OnChat(masterPlr, type, lang, msg, player))
+                    if (!sEluna->OnChat(masterPlr->GetSession()->GetPlayer(), type, lang, msg, toPlayer))
                         return;
 #endif /* ENABLE_ELUNA */
                     masterPlr->Whisper(msg, lang, player);
-		}
+                }
 
                 if (lang != LANG_ADDON)
                 {
