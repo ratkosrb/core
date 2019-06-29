@@ -82,10 +82,6 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
 #endif /* ENABLE_ELUNA */
 
                 return HandleAuthSession(*new_pct);
-#ifdef ENABLE_ELUNA
-            case CMSG_KEEP_ALIVE:
-                sEluna->OnPacketReceive(m_Session, *new_pct);
-#endif /* ENABLE_ELUNA */
             default:
             {
                 ACE_GUARD_RETURN(LockType, Guard, m_SessionLock, -1);
