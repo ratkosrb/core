@@ -1227,6 +1227,13 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
          */
         void RemoveAllAttackers();
 
+        /**
+         * Checks if we are attacking a player.
+         * Pets/minions etc attacking a player counts towards you attacking a player.
+         * @return true if you and/or your pets/minions etc are attacking a player.
+         */
+        bool isAttackingPlayer() const;
+
         // Returns the Unit::m_attackers, that stores the units that are attacking you
         AttackerSet const& getAttackers() const { return m_attackers; }
 
