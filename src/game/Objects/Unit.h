@@ -1606,6 +1606,9 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         virtual bool CanBeDetected() const { return true; }
 
         bool isAlive() const { return m_deathState == ALIVE; }
+        #ifdef ENABLE_ELUNA
+        bool isDying() const { return m_deathState == JUST_DIED }
+        #endif
         bool isDead() const { return m_deathState == DEAD || m_deathState == CORPSE; }
         DeathState getDeathState() const { return m_deathState; }
         virtual void SetDeathState(DeathState s);           // overwritten in Creature/Player/Pet
