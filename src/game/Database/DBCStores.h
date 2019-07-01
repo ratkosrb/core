@@ -77,7 +77,7 @@ extern DBCStorage <DurabilityQualityEntry>       sDurabilityQualityStore;
 extern DBCStorage <EmotesEntry>                  sEmotesStore;
 extern DBCStorage <EmotesTextEntry>              sEmotesTextStore;
 #ifdef ENABLE_ELUNA
-extern DBCStorage <FactionTemplateEntry> sFactionTemplateStore;
+extern DBCStorage <FactionTemplateEntry>         sFactionTemplateStore;
 #endif /* ENABLE_ELUNA */
 extern DBCStorage <GameObjectDisplayInfoEntry>   sGameObjectDisplayInfoStore;
 
@@ -106,7 +106,7 @@ extern DBCStorage <TalentTabEntry>               sTalentTabStore;
 extern DBCStorage <TaxiPathEntry>                sTaxiPathStore;
 extern TaxiMask                                  sTaxiNodesMask;
 #ifdef ENABLE_ELUNA
-static DBCStorage <TaxiPathNodeEntry>            sTaxiPathNodeStore;
+static DBCStorage <TaxiPathNodeEntry>            sTaxiPathNodeStore(const char*);
 #endif
 extern TaxiPathSetBySource                       sTaxiPathSetBySource;
 extern TaxiPathNodesByPath                       sTaxiPathNodesByPath;
