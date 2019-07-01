@@ -105,6 +105,9 @@ extern DBCStorage <TalentEntry>                  sTalentStore;
 extern DBCStorage <TalentTabEntry>               sTalentTabStore;
 extern DBCStorage <TaxiPathEntry>                sTaxiPathStore;
 extern TaxiMask                                  sTaxiNodesMask;
+#ifdef ENABLE_ELUNA
+static DBCStorage <TaxiPathNodeEntry>            sTaxiPathNodeStore;
+#endif
 extern TaxiPathSetBySource                       sTaxiPathSetBySource;
 extern TaxiPathNodesByPath                       sTaxiPathNodesByPath;
 extern DBCStorage <WMOAreaTableEntry>            sWMOAreaTableStore;
