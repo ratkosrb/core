@@ -806,6 +806,7 @@ m_obj->m_updateTracker.Reset();
         bool IsFlying() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_FLYING); }
         bool IsWalking() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_WALK_MODE); }
         bool IsMoving() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_MASK_MOVING); }
+        bool IsMovingOrTurning() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_MASK_MOVING_OR_TURN); }
         bool IsSwimming() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_SWIMMING); }
 
         MovementInfo m_movementInfo;

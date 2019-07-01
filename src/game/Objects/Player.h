@@ -1774,8 +1774,6 @@ class MANGOS_DLL_SPEC Player final: public Unit
         void ProcessDelayedOperations();
 
         bool HasMovementFlag(MovementFlags f) const;        // for script access to m_movementInfo.HasMovementFlag
-        bool isMoving() const { return HasMovementFlag(MOVEFLAG_MASK_MOVING); }
-        bool isMovingOrTurning() const { return HasMovementFlag(MOVEFLAG_MASK_MOVING_OR_TURN); }
         void UpdateFallInformationIfNeed(MovementInfo const& minfo, uint16 opcode);
         void SetFallInformation(uint32 time, float z)
         {
