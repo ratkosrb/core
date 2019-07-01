@@ -1303,9 +1303,7 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         bool HealthBelowPctDamaged(int32 pct, uint32 damage) const { return (int32(GetHealth()) - damage) * 100 < GetMaxHealth() * pct; }
         bool HealthAbovePct(int32 pct) const { return GetHealth() * 100 > GetMaxHealth() * pct; }
         uint32 CountPctFromMaxHealth(int32 pct) const { return uint32(float(pct) * GetMaxHealth() / 100.0f); }
-        #ifdef ENABLE_ELUNA
         uint32 CountPctFromCurHealth(int32 pct) const { return uint32(float(pct) * GetHealth() / 100.0f); } 
-        #endif /*ENABLE_ELUNA*/
         void SetFullHealth() { SetHealth(GetMaxHealth()); }
 
         Powers getPowerType() const { return Powers(GetByteValue(UNIT_FIELD_BYTES_0, 3)); }
