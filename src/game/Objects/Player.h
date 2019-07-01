@@ -1488,8 +1488,10 @@ class MANGOS_DLL_SPEC Player final: public Unit
         void Regenerate(Powers power);
         void RegenerateHealth();
 
+        #ifndef ENABLE_ELUNA
         static float GetHealthBonusFromStamina(float stamina);
         static float GetManaBonusFromIntellect(float intellect);
+        #endif
         float GetMeleeCritFromAgility() const;
         float GetDodgeFromAgility() const;
         float GetSpellCritFromIntellect() const;
@@ -1583,6 +1585,11 @@ class MANGOS_DLL_SPEC Player final: public Unit
 
         float GetSpellCritPercent(SpellSchools school) const { return m_SpellCritPercentage[school]; }
         void SetSpellCritPercent(SpellSchools school, float percent) { m_SpellCritPercentage[school] = percent; }
+
+        #ifdef ENABLE_ELUNA
+        static float GetHealthBonusFromStamina(float stamina);
+        static float GetManaBonusFromIntellect(float intellect);
+        #endif
 
         /*********************************************************/
         /***                   SKILLS SYSTEM                   ***/
