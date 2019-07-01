@@ -1773,6 +1773,10 @@ class MANGOS_DLL_SPEC Player final: public Unit
         void ProcessDelayedOperations();
 
         bool HasMovementFlag(MovementFlags f) const;        // for script access to m_movementInfo.HasMovementFlag
+        #ifdef ENABLE_ELUNA
+        bool isMoving() const { return HasMovementFlag(MOVEFLAG_MASK_MOVING); }
+        bool isMovingOrTurning() const { return HasMovementFlag(MOVEFLAG_MASK_MOVING_OR_TURN); }
+        #endif
         void UpdateFallInformationIfNeed(MovementInfo const& minfo, uint16 opcode);
         void SetFallInformation(uint32 time, float z)
         {
