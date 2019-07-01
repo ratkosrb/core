@@ -982,16 +982,6 @@ void Object::SetUInt32Value(uint16 index, uint32 value)
     }
 }
 
-#ifdef ENABLE_ELUNA
-void Object::UpdateUInt32Value(uint16 index, uint32 value)
-{
-    MANGOS_ASSERT(index < m_valuesCount || PrintIndexError(index, true));
-
-    m_uint32Values[index] = value;
-    // m_changedValues[index] = true; -- Not implemented.
-}
-#endif
-
 void Object::SetUInt64Value(uint16 index, const uint64 &value)
 {
     MANGOS_ASSERT(index + 1 < m_valuesCount || PrintIndexError(index, true));
