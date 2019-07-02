@@ -4376,9 +4376,15 @@ void Player::DeleteOldCharacters(uint32 keepDays)
 void Player::SetFly(bool enable)
 {
     if (enable)
+    {
         m_movementInfo.moveFlags = (MOVEFLAG_LEVITATING | MOVEFLAG_SWIMMING | MOVEFLAG_CAN_FLY | MOVEFLAG_FLYING);
+        addUnitState(UNIT_STAT_FLYING_ALLOWED);
+    }
     else
+    {
         m_movementInfo.moveFlags = (MOVEFLAG_NONE);
+        clearUnitState(UNIT_STAT_FLYING_ALLOWED);
+    }
 
     SendHeartBeat(true);
 }
@@ -5804,35 +5810,35 @@ void Player::UpdateSpellTrainedSkills(uint32 spellId, bool apply)
                 {
                     switch (GetSkillRangeType(pSkill, skillAbility->racemask != 0))
                     {
-                    case SKILL_RANGE_LANGUAGE:
-                        SetSkill(uint16(pSkill->id), 300, 300);
-                        break;
-                    case SKILL_RANGE_LEVEL:
-                    {
-                        uint16 newSkillValue = 1;
-
-                        // World of Warcraft Client Patch 1.11.0 (2006-06-20)
-                        // - Two-Handed Axes/Maces (Enhancement Talent) - Skill levels gained 
-                        //   with these two weapons will now be retained if you decide to unspend
-                        //   this talent point and return to it later.
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_10_2
-                        if (pSkill->categoryId == SKILL_CATEGORY_WEAPON)
+                        case SKILL_RANGE_LANGUAGE:
+                            SetSkill(uint16(pSkill->id), 300, 300);
+                            break;
+                        case SKILL_RANGE_LEVEL:
                         {
-                            const auto savedValue = m_mForgottenSkills.find(pSkill->id);
+                            uint16 newSkillValue = sWorld.getConfig(CONFIG_BOOL_ALWAYS_MAX_SKILL_FOR_LEVEL) ? GetSkillMaxForLevel() : 1;
 
-                            if (savedValue != m_mForgottenSkills.end())
-                                if (savedValue->second <= GetSkillMaxForLevel())
-                                    newSkillValue = savedValue->second;
-                        }
+                            // World of Warcraft Client Patch 1.11.0 (2006-06-20)
+                            // - Two-Handed Axes/Maces (Enhancement Talent) - Skill levels gained 
+                            //   with these two weapons will now be retained if you decide to unspend
+                            //   this talent point and return to it later.
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_10_2
+                            if (pSkill->categoryId == SKILL_CATEGORY_WEAPON)
+                            {
+                                const auto savedValue = m_mForgottenSkills.find(pSkill->id);
+
+                                if (savedValue != m_mForgottenSkills.end())
+                                    if (savedValue->second <= GetSkillMaxForLevel())
+                                        newSkillValue = savedValue->second;
+                            }
 #endif
-                        SetSkill(uint16(pSkill->id), newSkillValue, GetSkillMaxForLevel());
-                        break;
-                    }
-                    case SKILL_RANGE_MONO:
-                        SetSkill(uint16(pSkill->id), 1, 1);
-                        break;
-                    default:
-                        break;
+                            SetSkill(uint16(pSkill->id), newSkillValue, GetSkillMaxForLevel());
+                            break;
+                        }
+                        case SKILL_RANGE_MONO:
+                            SetSkill(uint16(pSkill->id), 1, 1);
+                            break;
+                        default:
+                            break;
                     }
                 }
             }
@@ -14750,7 +14756,7 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder *holder)
         // problems with taxi path loading
         TaxiNodesEntry const* nodeEntry = NULL;
         if (uint32 node_id = m_taxi.GetTaxiSource())
-            nodeEntry = sObjectMgr.GeTaxiNodeEntry(node_id);
+            nodeEntry = sObjectMgr.GetTaxiNodeEntry(node_id);
 
         if (!nodeEntry)                                     // don't know taxi start node, to homebind
         {
@@ -14777,7 +14783,7 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder *holder)
     if (uint32 node_id = m_taxi.GetTaxiSource())
     {
         // save source node as recall coord to prevent recall and fall from sky
-        TaxiNodesEntry const* nodeEntry = sObjectMgr.GeTaxiNodeEntry(node_id);
+        TaxiNodesEntry const* nodeEntry = sObjectMgr.GetTaxiNodeEntry(node_id);
         MANGOS_ASSERT(nodeEntry);                           // checked in m_taxi.LoadTaxiDestinationsFromString
         m_recallMap = nodeEntry->map_id;
         m_recallX = nodeEntry->x;
@@ -17374,7 +17380,7 @@ bool Player::ActivateTaxiPathTo(std::vector<uint32> const& nodes, Creature* npc 
     uint32 sourcenode = nodes[0];
 
     // starting node too far away (cheat?)
-    TaxiNodesEntry const* node = sObjectMgr.GeTaxiNodeEntry(sourcenode);
+    TaxiNodesEntry const* node = sObjectMgr.GetTaxiNodeEntry(sourcenode);
     if (!node)
     {
         WorldPacket data(SMSG_ACTIVATETAXIREPLY, 4);
@@ -21119,7 +21125,7 @@ void Player::TaxiStepFinished()
     if (!curDest)
         return;
 
-    TaxiNodesEntry const* curDestNode = sObjectMgr.GeTaxiNodeEntry(curDest);
+    TaxiNodesEntry const* curDestNode = sObjectMgr.GetTaxiNodeEntry(curDest);
 
     // far teleport case
     if (curDestNode && curDestNode->map_id != GetMapId())
