@@ -272,6 +272,7 @@ class MANGOS_DLL_SPEC Item : public Object
                 GetProto()->SubClass == ITEM_SUBCLASS_WEAPON_EXOTIC));
         }
 
+        bool IsLocked() const { return GetProto()->LockID && !HasFlag(ITEM_FIELD_FLAGS, ITEM_DYNFLAG_UNLOCKED); }
         bool IsBag() const { return GetProto()->InventoryType == INVTYPE_BAG; }
         bool IsBroken() const { return GetUInt32Value(ITEM_FIELD_MAXDURABILITY) > 0 && GetUInt32Value(ITEM_FIELD_DURABILITY) == 0; }
         bool CanBeTraded() const;
