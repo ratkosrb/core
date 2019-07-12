@@ -267,6 +267,13 @@ void Item::RemoveFromWorld()
     Object::RemoveFromWorld();
 }
 
+bool Item::IsNotEmptyBag() const
+{
+    if (Bag const* bag = ToBag())
+        return !bag->IsEmpty();
+    return false;
+}
+
 void Item::UpdateDuration(Player* owner, uint32 diff)
 {
     if (!GetUInt32Value(ITEM_FIELD_DURATION))
