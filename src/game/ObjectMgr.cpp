@@ -8086,7 +8086,7 @@ void ObjectMgr::SetTaxiNodeEntry(uint32 nodeId, TaxiNodesEntry& nodeEntry)
         m_TaxiNodes.resize(nodeId+GetMaxTaxiNodeId()); // Magic number buffer
     }
 
-    m_TaxiNodes[nodeId] = std::move(nodeEntry);
+    m_TaxiNodes[nodeId] = std::move(&nodeEntry);
 }
 
 void ObjectMgr::LoadTaxiPathTransitions()
