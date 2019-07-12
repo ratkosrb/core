@@ -274,6 +274,7 @@ class MANGOS_DLL_SPEC Item : public Object
 
         bool IsLocked() const { return GetProto()->LockID && !HasFlag(ITEM_FIELD_FLAGS, ITEM_DYNFLAG_UNLOCKED); }
         bool IsBag() const { return GetProto()->InventoryType == INVTYPE_BAG; }
+        const Bag* ToBag() const { if (IsBag()) return reinterpret_cast<const Bag*>(this); else return nullptr; }
         bool IsNotEmptyBag() const { if (Bag const* bag = ToBag()) { return !bag->IsEmpty();} return false; }
         bool IsBroken() const { return GetUInt32Value(ITEM_FIELD_MAXDURABILITY) > 0 && GetUInt32Value(ITEM_FIELD_DURABILITY) == 0; }
         bool CanBeTraded() const;
