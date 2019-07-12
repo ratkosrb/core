@@ -424,8 +424,7 @@ class Spell
         bool IsChannelActive() const { return m_caster->GetUInt32Value(UNIT_CHANNEL_SPELL) != 0; }
         bool IsMeleeAttackResetSpell() const { return !m_IsTriggeredSpell && (m_spellInfo->InterruptFlags & SPELL_INTERRUPT_FLAG_AUTOATTACK);  }
         bool IsRangedAttackResetSpell() const { return !m_IsTriggeredSpell && IsRangedSpell() && (m_spellInfo->InterruptFlags & SPELL_INTERRUPT_FLAG_AUTOATTACK); }
-        int32 GetDuration() const { return m_spellInfo->GetDuration(); }
-        int32 GetMaxDuration() const { return m_spellInfo->GetMaxDuration(); }
+        SpellEntry* GetSpellInfo() const { return m_spellInfo; }
 
         bool IsDeletable() const { return !m_referencedFromCurrentSpell && !m_executeStack; }
         void SetReferencedFromCurrent(bool yes) { m_referencedFromCurrentSpell = yes; }
