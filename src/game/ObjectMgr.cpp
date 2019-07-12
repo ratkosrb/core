@@ -8079,14 +8079,14 @@ void ObjectMgr::LoadTaxiNodes()
     sLog.outString(">> Loaded %u taxi nodes.", maxTaxiNodeEntry);
 }
 
-void ObjectMgr::SetTaxiNodeEntry(uint32 nodeId, TaxiNodesEntry& nodeEntry)
+void ObjectMgr::SetTaxiNodeEntry(uint32 nodeId, std::unique_ptr<TaxiNodesEntry> &nodeEntry)
 {
     if(GetMaxTaxiNodeId() < nodeId)
     {
         m_TaxiNodes.resize(nodeId+GetMaxTaxiNodeId()); // Magic number buffer
     }
 
-    m_TaxiNodes[nodeId] = std::move(&nodeEntry);
+    m_TaxiNodes[nodeId] = std::move(nodeEntry);
 }
 
 void ObjectMgr::LoadTaxiPathTransitions()
