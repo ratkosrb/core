@@ -8041,8 +8041,11 @@ void ObjectMgr::LoadTaxiNodes()
     }
 
     BarGoLink bar(result->GetRowCount());
+    #ifdef ENABLE_ELUNA
+    m_TaxiNodes.reserve(maxTaxiNodeEntry*3); // Some buffer as Eluna allows for more nodes.
+    #else
     m_TaxiNodes.resize(maxTaxiNodeEntry);
-
+    #endif
     do
     {
         bar.step();
@@ -8074,6 +8077,16 @@ void ObjectMgr::LoadTaxiNodes()
 
     sLog.outString();
     sLog.outString(">> Loaded %u taxi nodes.", maxTaxiNodeEntry);
+}
+
+void ObjectMgr::SetTaxiNodeEntry(uint32 nodeId, TaxiNodesEntry& nodeEntry)
+{
+    if(GetMaxTaxiNodeId() < nodeId)
+    {
+        m_TaxiNodes.resize(nodeId+GetMaxTaxiNodeId()); // Magic number buffer
+    }
+
+    m_TaxiNodes[nodeId] = std::move(nodeEntry);
 }
 
 void ObjectMgr::LoadTaxiPathTransitions()
