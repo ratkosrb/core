@@ -1493,6 +1493,9 @@ class MANGOS_DLL_SPEC Player final: public Unit
         float GetSpellCritFromIntellect() const;
         float GetRegenHPPerSpirit() const;
         float GetRegenMPPerSpirit() const;
+        static float GetHealthBonusFromStamina(float stamina);
+        static float GetManaBonusFromIntellect(float intellect);
+
         void InitStatBuffMods()
         {
             for (int i = STAT_STRENGTH; i < MAX_STATS; ++i) SetFloatValue(PLAYER_FIELD_POSSTAT0 + i, 0);
@@ -1582,8 +1585,8 @@ class MANGOS_DLL_SPEC Player final: public Unit
         float GetSpellCritPercent(SpellSchools school) const { return m_SpellCritPercentage[school]; }
         void SetSpellCritPercent(SpellSchools school, float percent) { m_SpellCritPercentage[school] = percent; }
 
-        static float GetHealthBonusFromStamina(float stamina);
-        static float GetManaBonusFromIntellect(float intellect);
+        static float GetHealthBonusFromStamina() const { return GetHealthBonusFromStamina(GetStat(STAT_STAMINA)); };
+        static float GetManaBonusFromIntellect() const { return GetManaBonusFromIntellect(GetStat(STAT_INTELLECT)); };
 
         /*********************************************************/
         /***                   SKILLS SYSTEM                   ***/
