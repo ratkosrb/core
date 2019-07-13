@@ -693,6 +693,7 @@ class MANGOS_DLL_SPEC GameObject : public WorldObject
 #ifdef ENABLE_ELUNA
         ObjectGuid GetLootRecipientGuid() const { return m_lootRecipientGuid; }
         uint32 GetLootGroupRecipientId() const { return m_lootGroupRecipientId; }
+        Player* GetOriginalLootRecipient() const; 
         Player* GetLootRecipient() const;
         Group* GetGroupLootRecipient() const;
         void SetLootRecipient(Unit* pUnit);

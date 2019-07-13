@@ -2319,6 +2319,12 @@ GameObjectData const * GameObject::GetGOData() const
     return sObjectMgr.GetGOData(GetGUIDLow());
 }
 #ifdef ENABLE_ELUNA
+
+Player* GameObject::GetOriginalLootRecipient() const
+{
+    return m_lootRecipientGuid ? sObjectAccessor.FindPlayer(m_lootRecipientGuid) : NULL;
+}
+
 Group* GameObject::GetGroupLootRecipient() const
 {
     // original recipient group if set and not disbanded
