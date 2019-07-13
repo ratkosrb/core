@@ -2168,6 +2168,7 @@ class MANGOS_DLL_SPEC Player final: public Unit
         void Say(const std::string& text, const uint32 language) const;
         void Yell(const std::string& text, const uint32 language) const;
         void TextEmote(const std::string& text) const;
+        void Whisper(const std::string& text, const uint32 language, ObjectGuid receiver);
 
         /*********************************************************/
         /***                   FACTION SYSTEM                  ***/

@@ -16877,6 +16877,18 @@ void Player::TextEmote(const std::string& text) const
     SendMessageToSetInRange(&data, sWorld.getConfig(CONFIG_FLOAT_LISTEN_RANGE_TEXTEMOTE), true, !sWorld.getConfig(CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_CHAT));
 }
 
+void Player::Whisper(const std::string& text, uint32 language, ObjectGuid receiver)
+{
+    if (language != LANG_ADDON)                             // if not addon data
+        { language = LANG_UNIVERSAL; }                      // whispers should always be readable
+
+    Player* rPlayer = sObjectMgr.GetPlayer(receiver);
+
+    WorldPacket data;
+    ChatHandler::BuildChatPacket(data, CHAT_MSG_WHISPER, text.c_str(), Language(language), GetChatTag(), GetObjectGuid(), GetName());
+    rPlayer->GetSession()->SendPacket(&data);
+}
+
 void Player::PetSpellInitialize()
 {
     Pet* pet = GetPet();
