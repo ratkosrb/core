@@ -398,7 +398,7 @@ AutoAttackCheckResult Unit::CanAutoAttackTarget(Unit const* pVictim) const
     if (!pVictim->isAlive() || !isAlive())
         return ATTACK_RESULT_DEAD;
 
-    if (!CanReachWithMeleeAttack(pVictim) || (!IsWithinLOSInMap(pVictim) && !hasUnitState(UNIT_STAT_ALLOW_LOS_ATTACK)))
+    if (!CanReachWithMeleeAutoAttack(pVictim) || (!IsWithinLOSInMap(pVictim) && !hasUnitState(UNIT_STAT_ALLOW_LOS_ATTACK)))
         return  ATTACK_RESULT_NOT_IN_RANGE;
 
     if (!HasInArc(2 * M_PI_F / 3, pVictim))
@@ -2290,10 +2290,11 @@ void Unit::CalculateDamageAbsorbAndResist(Unit *pCaster, SpellSchoolMask schoolM
         canResist = false;
 
     DEBUG_UNIT_IF(spellProto, this, DEBUG_SPELL_COMPUTE_RESISTS, "%s : Binary [%s]. Partial resists %s", spellProto->SpellName[2].c_str(), spellProto->IsBinary() ? "YES" : "NO", canResist ? "possible" : "impossible");
+    float const resistanceChance = pCaster->GetSpellResistChance(this, schoolMask, true);
 
-    if (canResist)
+    if (canResist || (resistanceChance < 0))
     {
-        const float multiplier = RollMagicResistanceMultiplierOutcomeAgainst(pCaster, schoolMask, damagetype, spellProto);
+        const float multiplier = RollMagicResistanceMultiplierOutcomeAgainst(pCaster, resistanceChance, schoolMask, damagetype, spellProto);
         *resist = int32(int64(damage) * multiplier);
         RemainingDamage -= *resist;
     }
@@ -3097,10 +3098,8 @@ SpellMissInfo Unit::MagicSpellHitResult(Unit* pVictim, SpellEntry const* spell, 
     return SPELL_MISS_NONE;
 }
 
-float Unit::RollMagicResistanceMultiplierOutcomeAgainst(const Unit* pCaster, SpellSchoolMask schoolMask, DamageEffectType damagetype, SpellEntry const* spellProto) const
+float Unit::RollMagicResistanceMultiplierOutcomeAgainst(const Unit* pCaster, float resistanceChance, SpellSchoolMask schoolMask, DamageEffectType damagetype, SpellEntry const* spellProto) const
 {
-    float resistanceChance = pCaster->GetSpellResistChance(this, schoolMask, true);
-
     // Magic vulnerability instead of magic resistance:
     if (resistanceChance < 0)
         return resistanceChance;
@@ -6318,11 +6317,16 @@ void Unit::RemoveCharmAuras()
     RemoveSpellsCausingAura(SPELL_AURA_AOE_CHARM);
 }
 
-float Unit::GetLeewayBonusRange(const Unit* target) const
+float Unit::GetLeewayBonusRange(const Unit* target, bool ability) const
 {
-    if (IsPlayer() && GetXZFlagBasedSpeed() > LEEWAY_MIN_MOVE_SPEED && target && target->GetXZFlagBasedSpeed() > LEEWAY_MIN_MOVE_SPEED)
-        return LEEWAY_BONUS_RANGE;
-
+    if (IsPlayer() && target)
+    {
+        if (ability)
+            return (GetXZFlagBasedSpeed() > LEEWAY_MIN_MOVE_SPEED && target->GetXZFlagBasedSpeed() > LEEWAY_MIN_MOVE_SPEED) ? LEEWAY_BONUS_RANGE : 0.0f;
+        else // auto attacks do not check speed, only flags
+            return (IsMovingButNotWalking() && target->IsMovingButNotWalking()) ? LEEWAY_BONUS_RANGE : 0.0f;
+    }
+    
     return 0.0f;
 }
 
@@ -11717,42 +11721,39 @@ float Unit::GetCombatReach(bool forMeleeRange /*=true*/) const
     return (forMeleeRange && reach < 1.5f) ? 1.5f : reach;
 }
 
-float Unit::GetCombatReach(Unit const* pVictim, bool forMeleeRange /*=true*/, float flat_mod /*=0.0f*/) const
+float Unit::GetCombatReach(Unit const* pVictim, bool ability, float flat_mod) const
 {
     float victimReach = (pVictim && pVictim->IsInWorld())
-        ? pVictim->GetCombatReach(forMeleeRange)
+        ? pVictim->GetCombatReach(true)
         : 0.0f;
 
-    float reach = GetCombatReach(forMeleeRange) + victimReach + flat_mod;
+    float reach = GetCombatReach(true) + victimReach + flat_mod;
 
-    if (forMeleeRange)
-    {
-        reach += BASE_MELEERANGE_OFFSET;
-        if (reach < ATTACK_DISTANCE)
-            reach = ATTACK_DISTANCE;
-    }
+    reach += BASE_MELEERANGE_OFFSET;
+    if (reach < ATTACK_DISTANCE)
+        reach = ATTACK_DISTANCE;
 
     // Melee leeway mechanic.
     // When both player and target has > 70% of normal runspeed, and are moving,
     // the player gains an additional 2.66yd of melee range.
-    reach += GetLeewayBonusRange(pVictim);
+    reach += GetLeewayBonusRange(pVictim, ability);
 
     return reach;
 }
 
-bool Unit::CanReachWithMeleeAttack(Unit const* pVictim, float flat_mod /*= 0.0f*/) const
+bool Unit::CanReachWithMeleeAutoAttack(Unit const* pVictim, float flat_mod /*= 0.0f*/) const
 {
     float x = GetPositionX(), y = GetPositionY(), z = GetPositionZ();
 
-    return CanReachWithMeleeAttackAtPosition(pVictim, x, y, z, flat_mod);
+    return CanReachWithMeleeAutoAttackAtPosition(pVictim, x, y, z, flat_mod);
 }
 
-bool Unit::CanReachWithMeleeAttackAtPosition(Unit const* pVictim, float x, float y, float z, float flat_mod /*= 0.0f*/) const
+bool Unit::CanReachWithMeleeAutoAttackAtPosition(Unit const* pVictim, float x, float y, float z, float flat_mod /*= 0.0f*/) const
 {
     if (!pVictim || !pVictim->IsInWorld())
         return false;
 
-    float reach = GetCombatReach(pVictim, true, flat_mod);
+    float reach = GetCombatReach(pVictim, false, flat_mod);
 
     float dx = x - pVictim->GetPositionX();
     float dy = y - pVictim->GetPositionY();
