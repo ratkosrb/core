@@ -1456,11 +1456,11 @@ class MANGOS_DLL_SPEC Player final: public Unit
         uint32 m_usedTalentCount;
 
         void UpdateFreeTalentPoints(bool resetIfNeed = true);
-        uint32 GetResetTalentsCost() const;
         void UpdateResetTalentsMultiplier() const;
         uint32 CalculateTalentsPoints() const;
         void SendTalentWipeConfirm(ObjectGuid guid) const;
     public:
+        uint32 GetResetTalentsCost() const;
         uint32 GetFreeTalentPoints() const { return GetUInt32Value(PLAYER_CHARACTER_POINTS1); }
         void SetFreeTalentPoints(uint32 points) { SetUInt32Value(PLAYER_CHARACTER_POINTS1, points); }
         bool ResetTalents(bool no_cost = false);
