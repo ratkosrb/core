@@ -8466,6 +8466,21 @@ uint32 Player::GetItemCount(uint32 item, bool inBankAlso, Item* skipItem) const
     return count;
 }
 
+Item* Player::GetItemByEntry(uint32 itemEntry) const
+{
+     for (int i = EQUIPMENT_SLOT_START; i < INVENTORY_SLOT_ITEM_END; ++i)
+        if (Item* pItem = GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+            if (pItem->GetEntry() == itemEntry)
+                return pItem;
+
+    for (int i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
+        if (Bag* pBag = (Bag*)GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+            if (Item* itemPtr = pBag->GetItemByEntry(itemEntry))
+                return itemPtr;
+
+    return NULL;
+}
+
 Item* Player::GetItemByGuid(ObjectGuid guid) const
 {
     for (int i = EQUIPMENT_SLOT_START; i < INVENTORY_SLOT_ITEM_END; ++i)
