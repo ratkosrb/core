@@ -7498,6 +7498,14 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type, Player* pVictim)
                 }
 
             loot = &go->loot;
+#ifdef ENABLE_ELUNA
+            Player* recipient = go->GetLootRecipient();
+            if (!recipient)
+            {
+                go->SetLootRecipient(this);
+                recipient = this;
+            }
+#endif
 
             // generate loot only if ready for open and spawned in world
             if (go->getLootState() == GO_READY && go->isSpawned())

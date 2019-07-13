@@ -686,6 +686,14 @@ class MANGOS_DLL_SPEC GameObject : public WorldObject
 
         Loot        loot;
 
+#ifdef ENABLE_ELUNA
+        ObjectGuid GetLootRecipientGuid() const { return m_lootRecipientGuid; }
+        uint32 GetLootGroupRecipientId() const { return m_lootGroupRecipientId; }
+        Player* GetLootRecipient() const;
+        Group* GetGroupLootRecipient() const;
+        void SetLootRecipient(Unit* pUnit);
+#endif
+
         bool HasQuest(uint32 quest_id) const;
         bool HasInvolvedQuest(uint32 quest_id) const;
         bool ActivateToQuest(Player *pTarget) const;
@@ -759,6 +767,10 @@ class MANGOS_DLL_SPEC GameObject : public WorldObject
         GameObjectAI *i_AI;
 
         uint32 m_playerGroupId;
+#ifdef ENABLE_ELUNA
+        ObjectGuid m_lootRecipientGuid;                     // player who will have rights for looting if m_lootGroupRecipient==0 or group disbanded
+        uint32 m_lootGroupRecipientId;                      // group who will have rights for looting if set and exist
+#endif
     private:
         void SwitchDoorOrButton(bool activate, bool alternative = false);
 
