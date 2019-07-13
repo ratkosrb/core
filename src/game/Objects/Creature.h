@@ -512,10 +512,6 @@ class MANGOS_DLL_SPEC Creature : public Unit
         void Update(uint32 update_diff, uint32 time) override;  // overwrite Unit::Update
 
         virtual void RegenerateAll(uint32 update_diff, bool skipCombatCheck = false);
-#ifdef ENABLE_ELUNA
-        void SetRespawnCoord(CreatureCreatePos const& pos) { m_respawnPos = pos.m_pos; }
-        void SetRespawnCoord(float x, float y, float z, float ori) { m_respawnPos.x = x; m_respawnPos.y = y; m_respawnPos.z = z; m_respawnPos.o = ori; }
-#endif
         void GetRespawnCoord(float &x, float &y, float &z, float* ori = nullptr, float* dist = nullptr) const;
         uint32 GetEquipmentId() const { return m_equipmentId; }
 
