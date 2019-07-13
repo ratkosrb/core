@@ -6290,6 +6290,11 @@ void Player::RewardReputation(Unit *pVictim, float rate)
     if (pVictim->IsPet() && sWorld.GetWowPatch() >= WOW_PATCH_110)
         return;
 
+#ifdef ENABLE_ELUNA
+    if (((Creature*)pVictim)->IsReputationGainDisabled())
+        return;
+#endif
+
     ReputationOnKillEntry const* Rep = sObjectMgr.GetReputationOnKillEntry(((Creature*)pVictim)->GetEntry());
 
     if (!Rep)

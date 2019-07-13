@@ -915,6 +915,11 @@ class MANGOS_DLL_SPEC Creature : public Unit
 
         bool CanSummonGuards() { return GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_SUMMON_GUARD; }
 
+#ifdef ENABLE_ELUNA
+        void SetDisableReputationGain(bool disable) { DisableReputationGain = disable; }
+        bool IsReputationGainDisabled() { return DisableReputationGain; }
+#endif
+
     protected:
         bool MeetsSelectAttackingRequirement(Unit* pTarget, SpellEntry const* pSpellInfo, uint32 selectFlags) const;
 
@@ -992,6 +997,10 @@ class MANGOS_DLL_SPEC Creature : public Unit
         float m_detectionDistance;
 
         bool _isEscortable;
+
+#ifdef ENABLE_ELUNA
+        bool DisableReputationGain;
+#endif
 
     private:
         GridReference<Creature> m_gridRef;
