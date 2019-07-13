@@ -16889,6 +16889,9 @@ void Player::Whisper(const std::string& text, uint32 language, ObjectGuid receiv
 
     Player* rPlayer = sObjectMgr.GetPlayer(receiver);
 
+    if (!rPlayer) // Player is offline/not available.
+        return;
+        
     WorldPacket data;
     ChatHandler::BuildChatPacket(data, CHAT_MSG_WHISPER, text.c_str(), Language(language), GetChatTag(), GetObjectGuid(), GetName());
     rPlayer->GetSession()->SendPacket(&data);
