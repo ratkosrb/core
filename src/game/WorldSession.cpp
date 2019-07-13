@@ -789,11 +789,6 @@ void WorldSession::LogoutPlayer(bool Save)
             Map::DeleteFromWorld(_player);
         }
 
-        ///- Used by Eluna
-#ifdef ENABLE_ELUNA
-        sEluna->OnLogout(_player);
-#endif /* ENABLE_ELUNA */
-
         SetPlayer(nullptr);                                    // deleted in Remove/DeleteFromWorld call
 
         if (GetMasterSession())
@@ -802,6 +797,11 @@ void WorldSession::LogoutPlayer(bool Save)
         ///- Send the 'logout complete' packet to the client
         WorldPacket data(SMSG_LOGOUT_COMPLETE, 0);
         SendPacket(&data);
+
+        ///- Used by Eluna
+#ifdef ENABLE_ELUNA
+        sEluna->OnLogout(_player);
+#endif /* ENABLE_ELUNA */
 
         DEBUG_LOG("SESSION: Sent SMSG_LOGOUT_COMPLETE Message");
     }
