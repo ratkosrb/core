@@ -1586,8 +1586,8 @@ class MANGOS_DLL_SPEC Player final: public Unit
         float GetSpellCritPercent(SpellSchools school) const { return m_SpellCritPercentage[school]; }
         void SetSpellCritPercent(SpellSchools school, float percent) { m_SpellCritPercentage[school] = percent; }
 
-        static float GetHealthBonusFromStamina() const { return GetHealthBonusFromStamina(GetStat(STAT_STAMINA)); };
-        static float GetManaBonusFromIntellect() const { return GetManaBonusFromIntellect(GetStat(STAT_INTELLECT)); };
+        float GetHealthBonusFromStamina() const { return GetHealthBonusFromStamina(GetStat(STAT_STAMINA)); };
+        float GetManaBonusFromIntellect() const { return GetManaBonusFromIntellect(GetStat(STAT_INTELLECT)); };
 
         /*********************************************************/
         /***                   SKILLS SYSTEM                   ***/
