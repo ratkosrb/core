@@ -37,6 +37,10 @@
 #pragma pack(push,1)
 #endif
 
+#ifdef ENABLE_ELUNA
+class Group;
+#endif
+
 // from `gameobject_template`
 struct GameObjectInfo
 {
