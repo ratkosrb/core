@@ -768,10 +768,10 @@ void WorldSession::LogoutPlayer(bool Save)
         ///- Update cached data at logout
         sObjectMgr.UpdatePlayerCache(_player);
 
-//         ///- Used by Eluna
-// #ifdef ENABLE_ELUNA
-//         sEluna->OnLogout(_player);
-// #endif /* ENABLE_ELUNA */
+        ///- Used by Eluna
+#ifdef ENABLE_ELUNA
+        sEluna->OnLogout(_player);
+#endif /* ENABLE_ELUNA */
 
         ///- Remove the player from the world
         // the player may not be in the world when logging out
@@ -797,11 +797,6 @@ void WorldSession::LogoutPlayer(bool Save)
         ///- Send the 'logout complete' packet to the client
         WorldPacket data(SMSG_LOGOUT_COMPLETE, 0);
         SendPacket(&data);
-
-        ///- Used by Eluna
-#ifdef ENABLE_ELUNA
-        sEluna->OnLogout(_player);
-#endif /* ENABLE_ELUNA */
 
         DEBUG_LOG("SESSION: Sent SMSG_LOGOUT_COMPLETE Message");
     }
