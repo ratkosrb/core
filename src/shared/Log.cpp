@@ -668,7 +668,7 @@ void Log::outErrorDb( const char * err, ... )
 void Log::outErrorEluna()
 {
     if (m_includeTime)
-        outTime();
+        outTime(stderr);
 
     fprintf(stderr, "\n");
 
@@ -700,7 +700,7 @@ void Log::outErrorEluna(const char* err, ...)
         SetColor(false, m_colors[LogError]);
 
     if (m_includeTime)
-        outTime();
+        outTime(stderr);
 
     va_list ap;
 
