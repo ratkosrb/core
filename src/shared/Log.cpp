@@ -688,9 +688,6 @@ void Log::outErrorEluna()
 
     fflush(stderr);
 }
-#else
-/* This is made to not fiddle with the eluna code in LuaEngine/ at all */
-void Log::outErrorEluna() {}
 #endif /* ENABLE_ELUNA */
 
 #ifdef ENABLE_ELUNA
@@ -744,9 +741,6 @@ void Log::outErrorEluna(const char* err, ...)
 
     fflush(stderr);
 }
-#else
-/* This is made to not fiddle with the eluna code in LuaEngine/ at all */
-void Log::outErrorEluna(const char* err, ...) {}
 #endif /* ENABLE_ELUNA */
 
 

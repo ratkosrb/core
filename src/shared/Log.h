@@ -190,10 +190,11 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
         void outErrorDb();                                  // any log level
                                                             // any log level
         void outErrorDb( const char * str, ... )     ATTR_PRINTF(2,3);
-
-	void outErrorEluna(); // any log level
-	void outErrorEluna(const char* str, ...) ATTR_PRINTF(2, 3);
-	                                                    // any log level
+#ifdef ENABLE_ELUNA
+        void outErrorEluna(); // any log level
+        void outErrorEluna(const char* str, ...) ATTR_PRINTF(2, 3);
+                                                            // any log level
+#endif
         void outWorldPacketDump(ACE_HANDLE socketHandle, uint32 opcode,
                                 char const* opcodeName,
                                 ByteBuffer const* packet, bool incoming);

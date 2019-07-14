@@ -174,3 +174,8 @@ if(UNIX)
 endif(UNIX)
 
 SET_TARGET_PROPERTIES (shared PROPERTIES FOLDER "Game Libs")
+
+target_compile_definitions(shared
+    PUBLIC
+      $<$<BOOL:${SCRIPT_LIB_ELUNA}>:ENABLE_ELUNA>
+)
