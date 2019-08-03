@@ -33,55 +33,63 @@ template<> struct BoundsTrait<VMAP::GroupModel>
 
 namespace VMAP
 {
-bool IntersectTriangle(const MeshTriangle& tri, std::vector<Vector3>::const_iterator points, const G3D::Ray& ray, float& distance)
+bool IntersectTriangle(const MeshTriangle& tri, const std::vector<Vector3>& points, const G3D::Ray& ray, float& distance)
 {
     static const float EPS = 1e-5f;
 
     // See RTR2 ch. 13.7 for the algorithm.
-
-    const Vector3 e1 = points[tri.idx1] - points[tri.idx0];
-    const Vector3 e2 = points[tri.idx2] - points[tri.idx0];
-    const Vector3 p(ray.direction().cross(e2));
-    const float a = e1.dot(p);
-
-    if (fabs(a) < EPS)
+    try
     {
-        // Determinant is ill-conditioned; abort early
-        return false;
+        const Vector3 e1 = points.at(tri.idx1) - points.at(tri.idx0);
+        const Vector3 e2 = points.at(tri.idx2) - points.at(tri.idx0);
+
+        const Vector3 p(ray.direction().cross(e2));
+        const float a = e1.dot(p);
+
+        if (fabs(a) < EPS)
+        {
+            // Determinant is ill-conditioned; abort early
+            return false;
+        }
+
+        const float f = 1.0f / a;
+        const Vector3 s(ray.origin() - points.at(tri.idx0));
+        const float u = f * s.dot(p);
+
+        if ((u < 0.0f) || (u > 1.0f))
+        {
+            // We hit the plane of the m_geometry, but outside the m_geometry
+            return false;
+        }
+
+        const Vector3 q(s.cross(e1));
+        const float v = f * ray.direction().dot(q);
+
+        if ((v < 0.0f) || ((u + v) > 1.0f))
+        {
+            // We hit the plane of the triangle, but outside the triangle
+            return false;
+        }
+
+        const float t = f * e2.dot(q);
+        if ((t > 0.0f) && (t < distance))
+        {
+            // This is a new hit, closer than the previous one
+            distance = t;
+
+            /* baryCoord[0] = 1.0 - u - v;
+            baryCoord[1] = u;
+            baryCoord[2] = v; */
+
+            return true;
+        }
+
+    }
+    catch (const std::out_of_range& e)
+    {
+        sLog.outError("VMAP::IntersectTriangle - Out of Range Exception - %s", e.what());
     }
 
-    const float f = 1.0f / a;
-    const Vector3 s(ray.origin() - points[tri.idx0]);
-    const float u = f * s.dot(p);
-
-    if ((u < 0.0f) || (u > 1.0f))
-    {
-        // We hit the plane of the m_geometry, but outside the m_geometry
-        return false;
-    }
-
-    const Vector3 q(s.cross(e1));
-    const float v = f * ray.direction().dot(q);
-
-    if ((v < 0.0f) || ((u + v) > 1.0f))
-    {
-        // We hit the plane of the triangle, but outside the triangle
-        return false;
-    }
-
-    const float t = f * e2.dot(q);
-
-    if ((t > 0.0f) && (t < distance))
-    {
-        // This is a new hit, closer than the previous one
-        distance = t;
-
-        /* baryCoord[0] = 1.0 - u - v;
-        baryCoord[1] = u;
-        baryCoord[2] = v; */
-
-        return true;
-    }
     // This hit is after the previous hit, so ignore it
     return false;
 }
@@ -352,14 +360,14 @@ bool GroupModel::readFromFile(FILE* rf)
 struct GModelRayCallback
 {
     GModelRayCallback(const std::vector<MeshTriangle>& tris, const std::vector<Vector3>& vert):
-        vertices(vert.begin()), triangles(tris.begin()), hit(0) {}
+        vertices(vert), triangles(tris.begin()), hit(0) {}
     bool operator()(const G3D::Ray& ray, uint32 entry, float& distance, bool /*pStopAtFirstHit*/)
     {
         bool result = IntersectTriangle(triangles[entry], vertices, ray, distance);
         if (result)  ++hit;
         return hit;
     }
-    std::vector<Vector3>::const_iterator vertices;
+    const std::vector<Vector3>& vertices;
     std::vector<MeshTriangle>::const_iterator triangles;
     uint32 hit;
 };
@@ -626,7 +634,7 @@ bool IsGoingOut(Vector3 const& p0, Vector3 const& p1, Vector3 const& p2, Vector3
 struct GModelRayOrientedCallback
 {
     GModelRayOrientedCallback(const std::vector<MeshTriangle>& tris, const std::vector<Vector3>& vert, bool isM2):
-        vertices(vert.begin()), triangles(tris.begin()), minOutDist(-1), minInDist(-1), m2(isM2) {}
+        vertices(vert), triangles(tris.begin()), minOutDist(-1), minInDist(-1), m2(isM2) {}
     bool operator()(const G3D::Ray& ray, uint32 entry, float& unusedD, bool /*pStopAtFirstHit*/)
     {
         // Dont modify unusedD. Keep it to infinity. We want to traverse every triangle.
@@ -656,7 +664,7 @@ struct GModelRayOrientedCallback
     {
         return (minOutDist < 0 && minInDist >= 0) || (0 <= minInDist && minInDist < minOutDist);
     }
-    std::vector<Vector3>::const_iterator vertices;
+    const std::vector<Vector3>& vertices;
     std::vector<MeshTriangle>::const_iterator triangles;
     float minOutDist; // in -> out
     float minInDist;  // out-> in
