@@ -618,6 +618,13 @@ class MANGOS_DLL_SPEC ChatHandler
         bool HandleNpcChangeLevelCommand(char* args);
         bool HandleNpcDespawnCommand(char* args);
         bool HandleNpcDeleteCommand(char* args);
+        bool HandleSpawnDeleteCommand(char* args);
+        bool HandleSpawnUpdateCommand(char* args);
+        bool HandleSpawnGoCommand(char* args);
+        bool HandleSpawnPoolCommand(char* args);
+        bool HandleSpawnOkCommand(char* args);
+        bool HandleSpawnEntryCommand(char* args);
+
         bool HandleNpcDelVendorItemCommand(char* args);
         bool HandleNpcEvadeCommand(char* args);
         bool HandleNpcFactionIdCommand(char* args);
@@ -625,6 +632,7 @@ class MANGOS_DLL_SPEC ChatHandler
         bool HandleNpcFollowCommand(char* args);
         bool HandleNpcInfoCommand(char* args);
         bool HandleNpcMoveCommand(char* args);
+        bool HandleSpawnMoveCommand(char* args);
         bool HandleNpcPlayEmoteCommand(char* args);
         bool HandleNpcSayCommand(char* args);
         bool HandleNpcSetDeathStateCommand(char* args);

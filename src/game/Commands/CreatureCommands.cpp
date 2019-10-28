@@ -667,6 +667,359 @@ bool ChatHandler::HandleNpcDeleteCommand(char* args)
     return true;
 }
 
+bool ChatHandler::HandleSpawnDeleteCommand(char* args)
+{
+    Creature* unit = NULL;
+
+    
+    unit = GetSelectedCreature();
+
+    if (!unit)
+    {
+        SendSysMessage(LANG_SELECT_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    FILE* pFile = fopen("deleted_spawns.txt", "a");
+    if (pFile)
+    {
+        std::string delete_guid = std::to_string(unit->GetGUIDLow());
+        fprintf(pFile, "%s, ", delete_guid.c_str());
+        fclose(pFile);
+    }
+
+    switch (unit->GetSubtype())
+    {
+    case CREATURE_SUBTYPE_GENERIC:
+    {
+        unit->CombatStop();
+        if (CreatureData const* data = sObjectMgr.GetCreatureData(unit->GetGUIDLow()))
+        {
+            Creature::AddToRemoveListInMaps(unit->GetGUIDLow(), data);
+            Creature::DeleteFromDB(unit->GetGUIDLow(), data);
+        }
+        else
+            unit->AddObjectToRemoveList();
+        break;
+    }
+    case CREATURE_SUBTYPE_PET:
+        ((Pet*)unit)->Unsummon(PET_SAVE_AS_CURRENT);
+        break;
+    case CREATURE_SUBTYPE_TOTEM:
+        ((Totem*)unit)->UnSummon();
+        break;
+    case CREATURE_SUBTYPE_TEMPORARY_SUMMON:
+        ((TemporarySummon*)unit)->UnSummon();
+        break;
+    default:
+        return false;
+    }
+
+    SendSysMessage(LANG_COMMAND_DELCREATMESSAGE);
+
+    return true;
+}
+
+bool ChatHandler::HandleSpawnUpdateCommand(char* args)
+{
+    Creature* unit = NULL;
+
+    unit = GetSelectedCreature();
+
+    if (!unit)
+    {
+        SendSysMessage(LANG_SELECT_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    uint32 lowGuid = 0;
+
+    if (!ExtractUInt32(&args, lowGuid))
+        return false;
+
+    FILE* pFile = fopen("updated_spawns.txt", "a");
+    if (!pFile)
+        return false;
+
+    Field* fields;
+    std::unique_ptr<QueryResult> result(WorldDatabase.PQuery("SELECT id, position_x, position_y, position_z, orientation FROM mangossecond.creature WHERE `guid` = %u", lowGuid));
+
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 id = fields[0].GetUInt32();
+            float x = fields[1].GetFloat();
+            float y = fields[2].GetFloat();
+            float z = fields[3].GetFloat();
+            float o = fields[4].GetFloat();
+
+            if (unit)
+            {
+                unit->SetHomePosition(x, y, z, o);
+                if (unit->isAlive())                           // dead creature will reset movement generator at respawn
+                {
+                    unit->SetDeathState(JUST_DIED);
+                    unit->Respawn();
+                }
+                unit->SetDisplayId(10700);
+            }
+
+            fprintf(pFile, "UPDATE `creature` SET `id`=%u, `position_x`=%f, `position_y`=%f, `position_z`=%f, `orientation`=%f WHERE `guid` = %u;\n", id, x, y, z, o, unit->GetGUIDLow());
+            WorldDatabase.PExecute("UPDATE mangos.`creature` SET `id`=%u, `position_x`=%f, `position_y`=%f, `position_z`=%f, `orientation`=%f, `modelid`=10700 WHERE `guid` = %u", id, x, y, z, o, unit->GetGUIDLow());
+            WorldDatabase.PExecute("UPDATE mangossecond.`creature` SET `modelid`=10700 WHERE `guid` = %u", lowGuid);
+        } while (result->NextRow());
+    }
+    fclose(pFile);
+    SendSysMessage("Spawn updated.");
+    return true;
+}
+
+std::string EscapeString(char const* unescapedString)
+{
+    char* escapedString = new char[strlen(unescapedString) * 2 + 1];
+    mysql_escape_string(escapedString, unescapedString, strlen(unescapedString));
+    std::string returnString = escapedString;
+    delete[] escapedString;
+    return returnString;
+}
+
+bool ChatHandler::HandleSpawnPoolCommand(char* args)
+{
+    Creature* unit = NULL;
+
+    
+    unit = GetSelectedCreature();
+
+    if (!unit)
+    {
+        SendSysMessage(LANG_SELECT_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    uint32 lowGuid = 0;
+
+    if (!ExtractUInt32(&args, lowGuid))
+        return false;
+
+    if (lowGuid == unit->GetGUIDLow())
+    {
+        SendSysMessage("Cannot pool creature with itself.");
+        return false;
+    }
+
+    FILE* pFile = fopen("pool_spawns.txt", "a");
+    if (!pFile)
+        return false;
+
+    Field* fields;
+    std::unique_ptr<QueryResult> result(WorldDatabase.Query("SELECT MAX(entry) FROM mangos.pool_template"));
+    uint32 pool_entry = 0;
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            pool_entry = fields[0].GetUInt32() + 1;
+        } while (result->NextRow());
+    }
+
+    result.reset(WorldDatabase.PQuery("SELECT id FROM mangossecond.creature WHERE guid=%u", lowGuid));
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 creature_id = fields[0].GetUInt32();
+
+            if (unit)
+            {
+                unit->SetDisplayId(10772);
+            }
+
+            auto cinfo = sObjectMgr.GetCreatureTemplate(creature_id);
+            if (!cinfo)
+            {
+                printf("Error! Missing creature id %u\n", creature_id);
+                PSendSysMessage("Error! Missing creature id %u", creature_id);
+                return false;
+            }
+                
+
+            fprintf(pFile, "INSERT INTO `pool_template` VALUES (%u, 1, 'Dustwallow Marsh: %s / %s', 0, 0, 0, 10);\n", pool_entry, EscapeString(unit->GetName()).c_str(), EscapeString(cinfo->name).c_str());
+            fprintf(pFile, "INSERT INTO `pool_creature` VALUES (%u, %u, 0, 'Dustwallow Marsh: %s', 0, 0, 10);\n", lowGuid, pool_entry, EscapeString(cinfo->name).c_str());
+            fprintf(pFile, "INSERT INTO `pool_creature` VALUES (%u, %u, 0, 'Dustwallow Marsh: %s', 0, 0, 10);\n", unit->GetGUIDLow(), pool_entry, EscapeString(unit->GetName()).c_str());
+
+
+            WorldDatabase.PExecute("UPDATE mangos.`creature` SET `modelid`=10772 WHERE `guid` = %u", unit->GetGUIDLow());
+            WorldDatabase.PExecute("UPDATE mangossecond.`creature` SET `modelid`=10772 WHERE `guid` = %u", lowGuid);
+            WorldDatabase.PExecute("INSERT INTO mangos.`pool_template` VALUES (%u, 1, 'Dustwallow Marsh: %s / %s', 0, 0, 0, 10)", pool_entry, EscapeString(unit->GetName()).c_str(), EscapeString(cinfo->name).c_str());
+        } while (result->NextRow());
+    }
+    fclose(pFile);
+    SendSysMessage("Pool added.");
+    return true;
+}
+
+bool ChatHandler::HandleSpawnEntryCommand(char* args)
+{
+    Creature* unit = GetSelectedCreature();
+
+    if (!unit)
+    {
+        SendSysMessage(LANG_SELECT_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    if (!*args)
+        return false;
+
+    uint32 id;
+    if (!ExtractUint32KeyFromLink(&args, "Hcreature_entry", id))
+        return false;
+
+    if (id == unit->GetEntry())
+    {
+        SendSysMessage("Cannot pool creature with itself.");
+        return false;
+    }
+
+    CreatureInfo const *cinfo = ObjectMgr::GetCreatureTemplate(id);
+    if (!cinfo)
+    {
+        PSendSysMessage(LANG_COMMAND_INVALIDCREATUREID, id);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    Player *chr = m_session->GetPlayer();
+    CreatureCreatePos pos(unit->GetMap(), unit->GetCreatureData()->posX, unit->GetCreatureData()->posY, unit->GetCreatureData()->posZ, unit->GetCreatureData()->orientation);
+    Map *map = chr->GetMap();
+
+    Creature* pCreature = new Creature;
+
+    // used guids from specially reserved range (can be 0 if no free values)
+    uint32 lowguid = sObjectMgr.GenerateStaticCreatureLowGuid();
+    if (!lowguid)
+    {
+        SendSysMessage(LANG_NO_FREE_STATIC_GUID_FOR_SPAWN);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    if (!pCreature->Create(lowguid, pos, cinfo))
+    {
+        delete pCreature;
+        return false;
+    }
+
+    pCreature->SetDefaultMovementType(unit->GetDefaultMovementType());
+    pCreature->SetRespawnRadius(unit->GetRespawnRadius());
+
+    pCreature->SaveToDB(map->GetId());
+
+    uint32 db_guid = pCreature->GetGUIDLow();
+
+    // To call _LoadGoods(); _LoadQuests(); CreateTrainerSpells();
+    pCreature->LoadFromDB(db_guid, map);
+
+    map->Add(pCreature);
+    sObjectMgr.AddCreatureToGrid(db_guid, sObjectMgr.GetCreatureData(db_guid));
+
+    if (id == unit->GetEntry())
+    {
+        SendSysMessage("Cannot pool creature with itself.");
+        return false;
+    }
+
+    FILE* pFile = fopen("pool_spawns.txt", "a");
+    if (!pFile)
+        return false;
+
+    Field* fields;
+    std::unique_ptr<QueryResult> result(WorldDatabase.Query("SELECT MAX(entry) FROM mangos.pool_template"));
+    uint32 pool_entry = 0;
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            pool_entry = fields[0].GetUInt32() + 1;
+        } while (result->NextRow());
+    }
+
+    if (unit)
+    {
+        unit->SetDisplayId(10772);
+        pCreature->SetDisplayId(10772);
+    }
+
+    fprintf(pFile, "INSERT INTO `pool_template` VALUES (%u, 1, 'Dustwallow Marsh: %s / %s', 0, 0, 0, 10);\n", pool_entry, EscapeString(unit->GetName()).c_str(), EscapeString(cinfo->name).c_str());
+    fprintf(pFile, "INSERT INTO `pool_creature` VALUES (%u, %u, 0, 'Dustwallow Marsh: %s', 0, 0, 10);\n", db_guid, pool_entry, EscapeString(cinfo->name).c_str());
+    fprintf(pFile, "INSERT INTO `pool_creature` VALUES (%u, %u, 0, 'Dustwallow Marsh: %s', 0, 0, 10);\n", unit->GetGUIDLow(), pool_entry, EscapeString(unit->GetName()).c_str());
+
+
+    WorldDatabase.PExecute("UPDATE mangossecond.`creature` SET `modelid`=10772 WHERE `guid` = %u", unit->GetGUIDLow());
+    WorldDatabase.PExecute("UPDATE mangossecond.`creature` SET `modelid`=10772 WHERE `guid` = %u", db_guid);
+    WorldDatabase.PExecute("INSERT INTO mangos.`pool_template` VALUES (%u, 1, 'Dustwallow Marsh: %s / %s', 0, 0, 0, 10)", pool_entry, EscapeString(unit->GetName()).c_str(), EscapeString(cinfo->name).c_str());
+
+    fclose(pFile);
+    PSendSysMessage("Pool added - guid %u.", db_guid);
+    return true;
+}
+
+bool ChatHandler::HandleSpawnOkCommand(char* args)
+{
+    Creature* unit = GetSelectedCreature();
+
+    if (!unit)
+    {
+        SendSysMessage(LANG_SELECT_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    unit->SetDisplayId(5430);
+    WorldDatabase.PExecute("UPDATE mangossecond.`creature` SET `modelid`=5430 WHERE `guid` = %u", unit->GetGUIDLow());
+
+    SendSysMessage("Spawn marked as redundant.");
+    return true;
+}
+
+bool ChatHandler::HandleSpawnGoCommand(char* args)
+{
+    uint32 lowGuid = 0;
+
+    if (!ExtractUInt32(&args, lowGuid))
+        return false;
+
+    Field* fields;
+    std::unique_ptr<QueryResult> result(WorldDatabase.PQuery("SELECT map, position_x, position_y, position_z, orientation FROM mangossecond.creature WHERE `guid` = %u", lowGuid));
+
+    if (result)
+    {
+        do
+        {
+            fields = result->Fetch();
+            uint32 map = fields[0].GetUInt32();
+            float x = fields[1].GetFloat();
+            float y = fields[2].GetFloat();
+            float z = fields[3].GetFloat();
+            float o = fields[4].GetFloat();
+
+            GetSession()->GetPlayer()->TeleportTo(map, x, y, z, o);
+            
+        } while (result->NextRow());
+    }
+
+    return true;
+}
+
 bool ChatHandler::HandleNpcAddWeaponCommand(char* args)
 {
     Creature* pCreature = GetSelectedCreature();
@@ -832,6 +1185,66 @@ bool ChatHandler::HandleNpcMoveCommand(char* args)
 
     WorldDatabase.PExecuteLog("UPDATE creature SET position_x = '%f', position_y = '%f', position_z = '%f', orientation = '%f' WHERE guid = '%u'", x, y, z, o, lowguid);
     PSendSysMessage(LANG_COMMAND_CREATUREMOVED);
+    return true;
+}
+
+bool ChatHandler::HandleSpawnMoveCommand(char* args)
+{
+    uint32 lowguid = 0;
+
+    Creature* pCreature = GetSelectedCreature();
+
+    if (!pCreature)
+    {
+        // number or [name] Shift-click form |color|Hcreature:creature_guid|h[name]|h|r
+        if (!ExtractUint32KeyFromLink(&args, "Hcreature", lowguid))
+            return false;
+
+        CreatureData const* data = sObjectMgr.GetCreatureData(lowguid);
+        if (!data)
+        {
+            PSendSysMessage(LANG_COMMAND_CREATGUIDNOTFOUND, lowguid);
+            SetSentErrorMessage(true);
+            return false;
+        }
+
+        Player* player = m_session->GetPlayer();
+
+        if (player->GetMapId() != data->mapid)
+        {
+            PSendSysMessage(LANG_COMMAND_CREATUREATSAMEMAP, lowguid);
+            SetSentErrorMessage(true);
+            return false;
+        }
+
+        pCreature = player->GetMap()->GetCreature(data->GetObjectGuid(lowguid));
+    }
+    else
+        lowguid = pCreature->GetGUIDLow();
+
+    float x = m_session->GetPlayer()->GetPositionX();
+    float y = m_session->GetPlayer()->GetPositionY();
+    float z = m_session->GetPlayer()->GetPositionZ();
+    float o = m_session->GetPlayer()->GetOrientation();
+
+    if (pCreature)
+    {
+        pCreature->SetHomePosition(x, y, z, o);
+        if (pCreature->isAlive())                           // dead creature will reset movement generator at respawn
+        {
+            pCreature->SetDeathState(JUST_DIED);
+            pCreature->Respawn();
+        }
+    }
+
+    FILE* pFile = fopen("updated_spawns.txt", "a");
+    if (!pFile)
+        return false;
+
+    WorldDatabase.PExecuteLog("UPDATE creature SET position_x = '%f', position_y = '%f', position_z = '%f', orientation = '%f' WHERE guid = '%u'", x, y, z, o, lowguid);
+    fprintf(pFile, "UPDATE `creature` SET `position_x` = %f, `position_y` = %f, `position_z` = %f, `orientation` = %f WHERE `guid` = %u", x, y, z, o, lowguid);
+    PSendSysMessage(LANG_COMMAND_CREATUREMOVED);
+    fclose(pFile);
     return true;
 }
 
