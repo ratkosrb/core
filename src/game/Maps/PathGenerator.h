@@ -54,14 +54,13 @@ enum PathType
     PATHFIND_FARFROMPOLY    = 0x0040,   // start of end positions are far from the mmap poligon
 
     // not in trinitycore
-    PATHFIND_DEST_FORCED    = 0x0080,   // NOSTALRIUS: forced destination
     PATHFIND_FLYPATH        = 0x0100,
 };
 
 class PathGenerator
 {
     public:
-        PathGenerator(Unit const* owner);
+        PathGenerator(WorldObject const* owner);
         ~PathGenerator();
 
         // Calculate the path from owner to given destination
@@ -91,7 +90,6 @@ class PathGenerator
         static dtPolyRef FindWalkPoly(dtNavMeshQuery const* query, float const* pointYZX, dtQueryFilter const& filter, float* closestPointYZX, float zSearchDist = 10.0f);
         void SetTransport(Transport* t) { m_transport = t; }
         Transport* GetTransport() const { return m_transport; }
-        void FillTargetAllowedFlags(Unit* target);
     private:
 
         dtPolyRef       m_pathPolyRefs[MAX_PATH_LENGTH];   // array of detour polygon references
@@ -109,10 +107,9 @@ class PathGenerator
         Vector3        m_endPosition;      // {x, y, z} of the destination
         Vector3        m_actualEndPosition;  // {x, y, z} of the closest possible point to given destination
         Transport*     m_transport;
-        Unit const* const       m_sourceUnit;       // the unit that is moving
+        WorldObject const* const m_source;          // the object that is moving
         dtNavMesh const*        m_navMesh;          // the nav mesh
         dtNavMeshQuery const*   m_navMeshQuery;     // the nav mesh query used to find the path
-        uint32          m_targetAllowedFlags;
 
         dtQueryFilter m_filter;                     // use single filter for all movements, update it when needed
 
@@ -130,23 +127,23 @@ class PathGenerator
         static float Dist3DSqr(Vector3 const& p1, Vector3 const& p2);
         static bool InRangeYZX(float const* v1, float const* v2, float r, float h);
 
+        dtPolyRef GetPathPolyByPosition(dtPolyRef const* polyPath, uint32 polyPathSize, float const* Point, float* Distance = nullptr) const;
         dtPolyRef GetPolyByLocation(float const* point, float *distance, uint32 flags = 0);
         bool HaveTiles(Vector3 const& p) const;
 
         void BuildPolyPath(Vector3 const& startPos, Vector3 const& endPos);
-        void BuildPointPath(float const* startPoint, float const* endPoint, float distToStartPoly, float distToEndPoly);
+        void BuildPointPath(float const* startPoint, float const* endPoint);
         void BuildShortcut();
-        void BuildUnderwaterPath();
 
+        NavTerrain GetNavTerrain(float x, float y, float z);
         void CreateFilter();
         void UpdateFilter();
 
         // smooth path functions
         static uint32 FixupCorridor(dtPolyRef* path, uint32 const npath, uint32 const maxPath,
                                     dtPolyRef const* visited, uint32 const nvisited);
-        bool GetSteerTarget(float const* startPos, float const* endPos, float const minTargetDist,
-                            dtPolyRef const* path, uint32 const pathSize, float* steerPos,
-                            unsigned char& steerPosFlag, dtPolyRef& steerPosRef) const;
+        bool GetSteerTarget(float const* startPos, float const* endPos, float minTargetDist, dtPolyRef const* path, uint32 pathSize, float* steerPos,
+                            unsigned char& steerPosFlag, dtPolyRef& steerPosRef);
         dtStatus FindSmoothPath(float const* startPos, float const* endPos,
                                 dtPolyRef const* polyPath, uint32 polyPathSize,
                                 float* smoothPath, int* smoothPathSize, uint32 maxSmoothPathSize);

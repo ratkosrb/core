@@ -10307,3 +10307,8 @@ void Unit::InitPlayerDisplayIds()
     }
 
 }
+
+bool Unit::IsFalling() const
+{
+    return m_movementInfo.HasMovementFlag(MOVEFLAG_JUMPING | MOVEFLAG_FALLINGFAR) || movespline->isFalling();
+}

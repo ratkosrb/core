@@ -1433,6 +1433,8 @@ class MANGOS_DLL_SPEC Unit : public WorldObject
         virtual bool CanWalk() const = 0;
         virtual bool CanFly() const = 0;
         virtual bool CanSwim() const = 0;
+
+        bool IsFalling() const;
         
         void SetInFront(Unit const* pTarget);
         void SetFacingTo(float ori);
