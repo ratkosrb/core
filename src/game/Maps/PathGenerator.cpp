@@ -213,6 +213,26 @@ void PathGenerator::BuildPolyPath(G3D::Vector3 const& startPos, G3D::Vector3 con
     float startPoint[VERTEX_SIZE] = {startPos.y, startPos.z, startPos.x};
     float endPoint[VERTEX_SIZE] = {endPos.y, endPos.z, endPos.x};
 
+    // First case : easy flying / swimming
+    if (m_source->IsUnit() && ((((Unit*)m_source)->CanSwim() && m_source->GetTerrain()->IsSwimmable(endPos.x, endPos.y, endPos.z)) || ((Unit*)m_source)->CanFly()))
+    {
+        if (!m_source->GetMap()->FindCollisionModel(startPos.x, startPos.y, startPos.z, endPos.x, endPos.y, endPos.z))
+        {
+            if (((Unit*)m_source)->CanSwim())
+                BuildUnderwaterPath();
+            else
+            {
+                BuildShortcut();
+                m_type = PathType(PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH);
+                if (((Unit*)m_source)->CanFly())
+                    m_type |= PATHFIND_FLYPATH;
+            }
+            return;
+        }
+        else if (((Unit*)m_source)->CanFly())
+            m_forceDestination = true;
+    }
+
     dtPolyRef startPoly = GetPolyByLocation(startPoint, &distToStartPoly);
     dtPolyRef endPoly = GetPolyByLocation(endPoint, &distToEndPoly);
 
@@ -686,6 +706,50 @@ void PathGenerator::BuildShortcut()
     m_type = PATHFIND_SHORTCUT;
     if (m_source->IsUnit() && ((Unit*)m_source)->CanFly())
         m_type |= PATHFIND_FLYPATH | PATHFIND_NORMAL;
+}
+
+void PathGenerator::BuildUnderwaterPath()
+{
+    Clear();
+
+    // make two point path, our curr pos is the start, and dest is the end
+    m_pathPoints.resize(2);
+
+    // set start and a default next position
+    m_pathPoints[0] = GetStartPosition();
+    m_pathPoints[1] = GetActualEndPosition();
+
+    GridMapLiquidData liquidData;
+    uint32 liquidStatus = m_source->GetTerrain()->getLiquidStatus(GetActualEndPosition().x, GetActualEndPosition().y, GetActualEndPosition().z, MAP_ALL_LIQUIDS, &liquidData);
+    // No water here ...
+    if (liquidStatus == LIQUID_MAP_NO_WATER)
+    {
+        m_type = PATHFIND_SHORTCUT;
+        if (m_source->IsUnit() && ((Unit*)m_source)->CanWalk())
+        {
+            // Find real height
+            m_type |= PATHFIND_NORMAL;
+            m_source->UpdateGroundPositionZ(m_pathPoints[1].x, m_pathPoints[1].y, m_pathPoints[1].z);
+        }
+        else
+        {
+            m_type |= PATHFIND_INCOMPLETE;
+            m_pathPoints[1] = GetStartPosition();
+        }
+        return;
+    }
+    m_type = PATHFIND_BLANK;
+    if (m_pathPoints[1].z > liquidData.level)
+    {
+        if (!(m_source->IsUnit() && ((Unit*)m_source)->CanFly()))
+        {
+            m_pathPoints[1].z = liquidData.level;
+            if (m_pathPoints[1].z > (liquidData.level + 2))
+                m_type |= PATHFIND_INCOMPLETE;
+        }
+    }
+    if (!(m_type & PATHFIND_INCOMPLETE))
+        m_type |= PATHFIND_NORMAL;
 }
 
 void PathGenerator::CreateFilter()

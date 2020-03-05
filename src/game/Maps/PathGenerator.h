@@ -134,6 +134,7 @@ class PathGenerator
         void BuildPolyPath(Vector3 const& startPos, Vector3 const& endPos);
         void BuildPointPath(float const* startPoint, float const* endPoint);
         void BuildShortcut();
+        void BuildUnderwaterPath();
 
         NavTerrain GetNavTerrain(float x, float y, float z);
         void CreateFilter();
