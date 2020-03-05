@@ -22,7 +22,7 @@
 #include "Player.h"
 #include "MoveSplineInit.h"
 #include "MoveSpline.h"
-#include "PathFinder.h"
+#include "PathGenerator.h"
 #include "Transport.h"
 
 template<class T>
@@ -69,11 +69,11 @@ bool ConfusedMovementGenerator<T>::Update(T &unit, uint32 const& diff)
     else if (!(unit.GetRandomPoint(i_x, i_y, i_z, 4.0f, x, y, z)))
         return true;
 
-    PathFinder path(&unit);
+    PathGenerator path(&unit);
     path.SetTransport(unit.GetTransport());
     path.ExcludeSteepSlopes();
-    path.setPathLengthLimit(4.0f);
-    path.calculate(x, y, z, false, true);
+    path.SetPathLengthLimit(4.0f);
+    path.CalculatePath(x, y, z, false, true);
     path.CutPathWithDynamicLoS();
 
     Movement::MoveSplineInit init(unit, "ConfusedMovementGenerator");

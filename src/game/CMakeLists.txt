@@ -146,7 +146,7 @@ set (game_SRCS
     Maps/MapPersistentStateMgr.cpp
     Maps/MapReference.cpp
     Maps/MoveMap.cpp
-    Maps/PathFinder.cpp
+    Maps/PathGenerator.cpp
     Maps/ScriptCommands.cpp
     Maps/ZoneScript.cpp
     Maps/ZoneScriptMgr.cpp
@@ -322,7 +322,7 @@ set (game_SRCS
     Maps/MoveMap.h
     Maps/MoveMapSharedDefines.h
     Maps/Path.h
-    Maps/PathFinder.h
+    Maps/PathGenerator.h
     Maps/ZoneScript.h
     Maps/ZoneScriptMgr.h
     Maps/Pool/PoolManager.h

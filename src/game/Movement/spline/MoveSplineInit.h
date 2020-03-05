@@ -20,7 +20,7 @@
 #define MANGOSSERVER_MOVESPLINEINIT_H
 
 #include "MoveSplineInitArgs.h"
-#include "PathFinder.h"
+#include "PathGenerator.h"
 #include "MotionMaster.h"
 
 class Unit;
@@ -53,7 +53,7 @@ namespace Movement
              * @param pointId - Id of fisrt point of the path. Example: when third path point will be done it will notify that pointId + 3 done
              */
             void MovebyPath(PointsArray const& path, int32 pointId = 0);
-            void Move(PathFinder const* pfinder);
+            void Move(PathGenerator const* pfinder);
 
             /* Initializes simple A to B mition, A is current unit's position, B is destination
              */
@@ -124,11 +124,11 @@ namespace Movement
     {
         if (options & MOVE_PATHFINDING)
         {
-            PathFinder path(&unit);
+            PathGenerator path(&unit);
             if (options & MOVE_EXCLUDE_STEEP_SLOPES)
                 path.ExcludeSteepSlopes();
-            path.setUseStrightPath(options & MOVE_STRAIGHT_PATH);
-            path.calculate(dest.x, dest.y, dest.z, options & MOVE_FORCE_DESTINATION);
+            path.SetUseStraightPath(options & MOVE_STRAIGHT_PATH);
+            path.CalculatePath(dest.x, dest.y, dest.z, options & MOVE_FORCE_DESTINATION);
             Move(&path);
         }
         else

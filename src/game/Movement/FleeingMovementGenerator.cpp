@@ -23,7 +23,7 @@
 #include "ObjectAccessor.h"
 #include "MoveSplineInit.h"
 #include "MoveSpline.h"
-#include "PathFinder.h"
+#include "PathGenerator.h"
 #include "MoveMap.h"
 
 #define SEARCH_RANDOM_RADIUS 5.0f
@@ -46,13 +46,13 @@ void FleeingMovementGenerator<T>::_setTargetLocation(T &owner)
 
     owner.AddUnitState(UNIT_STAT_FLEEING_MOVE);
 
-    PathFinder path(&owner);
+    PathGenerator path(&owner);
     path.SetTransport(owner.GetTransport());
     path.ExcludeSteepSlopes();
-    path.setPathLengthLimit(30.0f);
-    path.calculate(x, y, z);
+    path.SetPathLengthLimit(30.0f);
+    path.CalculatePath(x, y, z);
     path.CutPathWithDynamicLoS();
-    if (path.getPathType() & PATHFIND_NOPATH)
+    if (path.GetPathType() & PATHFIND_NOPATH)
     {
         i_nextCheckTime.Reset(urand(1000, 1500));
         return;

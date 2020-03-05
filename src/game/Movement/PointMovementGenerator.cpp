@@ -215,7 +215,7 @@ void ChargeMovementGenerator<T>::Initialize(T &unit)
 {
     if (!unit.IsStopped())
         unit.StopMoving();
-    if (path.getPathType() & PATHFIND_NOPATH)
+    if (path.GetPathType() & PATHFIND_NOPATH)
         return;
     unit.AddUnitState(UNIT_STAT_ROAMING | UNIT_STAT_ROAMING_MOVE);
     unit.m_movementInfo.moveFlags = unit.m_movementInfo.moveFlags & ~MOVEFLAG_MASK_MOVING_OR_TURN;
@@ -267,7 +267,7 @@ void ChargeMovementGenerator<T>::ComputePath(T& attacker, Unit& victim)
     chargeVect = chargeVect.direction(); // unit vector
 
     // Base path is to current victim position
-    path.calculate(victimPos.x, victimPos.y, victimPos.z, false);
+    path.CalculatePath(victimPos.x, victimPos.y, victimPos.z, false);
 
     // Improved path to victim future estimated position
     if (Player* victimPlayer = victim.ToPlayer())
@@ -298,7 +298,7 @@ void ChargeMovementGenerator<T>::ComputePath(T& attacker, Unit& victim)
                 if (data->InterpolateMovement(victimPlayer->m_movementInfo, _interpolateDelay, victimPos.x, victimPos.y, victimPos.z, o))
                 {
                     victim.UpdateAllowedPositionZ(victimPos.x, victimPos.y, victimPos.z);
-                    path.calculate(victimPos.x, victimPos.y, victimPos.z, false);
+                    path.CalculatePath(victimPos.x, victimPos.y, victimPos.z, false);
                     path.UpdateForMelee(&victim, attacker.GetMeleeReach());
                 }
             }
@@ -355,7 +355,7 @@ bool ChargeMovementGenerator<T>::Update(T &unit, uint32 const& diff)
     if (!unit.movespline->Finalized() && _recalculateSpeed)
     {
         _recalculateSpeed = false;
-        path.calculate(path.getEndPosition().x, path.getEndPosition().y, path.getEndPosition().z, false);
+        path.CalculatePath(path.GetEndPosition().x, path.GetEndPosition().y, path.GetEndPosition().z, false);
         Initialize(unit);
     }
     return !unit.movespline->Finalized();

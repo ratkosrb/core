@@ -41,7 +41,7 @@
 #include "ModelInstance.h"
  // MMAPS
 #include "MoveMap.h"                                        // for mmap manager
-#include "PathFinder.h"                                     // for mmap commands
+#include "PathGenerator.h"                                  // for mmap commands
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
@@ -2283,11 +2283,11 @@ bool ChatHandler::HandleMmapTestArea(char* args)
             Creature* target = itr->ToCreature();
             if (target->IsTrigger() || target->GetEntry() <= 2)
                 continue;
-            PathInfo path(target);
-            path.calculate(x, y, z, false);
-            if ((path.getPathType() & PATHFIND_NORMAL) == 0)
+            PathGenerator path(target);
+            path.CalculatePath(x, y, z, false);
+            if ((path.GetPathType() & PATHFIND_NORMAL) == 0)
             {
-                PSendSysMessage("-> Mob GUID %u entry %u pathtype 0x%x", target->GetDBTableGUIDLow(), target->GetEntry(), path.getPathType());
+                PSendSysMessage("-> Mob GUID %u entry %u pathtype 0x%x", target->GetDBTableGUIDLow(), target->GetEntry(), path.GetPathType());
                 continue;
             }
             ++paths;
@@ -2332,16 +2332,16 @@ bool ChatHandler::HandleMmapPathCommand(char* args)
     player->GetPosition(x, y, z);
 
     // path
-    PathInfo path(target);
+    PathGenerator path(target);
     Transport* transport = target->GetTransport();
     if (!transport && player->GetTransport())
         transport = player->GetTransport();
     path.SetTransport(transport);
-    path.calculate(x, y, z, useStraightPath);
-    PointsArray pointPath = path.getFullPath();
+    path.CalculatePath(x, y, z, useStraightPath);
+    PointsArray pointPath = path.GetPath();
     PSendSysMessage("%s's path to %s:", target->GetName(), player->GetName());
     PSendSysMessage("Building %s", useStraightPath ? "StraightPath" : "SmoothPath");
-    PSendSysMessage("length %i (dist %f) type %u", pointPath.size(), path.Length(), path.getPathType());
+    PSendSysMessage("length %i (dist %f) type %u", pointPath.size(), path.Length(), path.GetPathType());
 
     for (auto& i : pointPath)
     {
@@ -2388,7 +2388,7 @@ bool ChatHandler::HandleMmapLocCommand(char* /*args*/)
             SendSysMessage("No navmeshloaded");
             return true;
         }
-        dtPolyRef polyRef = PathInfo::FindWalkPoly(navmeshquery, location, filter, closestPoint);
+        dtPolyRef polyRef = PathGenerator::FindWalkPoly(navmeshquery, location, filter, closestPoint);
         if (!polyRef)
         {
             SendSysMessage("No polygon found");
@@ -2427,7 +2427,7 @@ bool ChatHandler::HandleMmapLocCommand(char* /*args*/)
     PSendSysMessage("Calc   [%02i,%02i]", tilex, tiley);
 
     // navmesh poly -> navmesh tile location
-    dtPolyRef polyRef = PathInfo::FindWalkPoly(navmeshquery, location, filter, closestPoint);
+    dtPolyRef polyRef = PathGenerator::FindWalkPoly(navmeshquery, location, filter, closestPoint);
 
     if (polyRef == INVALID_POLYREF)
         PSendSysMessage("Dt     [??,??] (invalid poly, probably no tile loaded)");

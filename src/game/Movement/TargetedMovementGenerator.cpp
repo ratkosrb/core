@@ -97,15 +97,15 @@ void TargetedMovementGeneratorMedium<T, D>::_setTargetLocation(T &owner)
     m_bTargetOnTransport = transport;
     i_target->GetPosition(m_fTargetLastX, m_fTargetLastY, m_fTargetLastZ, transport);
 
-    PathFinder path(&owner);
+    PathGenerator path(&owner);
 
     // allow pets following their master to cheat while generating paths
     bool petFollowing = (isPet && owner.HasUnitState(UNIT_STAT_FOLLOW));
     Movement::MoveSplineInit init(owner, "TargetedMovementGenerator");
     path.SetTransport(transport);
-    path.calculate(x, y, z, petFollowing);
+    path.CalculatePath(x, y, z, petFollowing);
 
-    PathType pathType = path.getPathType();
+    PathType pathType = path.GetPathType();
     m_bReachable = pathType & PATHFIND_NORMAL;
     if (!m_bReachable && !!(pathType & PATHFIND_INCOMPLETE) && owner.HasUnitState(UNIT_STAT_ALLOW_INCOMPLETE_PATH))
     {
@@ -116,7 +116,7 @@ void TargetedMovementGeneratorMedium<T, D>::_setTargetLocation(T &owner)
     if (m_bReachable && owner.GetMap() && owner.GetMap()->IsDungeon())
     {
         // Check dest coords to ensure reachability
-        G3D::Vector3 dest = path.getActualEndPosition();
+        G3D::Vector3 dest = path.GetActualEndPosition();
         if (!owner.CanReachWithMeleeAutoAttackAtPosition(i_target.getTarget(), dest[0], dest[1], dest[2]))
             m_bReachable = false;
     }

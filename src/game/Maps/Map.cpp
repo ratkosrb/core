@@ -40,7 +40,7 @@
 #include "BattleGroundMgr.h"
 #include "DynamicTree.h"
 #include "RegularGrid.h"
-#include "PathFinder.h"
+#include "PathGenerator.h"
 #include "Detour/Include/DetourNavMesh.h"
 #include "Detour/Include/DetourNavMeshQuery.h"
 #include "MoveMap.h"
@@ -3217,7 +3217,7 @@ bool Map::GetWalkHitPosition(Transport* transport, float srcX, float srcY, float
     if (!locatedOnSteepSlope)
         filter.setExcludeFlags(NAV_STEEP_SLOPES);
 
-    dtPolyRef startRef = PathInfo::FindWalkPoly(m_navMeshQuery, point, filter, closestPoint, zSearchDist);
+    dtPolyRef startRef = PathGenerator::FindWalkPoly(m_navMeshQuery, point, filter, closestPoint, zSearchDist);
     if (!startRef)
     {
         DETAIL_LOG("WalkHitPos: Start poly not found");
@@ -3305,7 +3305,7 @@ bool Map::GetWalkRandomPosition(Transport* transport, float &x, float &y, float 
     dtQueryFilter filter;
     filter.setIncludeFlags(moveAllowedFlags);
     filter.setExcludeFlags(NAV_STEEP_SLOPES);
-    dtPolyRef startRef = PathInfo::FindWalkPoly(m_navMeshQuery, point, filter, closestPoint);
+    dtPolyRef startRef = PathGenerator::FindWalkPoly(m_navMeshQuery, point, filter, closestPoint);
     if (!startRef)
         return false;
 

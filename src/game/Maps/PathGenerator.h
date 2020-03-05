@@ -50,35 +50,38 @@ enum PathType
     PATHFIND_INCOMPLETE     = 0x0004,   // we have partial path to follow - getting closer to target
     PATHFIND_NOPATH         = 0x0008,   // no valid path at all or error in generating one
     PATHFIND_NOT_USING_PATH = 0x0010,   // used when we are either flying/swiming or on map w/o mmaps
-    PATHFIND_DEST_FORCED    = 0x0020,   // NOSTALRIUS: forced destination
-    PATHFIND_FLYPATH        = 0x0040,
-    PATHFIND_UNDERWATER     = 0x0080,
-    PATHFIND_CASTER         = 0x0100,
+    PATHFIND_SHORT          = 0x0020,   // path is longer or equal to its limited path length
+    PATHFIND_FARFROMPOLY    = 0x0040,   // start of end positions are far from the mmap poligon
+
+    // not in trinitycore
+    PATHFIND_DEST_FORCED    = 0x0080,   // NOSTALRIUS: forced destination
+    PATHFIND_FLYPATH        = 0x0100,
 };
 
-class PathInfo
+class PathGenerator
 {
     public:
-        PathInfo(Unit const* owner);
-        ~PathInfo();
+        PathGenerator(Unit const* owner);
+        ~PathGenerator();
 
-        // return value : true if new path was calculated
-        bool calculate(float destX, float destY, float destZ, bool forceDest = false, bool offsets = false);
+        // Calculate the path from owner to given destination
+        // return: true if new path was calculated, false otherwise (no change needed)
+        bool CalculatePath(float destX, float destY, float destZ, bool forceDest = false, bool offsets = false);
+        bool IsInvalidDestinationZ(Unit const* target) const;
 
-        void setUseStrightPath(bool useStraightPath) { m_useStraightPath = useStraightPath; };
-        void setPathLengthLimit(float distance);
+        void SetUseStraightPath(bool useStraightPath) { m_useStraightPath = useStraightPath; };
+        void SetPathLengthLimit(float distance);
 
-        inline void getStartPosition(float &x, float &y, float &z) { x = m_startPosition.x; y = m_startPosition.y; z = m_startPosition.z; }
-        inline void getEndPosition(float &x, float &y, float &z) { x = m_endPosition.x; y = m_endPosition.y; z = m_endPosition.z; }
-        inline void getActualEndPosition(float &x, float &y, float &z) { x = m_actualEndPosition.x; y = m_actualEndPosition.y; z = m_actualEndPosition.z; }
+        inline void GetStartPosition(float &x, float &y, float &z) { x = m_startPosition.x; y = m_startPosition.y; z = m_startPosition.z; }
+        inline void GetEndPosition(float &x, float &y, float &z) { x = m_endPosition.x; y = m_endPosition.y; z = m_endPosition.z; }
+        inline void GetActualEndPosition(float &x, float &y, float &z) { x = m_actualEndPosition.x; y = m_actualEndPosition.y; z = m_actualEndPosition.z; }
 
-        inline Vector3 getStartPosition() const { return m_startPosition; }
-        inline Vector3 getEndPosition() const { return m_endPosition; }
-        inline Vector3 getActualEndPosition() const { return m_actualEndPosition; }
+        inline Vector3 GetStartPosition() const { return m_startPosition; }
+        inline Vector3 GetEndPosition() const { return m_endPosition; }
+        inline Vector3 GetActualEndPosition() const { return m_actualEndPosition; }
 
-        inline PointsArray& getFullPath() { return m_pathPoints; }
-        inline PointsArray const& getPath() const { return m_pathPoints; }
-        inline PathType getPathType() const { return PathType(m_type); }
+        inline PointsArray const& GetPath() const { return m_pathPoints; }
+        inline PathType GetPathType() const { return PathType(m_type); }
         // Nostalrius
         bool UpdateForCaster(Unit* pTarget, float castRange);
         bool UpdateForMelee(Unit* pTarget, float meleeReach);
@@ -146,7 +149,5 @@ class PathInfo
                                 dtPolyRef const* polyPath, uint32 polyPathSize,
                                 float* smoothPath, int* smoothPathSize, uint32 maxSmoothPathSize);
 };
-
-typedef PathInfo PathFinder;
 
 #endif

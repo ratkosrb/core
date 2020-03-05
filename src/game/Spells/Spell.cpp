@@ -46,7 +46,7 @@
 #include "BattleGround.h"
 #include "Util.h"
 #include "Chat.h"
-#include "PathFinder.h"
+#include "PathGenerator.h"
 #include "CharacterDatabaseCache.h"
 #include "GameObjectAI.h"
 #include "ZoneScript.h"
@@ -6300,12 +6300,12 @@ SpellCastResult Spell::CheckCast(bool strict)
                             float ground_Z = m_casterUnit->GetMap()->GetHeight(posX, posY, posZ, true);
                             float z_diff = fabs(ground_Z - posZ);
 
-                            PathInfo path(m_casterUnit);
+                            PathGenerator path(m_casterUnit);
                             path.SetTransport(m_casterUnit->GetTransport());
-                            path.calculate(x, y, z);
+                            path.CalculatePath(x, y, z);
 
                             // On est sur terre, le chemin doit etre valide.
-                            if (z_diff < 1.6f && (path.getPathType() & (PATHFIND_INCOMPLETE | PATHFIND_NOPATH)))
+                            if (z_diff < 1.6f && (path.GetPathType() & (PATHFIND_INCOMPLETE | PATHFIND_NOPATH)))
                                 return SPELL_FAILED_NOPATH;
                             // Dans tous les cas, on interdit un chemin trop long.
                             if (path.Length() > ((spellRange->maxRange + 1.0f) * 1.5f))

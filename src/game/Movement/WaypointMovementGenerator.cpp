@@ -565,8 +565,8 @@ void PatrolMovementGenerator::StartMove(Creature& creature)
 
     creature.AddUnitState(UNIT_STAT_ROAMING_MOVE);
 
-    PathInfo p(&creature);
-    p.calculate(x, y, z, true);
+    PathGenerator p(&creature);
+    p.CalculatePath(x, y, z, true);
     if (p.Length() < 0.2f)
         return;
 

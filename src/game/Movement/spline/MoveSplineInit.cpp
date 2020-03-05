@@ -48,12 +48,12 @@ UnitMoveType SelectSpeedType(uint32 moveFlags)
 }
 
 
-void MoveSplineInit::Move(PathFinder const* pfinder)
+void MoveSplineInit::Move(PathGenerator const* pfinder)
 {
-    MovebyPath(pfinder->getPath());
+    MovebyPath(pfinder->GetPath());
     if (pfinder->GetTransport())
         SetTransport(pfinder->GetTransport()->GetGUIDLow());
-    if (pfinder->getPathType() & PATHFIND_FLYPATH)
+    if (pfinder->GetPathType() & PATHFIND_FLYPATH)
         SetFly();
 }
 

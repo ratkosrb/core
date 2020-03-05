@@ -22,7 +22,7 @@
 #include "MovementGenerator.h"
 #include "FollowerReference.h"
 #include "Creature.h"
-#include "PathFinder.h"
+#include "PathGenerator.h"
 
 template<class T>
 class MANGOS_DLL_SPEC PointMovementGenerator
@@ -115,7 +115,7 @@ class MANGOS_DLL_SPEC ChargeMovementGenerator
         MovementGeneratorType GetMovementGeneratorType() const override { return CHARGE_MOTION_TYPE; }
         void unitSpeedChanged() { _recalculateSpeed = true; }
     protected:
-        PathFinder path;
+        PathGenerator path;
         ObjectGuid victimGuid;
         bool _recalculateSpeed;
         bool _triggerAttack;

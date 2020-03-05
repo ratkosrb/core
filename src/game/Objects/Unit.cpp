@@ -55,7 +55,7 @@
 #include "Nostalrius.h"
 #include "InstanceData.h"
 
-#include "PathFinder.h"
+#include "PathGenerator.h"
 #include "MoveSplineInit.h"
 #include "MoveSpline.h"
 #include "packet_builder.h"
