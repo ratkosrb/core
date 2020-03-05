@@ -66,7 +66,7 @@ class PathGenerator
 
         // Calculate the path from owner to given destination
         // return: true if new path was calculated, false otherwise (no change needed)
-        bool CalculatePath(float destX, float destY, float destZ, bool forceDest = false, bool offsets = false);
+        bool CalculatePath(float destX, float destY, float destZ, bool forceDest = false, bool straightLine = false, bool offsets = false);
         bool IsInvalidDestinationZ(Unit const* target) const;
 
         void SetUseStraightPath(bool useStraightPath) { m_useStraightPath = useStraightPath; };
@@ -103,6 +103,7 @@ class PathGenerator
         bool           m_useStraightPath;  // type of path will be generated
         bool           m_forceDestination; // when set, we will always arrive at given point
         uint32         m_pointPathLimit;   // limit point path size; min(this, MAX_POINT_PATH_LENGTH)
+        bool           m_straightLine;     // use raycast if true for a straight line path
 
         Vector3        m_startPosition;    // {x, y, z} of current location
         Vector3        m_endPosition;      // {x, y, z} of the destination
@@ -115,20 +116,21 @@ class PathGenerator
 
         dtQueryFilter m_filter;                     // use single filter for all movements, update it when needed
 
-        inline void setStartPosition(Vector3 const& point) { m_startPosition = point; }
-        inline void setEndPosition(Vector3 const& point) { m_actualEndPosition = point; m_endPosition = point; }
-        inline void setActualEndPosition(Vector3 const& point) { m_actualEndPosition = point; }
+        inline void SetStartPosition(Vector3 const& point) { m_startPosition = point; }
+        inline void SetEndPosition(Vector3 const& point) { m_actualEndPosition = point; m_endPosition = point; }
+        inline void SetActualEndPosition(Vector3 const& point) { m_actualEndPosition = point; }
+        void NormalizePath();
 
-        inline void clear()
+        inline void Clear()
         {
             m_polyLength = 0;
             m_pathPoints.clear();
         }
-        static bool inRange(Vector3 const& p1, Vector3 const& p2, float r, float h);
-        static float dist3DSqr(Vector3 const& p1, Vector3 const& p2);
-        static bool inRangeYZX(float const* v1, float const* v2, float r, float h);
+        static bool InRange(Vector3 const& p1, Vector3 const& p2, float r, float h);
+        static float Dist3DSqr(Vector3 const& p1, Vector3 const& p2);
+        static bool InRangeYZX(float const* v1, float const* v2, float r, float h);
 
-        dtPolyRef getPolyByLocation(float const* point, float *distance, uint32 flags = 0);
+        dtPolyRef GetPolyByLocation(float const* point, float *distance, uint32 flags = 0);
         bool HaveTiles(Vector3 const& p) const;
 
         void BuildPolyPath(Vector3 const& startPos, Vector3 const& endPos);
@@ -136,16 +138,16 @@ class PathGenerator
         void BuildShortcut();
         void BuildUnderwaterPath();
 
-        void createFilter();
-        void updateFilter();
+        void CreateFilter();
+        void UpdateFilter();
 
         // smooth path functions
-        static uint32 fixupCorridor(dtPolyRef* path, uint32 const npath, uint32 const maxPath,
+        static uint32 FixupCorridor(dtPolyRef* path, uint32 const npath, uint32 const maxPath,
                                     dtPolyRef const* visited, uint32 const nvisited);
-        bool getSteerTarget(float const* startPos, float const* endPos, float const minTargetDist,
+        bool GetSteerTarget(float const* startPos, float const* endPos, float const minTargetDist,
                             dtPolyRef const* path, uint32 const pathSize, float* steerPos,
                             unsigned char& steerPosFlag, dtPolyRef& steerPosRef) const;
-        dtStatus findSmoothPath(float const* startPos, float const* endPos,
+        dtStatus FindSmoothPath(float const* startPos, float const* endPos,
                                 dtPolyRef const* polyPath, uint32 polyPathSize,
                                 float* smoothPath, int* smoothPathSize, uint32 maxSmoothPathSize);
 };

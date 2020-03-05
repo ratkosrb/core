@@ -73,7 +73,7 @@ bool ConfusedMovementGenerator<T>::Update(T &unit, uint32 const& diff)
     path.SetTransport(unit.GetTransport());
     path.ExcludeSteepSlopes();
     path.SetPathLengthLimit(4.0f);
-    path.CalculatePath(x, y, z, false, true);
+    path.CalculatePath(x, y, z, false, false, true);
     path.CutPathWithDynamicLoS();
 
     Movement::MoveSplineInit init(unit, "ConfusedMovementGenerator");
