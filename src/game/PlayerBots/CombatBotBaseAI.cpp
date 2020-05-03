@@ -2251,7 +2251,7 @@ bool CombatBotBaseAI::IsValidDispelTarget(Unit const* pTarget, SpellEntry const*
         auto const& auras = pTarget->GetSpellAuraHolderMap();
         for (const auto& aura : auras)
         {
-            SpellAuraHolder* holder = aura.second;
+            SpellAuraHolder* holder = aura.second.aura;
             if ((1 << holder->GetSpellProto()->Dispel) & dispelMask)
             {
                 if (holder->GetSpellProto()->Dispel == DISPEL_MAGIC ||

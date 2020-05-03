@@ -81,6 +81,10 @@ void usage(const char *prog)
 /// Launch the mangos server
 extern int main(int argc, char **argv)
 {
+#ifdef WIN32
+    SetConsoleTitle("World Server - Press CTRL+C to close");
+#endif
+
     ///- Command line parsing
     char const* cfg_file = _MANGOSD_CONFIG;
 

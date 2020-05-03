@@ -95,6 +95,10 @@ void usage(const char *prog)
 /// Launch the realm server
 extern int main(int argc, char **argv)
 {
+#ifdef WIN32
+    SetConsoleTitle("Login Server - Press CTRL+C to close");
+#endif
+
     ///- Command line parsing
     char const* cfg_file = _REALMD_CONFIG;
 
