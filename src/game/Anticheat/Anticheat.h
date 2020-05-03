@@ -131,8 +131,9 @@ public:
 #ifdef USE_ANTICHEAT
     void LoadAnticheatData();
 
-    Warden * CreateWardenFor(WorldSession* client, BigNumber* K);
+    Warden* CreateWardenFor(WorldSession* client, BigNumber* K);
     MovementAnticheat* CreateAnticheatFor(Player* player);
+    AntispamInterface* GetAntispam() const;
 #else
     void LoadAnticheatData() {}
 
@@ -144,10 +145,10 @@ public:
     {
         return new MovementAnticheat();
     }
+    AntispamInterface* GetAntispam() const { return nullptr; }
 #endif
 
     // Antispam wrappers
-    AntispamInterface* GetAntispam() const { return nullptr; }
     bool CanWhisper(AccountPersistentData const& data, MasterPlayer* player) { return true; }
 
     static AnticheatManager* instance();
