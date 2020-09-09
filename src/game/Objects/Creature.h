@@ -551,7 +551,7 @@ class Creature : public Unit
         // En cas de modification "manuelle" des stats.
         void ResetStats();
 
-        void SelectLevel(CreatureInfo const* cinfo, float percentHealth = 100.0f, float percentMana = 100.0f);
+        void SelectLevel(CreatureInfo const* cinfo, CreatureData const* cdata = nullptr);
         void LoadEquipment(uint32 equip_entry, bool force=false);
 
         bool HasStaticDBSpawnData() const;                  // listed in `creature` table and have fixed in DB guid

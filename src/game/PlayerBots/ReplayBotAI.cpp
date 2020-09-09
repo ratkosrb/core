@@ -206,8 +206,6 @@ void ReplayBotAI::UpdateAI(uint32 const diff)
 
         m_lastMoveUnixTimeMs = uint64(sReplayMgr.GetCurrentSniffTime()) * 1000;
         m_lastMoveWorldMsTime = WorldTimer::getMSTime();
-        if (m_guid == 2)
-            printf("starting with %llu\n", m_lastMoveUnixTimeMs);
         return;
     }
 
@@ -225,11 +223,6 @@ void ReplayBotAI::UpdateMovement()
     uint32 currentWorldMsTime = WorldTimer::getMSTime();
     uint32 msExpired = currentWorldMsTime - m_lastMoveWorldMsTime;
     uint64 maxUnixTimeMs = m_lastMoveUnixTimeMs + msExpired;
-    if (m_guid == 2)
-    {
-        printf("---------------\n");
-        printf("msExpired = %u, maxUnixTimeMs = %llu\n", msExpired, maxUnixTimeMs);
-    }
         
     for (const auto& itr : *m_movementMap)
     {
@@ -243,12 +236,11 @@ void ReplayBotAI::UpdateMovement()
             return;
         }
 
-        if (m_guid == 2)
-            printf("moving\n");
         // send the movement
         if (itr.second.position.mapId == me->GetMapId())
         {
-            me->Relocate(itr.second.position.x, itr.second.position.y, itr.second.position.z, itr.second.position.o);
+            me->SetPosition(itr.second.position.x, itr.second.position.y, itr.second.position.z, itr.second.position.o);
+            me->m_movementInfo.ChangePosition(itr.second.position.x, itr.second.position.y, itr.second.position.z, itr.second.position.o);
             me->m_movementInfo.SetMovementFlags(MovementFlags(itr.second.moveFlags));
             me->m_movementInfo.UpdateTime(itr.second.moveTime);
             WorldPacket data(itr.second.opcode);

@@ -72,9 +72,11 @@ class ReplayMgr
         {
             LoadCharacterTemplates();
             LoadCharacterMovements();
+            LoadActivePlayer();
         }
         void LoadCharacterTemplates();
         void LoadCharacterMovements();
+        void LoadActivePlayer();
 
         void SpawnCharacters();
         void SetPlayTime(uint32 unixtime);
@@ -87,6 +89,15 @@ class ReplayMgr
         uint32 GetStartTimeReal() { return m_startTimeReal; }
         uint32 GetStartTimeRealMs() { return m_startTimeRealMs; }
         uint32 GetTimeDifference() { return m_timeDifference; }
+        Player* GetPlayer(uint32 guid);
+        ReplayBotAI* GetPlayerBot(uint32 guid)
+        {
+            auto const itr = m_playerBots.find(guid);
+            if (itr != m_playerBots.end())
+                return itr->second;
+            return nullptr;
+        }
+        bool GetCurrentClientPosition(WorldLocation& loc);
 
     protected:
         bool m_enabled = false;
@@ -96,6 +107,7 @@ class ReplayMgr
         uint32 m_startTimeReal = 0;
         uint32 m_startTimeRealMs = 0;
         uint32 m_timeDifference = 0;
+        std::map<uint32 /*unixtime*/, uint32 /*guid*/> m_activePlayers;
         std::unordered_map<uint32 /*guid*/, ReplayBotAI*> m_playerBots;
         std::unordered_map<uint32 /*guid*/, CharacterTemplateEntry> m_characterTemplates;
         std::unordered_map<uint32 /*guid*/, CharacterMovementMap> m_characterMovements;

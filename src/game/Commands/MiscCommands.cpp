@@ -33,7 +33,6 @@
 #include "MassMailMgr.h"
 #include "InstanceData.h"
 #include "BattleGroundMgr.h"
-#include "ReplayMgr.h"
 
 bool ChatHandler::HandleHelpCommand(char* args)
 {
@@ -1670,16 +1669,20 @@ bool ChatHandler::HandleCinematicListWpCommand(char *args)
     return true;
 }
 
-bool ChatHandler::HandleReplayPlayCommand(char* args)
+bool ChatHandler::HandleReplayPlayCommand(char* c)
 {
-    if (sReplayMgr.IsPlaying())
-        SendSysMessage("Sniff replay is already playing.");
-
-    uint32 unixtime;
-    if (ExtractUInt32(&args, unixtime))
-        sReplayMgr.SetPlayTime(unixtime);
-
-    sReplayMgr.StartPlaying();
+    if (!c || !*c || strchr(c, '/') != nullptr || strchr(c, '.') != nullptr)
+        return false;
+    WorldSession* sess = m_session;
+    if (Player* player = GetSelectedPlayer())
+        sess = player->GetSession();
+    std::string filename = "replays/";
+    filename += c;
+    sess->SetReadPacket(filename.c_str());
+    if (m_session->IsReplaying())
+        PSendSysMessage("Starting replay %s for %s", c, playerLink(sess->GetPlayerName()).c_str());
+    else
+        PSendSysMessage("Could not start replay %s", c);
     return true;
 }
 

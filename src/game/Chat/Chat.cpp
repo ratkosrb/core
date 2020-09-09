@@ -1018,6 +1018,14 @@ ChatCommand * ChatHandler::getCommandTable()
         { "client",         SEC_GAMEMASTER,     true, nullptr,                                          "", anticheatClientCommandTable },
         { nullptr,          0,                  false, nullptr,                                         "", nullptr }
     };
+    static ChatCommand sniffCommandTable[] =
+    {
+        { "play",           SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffPlayCommand,            "", nullptr },
+        { "stop",           SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffStopCommand,            "", nullptr },
+        { "settime",        SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffSetTimeCommand,         "", nullptr },
+        { "gotoclient",     SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffGoToClientCommand,      "", nullptr },
+        { nullptr,          0,                  false, nullptr,                                         "", nullptr }
+    };
     static ChatCommand replayCommandTable[] =
     {
         { "play",           SEC_ADMINISTRATOR,  false, &ChatHandler::HandleReplayPlayCommand,           "", nullptr },
@@ -1106,6 +1114,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { "cheat",          SEC_GAMEMASTER,     false, nullptr,                                        "", cheatCommandTable    },
         { "debug",          SEC_TICKETMASTER,   true, nullptr,                                         "", debugCommandTable    },
         { "replenish",      SEC_GAMEMASTER,     false, &ChatHandler::HandleReplenishCommand,           "", nullptr              },
+        { "sniff",          SEC_ADMINISTRATOR,  false, nullptr,                                        "", sniffCommandTable },
         { "replay",         SEC_ADMINISTRATOR,  false, nullptr,                                        "", replayCommandTable   },
         { "event",          SEC_GAMEMASTER,     false, nullptr,                                        "", eventCommandTable    },
         { "gm",             SEC_PLAYER,         true, nullptr,                                         "", gmCommandTable       },

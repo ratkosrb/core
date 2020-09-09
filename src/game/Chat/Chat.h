@@ -225,6 +225,12 @@ class ChatHandler
         bool HandleAntiSpamReplace(char* args);
         bool HandleAntiSpamRemoveReplace(char* args);
 
+        // Sniff replay
+        bool HandleSniffPlayCommand(char *);
+        bool HandleSniffStopCommand(char *);
+        bool HandleSniffSetTimeCommand(char *);
+        bool HandleSniffGoToClientCommand(char *);
+
         // Packet dump
         bool HandleReplayPlayCommand(char *);
         bool HandleReplayRecordCommand(char *);

@@ -1849,6 +1849,9 @@ void ObjectMgr::LoadCreatures(bool reload)
         data.npc_flags          = fields[18].GetUInt32();
         data.unit_flags         = fields[19].GetUInt32();
 
+        if (data.current_health == 0)
+            data.spawn_flags |= SPAWN_FLAG_DEAD;
+
         data.instanciatedContinentInstanceId = sMapMgr.GetContinentInstanceId(data.position.mapId, data.position.x, data.position.y);
         
         MapEntry const* mapEntry = sMapStorage.LookupEntry<MapEntry>(data.position.mapId);

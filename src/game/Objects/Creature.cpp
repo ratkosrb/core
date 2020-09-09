@@ -477,26 +477,45 @@ bool Creature::UpdateEntry(uint32 Entry, Team team, CreatureData const* data /*=
     SetSheath(SHEATH_STATE_MELEE);
     SetByteValue(UNIT_FIELD_BYTES_2, 1, UNIT_BYTE2_FLAG_AURAS);
 
-    SelectLevel(GetCreatureInfo(), preserveHPAndPower ? GetHealthPercent() : 100.0f, preserveHPAndPower ? GetPowerPercent(POWER_MANA) : 100.0f);
+    SelectLevel(GetCreatureInfo(), data);
 
-    SetFactionTemplateId(GetCreatureInfo()->faction);
+    if (data)
+    {
+        SetFactionTemplateId(data->faction);
+        SetSpeedRateReal(MOVE_WALK, data->speed_walk);
+        SetSpeedRateReal(MOVE_RUN, data->speed_run);
+        SetUInt32Value(UNIT_FIELD_BASEATTACKTIME, data->base_attack_time);
+        SetUInt32Value(UNIT_FIELD_RANGEDATTACKTIME, data->ranged_attack_time);
+        SetUInt32Value(UNIT_NPC_FLAGS, data->npc_flags);
+        SetUInt32Value(UNIT_FIELD_FLAGS, data->unit_flags);
+    }
+    else
+    {
+        SetFactionTemplateId(GetCreatureInfo()->faction);
+        SetUInt32Value(UNIT_NPC_FLAGS, GetCreatureInfo()->npc_flags);
+
+        uint32 attackTimer = GetCreatureInfo()->base_attack_time;
+        SetAttackTime(BASE_ATTACK, attackTimer);
+        SetAttackTime(OFF_ATTACK, attackTimer);
+        SetAttackTime(RANGED_ATTACK, GetCreatureInfo()->ranged_attack_time);
+
+        uint32 unitFlags = GetCreatureInfo()->unit_flags;
+        // we may need to append or remove additional flags
+        if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IN_COMBAT))
+            unitFlags |= UNIT_FLAG_IN_COMBAT;
+        // Nostalrius: we need this flag to get a proper animation
+        // Giant type creatures walk underwater
+        if (CanSwim() && GetCreatureInfo()->type != CREATURE_TYPE_GIANT)
+            unitFlags |= UNIT_FLAG_USE_SWIM_ANIMATION;
+        SetUInt32Value(UNIT_FIELD_FLAGS, unitFlags);
+
+        if (HasExtraFlag(CREATURE_FLAG_EXTRA_PVP))
+            SetPvP(true);
+        else
+            SetPvP(false);
+    }
+    
     SetDefaultGossipMenuId(GetCreatureInfo()->gossip_menu_id);
-    SetUInt32Value(UNIT_NPC_FLAGS, GetCreatureInfo()->npc_flags);
-
-    uint32 attackTimer = GetCreatureInfo()->base_attack_time;
-    SetAttackTime(BASE_ATTACK,  attackTimer);
-    SetAttackTime(OFF_ATTACK,   attackTimer);
-    SetAttackTime(RANGED_ATTACK, GetCreatureInfo()->ranged_attack_time);
-
-    uint32 unitFlags = GetCreatureInfo()->unit_flags;
-    // we may need to append or remove additional flags
-    if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IN_COMBAT))
-        unitFlags |= UNIT_FLAG_IN_COMBAT;
-    // Nostalrius: we need this flag to get a proper animation
-    // Giant type creatures walk underwater
-    if (CanSwim() && GetCreatureInfo()->type != CREATURE_TYPE_GIANT)
-        unitFlags |= UNIT_FLAG_USE_SWIM_ANIMATION;
-    SetUInt32Value(UNIT_FIELD_FLAGS, unitFlags);
 
     // preserve all current dynamic flags if exist
     uint32 dynFlags = GetUInt32Value(UNIT_DYNAMIC_FLAGS);
@@ -522,11 +541,6 @@ bool Creature::UpdateEntry(uint32 Entry, Team team, CreatureData const* data /*=
     if (FactionTemplateEntry const* pFactionTemplate = sObjectMgr.GetFactionTemplateEntry(GetCreatureInfo()->faction))
         if (FactionEntry const* pFaction = sObjectMgr.GetFactionEntry(pFactionTemplate->faction))
             m_reputationId = pFaction->reputationListID;
-
-    if (HasExtraFlag(CREATURE_FLAG_EXTRA_PVP))
-        SetPvP(true);
-    else
-        SetPvP(false);
 
     for (int i = 0; i < CREATURE_MAX_SPELLS; ++i)
         m_spells[i] = GetCreatureInfo()->spells[i];
@@ -684,7 +698,7 @@ void Creature::Update(uint32 update_diff, uint32 diff)
 
                 CreatureInfo const* cinfo = GetCreatureInfo();
 
-                SelectLevel(cinfo, dbSpawnData ? dbSpawnData->health_percent : 100.0f, dbSpawnData ? dbSpawnData->mana_percent : 100.0f);
+                SelectLevel(cinfo, dbSpawnData);
                 SetUInt32Value(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_NONE);
                 if (IsDeadByDefault())
                 {
@@ -1499,45 +1513,51 @@ void Creature::SaveToDB(uint32 mapid)
     WorldDatabase.CommitTransaction();
 }
 
-void Creature::SelectLevel(CreatureInfo const* cinfo, float percentHealth, float percentMana)
+void Creature::SelectLevel(CreatureInfo const* cinfo, CreatureData const* cdata)
 {
+    uint32 health = 0;
+    uint32 mana = 0;
     uint32 rank = IsPet() ? 0 : cinfo->rank;
+    if (cdata)
+    {
+        SetLevel(cdata->level);
+        SetMaxHealth(cdata->max_health);
+        SetHealth(cdata->current_health);
+        health = cdata->max_health;
+        SetMaxPower(POWER_MANA, cdata->max_mana);
+        SetPower(POWER_MANA, cdata->current_mana);
+        mana = cdata->max_mana;
+    }
+    else
+    {
+        // level
+        uint32 minlevel = std::min(cinfo->level_max, cinfo->level_min);
+        uint32 maxlevel = std::max(cinfo->level_max, cinfo->level_min);
+        uint32 level = minlevel == maxlevel ? minlevel : urand(minlevel, maxlevel);
+        SetLevel(level);
 
-    // level
-    uint32 minlevel = std::min(cinfo->level_max, cinfo->level_min);
-    uint32 maxlevel = std::max(cinfo->level_max, cinfo->level_min);
-    uint32 level = minlevel == maxlevel ? minlevel : urand(minlevel, maxlevel);
-    SetLevel(level);
+        float rellevel = maxlevel == minlevel ? 0 : (float(level - minlevel)) / (maxlevel - minlevel);
 
-    float rellevel = maxlevel == minlevel ? 0 : (float(level - minlevel)) / (maxlevel - minlevel);
+        // health
+        float healthmod = _GetHealthMod(rank);
 
-    // health
-    float healthmod = _GetHealthMod(rank);
+        uint32 minhealth = std::min(cinfo->health_max, cinfo->health_min);
+        uint32 maxhealth = std::max(cinfo->health_max, cinfo->health_min);
+        uint32 health = uint32(healthmod * (minhealth + uint32(rellevel * (maxhealth - minhealth))));
 
-    uint32 minhealth = std::min(cinfo->health_max, cinfo->health_min);
-    uint32 maxhealth = std::max(cinfo->health_max, cinfo->health_min);
-    uint32 health = uint32(healthmod * (minhealth + uint32(rellevel * (maxhealth - minhealth))));
-
-    SetCreateHealth(health);
-    SetMaxHealth(health);
-
-    if (percentHealth == 100.0f)
+        SetCreateHealth(health);
+        SetMaxHealth(health);
         SetHealth(health);
-    else
-        SetHealthPercent(percentHealth);
 
-    // mana
-    uint32 minmana = std::min(cinfo->mana_max, cinfo->mana_min);
-    uint32 maxmana = std::max(cinfo->mana_max, cinfo->mana_min);
-    uint32 mana = minmana + uint32(rellevel * (maxmana - minmana));
+        // mana
+        uint32 minmana = std::min(cinfo->mana_max, cinfo->mana_min);
+        uint32 maxmana = std::max(cinfo->mana_max, cinfo->mana_min);
+        mana = minmana + uint32(rellevel * (maxmana - minmana));
 
-    SetCreateMana(mana);
-    SetMaxPower(POWER_MANA, mana);
-
-    if (percentMana == 100.0f)
+        SetCreateMana(mana);
+        SetMaxPower(POWER_MANA, mana);
         SetPower(POWER_MANA, mana);
-    else
-        SetPowerPercent(POWER_MANA, percentMana);
+    }
 
     SetModifierValue(UNIT_MOD_HEALTH, BASE_VALUE, float(health));
     SetModifierValue(UNIT_MOD_MANA, BASE_VALUE, float(mana));
@@ -1687,10 +1707,10 @@ bool Creature::LoadFromDB(uint32 guidlow, Map* map)
     }
     
     SetLevel(data->level);
-    SetHealth(data->current_health);
     SetMaxHealth(data->max_health);
-    SetPower(POWER_MANA, data->current_mana);
+    SetHealth(data->current_health);
     SetMaxPower(POWER_MANA, data->max_mana);
+    SetPower(POWER_MANA, data->current_mana);
     SetFactionTemplateId(data->faction);
     SetSpeedRateReal(MOVE_WALK, data->speed_walk);
     SetSpeedRateReal(MOVE_RUN, data->speed_run);

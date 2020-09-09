@@ -34,6 +34,7 @@
 #include "ProgressBar.h"
 #include "ReplayBotAI.h"
 #include "PlayerBotMgr.h"
+#include "Chat.h"
 
 INSTANTIATE_SINGLETON_1(ReplayMgr);
 
@@ -277,6 +278,37 @@ void ReplayMgr::LoadCharacterMovements()
     sLog.outString(">> Loaded %u sniffed character movements", count);
 }
 
+void ReplayMgr::LoadActivePlayer()
+{
+    uint32 count = 0;
+
+    //                                                               0       1
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `unixtime` FROM `character_active_player`"));
+
+    if (!result)
+    {
+        BarGoLink bar(1);
+        bar.step();
+
+        sLog.outString();
+        sLog.outErrorDb(">> No active player in sniff.");
+        return;
+    }
+
+    BarGoLink bar(result->GetRowCount());
+
+    do
+    {
+        Field* fields = result->Fetch();
+        bar.step();
+
+        uint32 guid = fields[0].GetUInt32();
+        uint32 unixtime = fields[1].GetUInt32();
+
+        m_activePlayers.insert({ unixtime, guid });
+
+    } while (result->NextRow());
+}
 
 void ReplayMgr::SpawnCharacters()
 {
@@ -291,6 +323,30 @@ void ReplayMgr::SpawnCharacters()
         sPlayerBotMgr.AddBot(ai);
     }
     sLog.outString("[ReplayMgr] All characters spawned");
+}
+
+bool ReplayMgr::GetCurrentClientPosition(WorldLocation& loc)
+{
+    uint32 currentCharacterGuid = 0;
+    for (const auto& itr : m_activePlayers)
+    {
+        if (itr.first < m_currentSniffTime)
+            currentCharacterGuid = itr.second;
+        else
+            break;
+    }
+
+    if (Player* pPlayer = GetPlayer(currentCharacterGuid))
+    {
+        loc.mapId = pPlayer->GetMapId();
+        loc.x = pPlayer->GetPositionX();
+        loc.y = pPlayer->GetPositionY();
+        loc.z = pPlayer->GetPositionZ();
+        loc.o = pPlayer->GetOrientation();
+        return true;
+    }
+    
+    return false;
 }
 
 void ReplayMgr::SetPlayTime(uint32 unixtime)
@@ -319,4 +375,53 @@ void ReplayMgr::StartPlaying()
         m_initialized = true;
     }
     m_enabled = true;
+}
+
+Player* ReplayMgr::GetPlayer(uint32 guid)
+{
+    auto const itr = m_playerBots.find(guid);
+    if (itr != m_playerBots.end())
+        return itr->second->me;
+    return nullptr;
+}
+
+bool ChatHandler::HandleSniffPlayCommand(char* args)
+{
+    if (sReplayMgr.IsPlaying())
+        SendSysMessage("Sniff replay is already playing.");
+
+    uint32 unixtime;
+    if (ExtractUInt32(&args, unixtime))
+        sReplayMgr.SetPlayTime(unixtime);
+
+    sReplayMgr.StartPlaying();
+    return true;
+}
+
+bool ChatHandler::HandleSniffStopCommand(char* args)
+{
+    if (!sReplayMgr.IsPlaying())
+        SendSysMessage("Sniff replay is already stopped.");
+
+    sReplayMgr.StopPlaying();
+    return true;
+}
+
+bool ChatHandler::HandleSniffSetTimeCommand(char* args)
+{
+    uint32 unixtime;
+    if (!ExtractUInt32(&args, unixtime))
+        return false;
+    sReplayMgr.SetPlayTime(unixtime);
+    return true;
+}
+
+bool ChatHandler::HandleSniffGoToClientCommand(char* args)
+{
+    WorldLocation loc;
+    if (sReplayMgr.GetCurrentClientPosition(loc))
+        m_session->GetPlayer()->TeleportTo(loc);
+    else
+        SendSysMessage("Cannot identify client's position.");
+    return true;
 }
