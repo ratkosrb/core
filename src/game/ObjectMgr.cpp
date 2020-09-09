@@ -1435,7 +1435,7 @@ void ObjectMgr::ConvertCreatureAddonAuras(CreatureDataAddon* addon, char const* 
 
 void ObjectMgr::LoadCreatureAddons(SQLStorage& creatureaddons, char const* entryName, char const* comment)
 {
-    creatureaddons.LoadProgressive(sWorld.GetWowPatch());
+    creatureaddons.LoadFromSniff();
 
     sLog.outString(">> Loaded %u %s", creatureaddons.GetRecordCount(), comment);
     sLog.outString();
@@ -1471,14 +1471,6 @@ void ObjectMgr::LoadCreatureAddons(SQLStorage& creatureaddons, char const* entry
 
 void ObjectMgr::LoadCreatureAddons()
 {
-    LoadCreatureAddons(sCreatureInfoAddonStorage, "Entry", "creature template addons");
-
-    // check entry ids
-    for (uint32 i = 1; i < sCreatureInfoAddonStorage.GetMaxEntry(); ++i)
-        if (CreatureDataAddon const* addon = sCreatureInfoAddonStorage.LookupEntry<CreatureDataAddon>(i))
-            if (!sCreatureStorage.LookupEntry<CreatureInfo>(addon->guidOrEntry))
-                sLog.outErrorDb("Creature (Entry: %u) does not exist but has a record in `%s`", addon->guidOrEntry, sCreatureInfoAddonStorage.GetTableName());
-
     LoadCreatureAddons(sCreatureDataAddonStorage, "GUID", "creature addons");
 
     // check entry ids
@@ -1801,18 +1793,8 @@ void ObjectMgr::LoadCreatureSpells()
 void ObjectMgr::LoadCreatures(bool reload)
 {
     uint32 count = 0;
-    //                                                                          0                  1                2                 3                 4      5                 6
-    std::unique_ptr<QueryResult> result(WorldDatabase.Query("SELECT `creature`.`guid`, `creature`.`id`, `creature`.`id2`, `creature`.`id3`, `creature`.`id4`, `map`, `creature`.`display_id`,"
-    //                      7               8             9             10            11             12                  13                  14
-                          "`equipment_id`, `position_x`, `position_y`, `position_z`, `orientation`, `spawntimesecsmin`, `spawntimesecsmax`, `wander_distance`, "
-    //                      15                16              17               18
-                          "`health_percent`, `mana_percent`, `movement_type`, `event`,"
-    //                                      19                                     20            21             22                           23                      24
-                          "`pool_creature`.`pool_entry`, `pool_creature_template`.`pool_entry`, `spawn_flags`, `visibility_mod`, `creature`.`patch_min`, `creature`.`patch_max`  "
-                          "FROM `creature` "
-                          "LEFT OUTER JOIN `game_event_creature` ON `creature`.`guid` = `game_event_creature`.`guid` "
-                          "LEFT OUTER JOIN `pool_creature` ON `creature`.`guid` = `pool_creature`.`guid` "
-                          "LEFT OUTER JOIN `pool_creature_template` ON `creature`.`id` = `pool_creature_template`.`id`"));
+    //                                                               0       1     2      3             4             5             6              7             8          9        10                11            12              13          14            15           16                  17                    18           19
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `display_id`, `faction`, `level`, `current_health`, `max_health`, `current_mana`, `max_mana`, `speed_walk`, `speed_run`, `base_attack_time`, `ranged_attack_time`, `npc_flags`, `unit_flags` FROM `creature`"));
 
     if (!result)
     {
@@ -1832,109 +1814,43 @@ void ObjectMgr::LoadCreatures(bool reload)
         Field* fields = result->Fetch();
 
         uint32 guid         = fields[ 0].GetUInt32();
-        uint32 first_entry  = fields[ 1].GetUInt32();
-        float curhealth     = fields[15].GetFloat();
-        float curmana       = fields[16].GetFloat();
-        uint32 spawnFlags   = fields[21].GetUInt32();
-        bool is_dead        = spawnFlags & SPAWN_FLAG_DEAD;
-        uint8 patch_min     = fields[23].GetUInt8();
-        uint8 patch_max     = fields[24].GetUInt8();
-        bool existsInPatch  = true;
+        uint32 entry        = fields[ 1].GetUInt32();
 
-        if (!first_entry)
+        CreatureInfo const* cInfo = GetCreatureTemplate(entry);
+        if (!cInfo)
         {
-            sLog.outErrorDb("Table `creature` has creature (GUID: %u) with non existing creature entry %u, skipped.", guid, first_entry);
+            sLog.outErrorDb("Table `creature` has creature (GUID: %u) with non existing creature entry %u, skipped.", guid, entry);
             continue;
         }
-
-        if ((patch_min > patch_max) || (patch_max > 10))
-        {
-            sLog.outErrorDb("Table `creature` GUID %u (entry %u) has invalid values patch_min=%u, patch_max=%u.", guid, first_entry, patch_min, patch_max);
-            sLog.out(LOG_DBERRFIX, "UPDATE `creature` SET `patch_min`=0, `patch_max`=10 WHERE `guid`=%u AND `id`=%u;", guid, first_entry);
-            patch_min = 0;
-            patch_max = 10;
-        }
-
-        if (!((sWorld.GetWowPatch() >= patch_min) && (sWorld.GetWowPatch() <= patch_max)))
-            existsInPatch = false;
-
-        bool skip = false;
-        for (int i = 0; i < MAX_CREATURE_IDS_PER_SPAWN; i++)
-        {
-            if (uint32 entry = fields[1 + i].GetUInt32())
-            {
-                CreatureInfo const* cInfo = GetCreatureTemplate(entry);
-                if (!cInfo)
-                {
-                    if (existsInPatch) // don't print error when it is not loaded for the current patch
-                    {
-                        sLog.outErrorDb("Table `creature` has creature (GUID: %u) with non existing creature entry %u, skipped.", guid, entry);
-                        sLog.out(LOG_DBERRFIX, "DELETE FROM `creature` WHERE `guid`=%u;", guid);
-                    }
-                    skip = true;
-                    break;
-                }
-
-                if ((cInfo->regeneration & REGEN_FLAG_HEALTH) && (cInfo->health_min > 0) && (curhealth < 100.0f) && !is_dead)
-                {
-                    sLog.outErrorDb("Table `creature` have creature (GUID: %u Entry: %u) with REGEN_FLAG_HEALTH and low current health percent (%g%%).", guid, first_entry, curhealth);
-                    sLog.out(LOG_DBERRFIX, "UPDATE `creature` SET `health_percent`=100 WHERE `guid`=%u AND `id`=%u;", guid, first_entry);
-                    curhealth = 100.0f;
-                }
-
-                if ((cInfo->regeneration & REGEN_FLAG_POWER) && (cInfo->mana_min > 0) && (curmana < 100.0f))
-                {
-                    sLog.outErrorDb("Table `creature` have creature (GUID: %u Entry: %u) with REGEN_FLAG_POWER and low current mana percent (%g%%).", guid, first_entry, curmana);
-                    sLog.out(LOG_DBERRFIX, "UPDATE `creature` SET `mana_percent=100 WHERE `guid`=%u AND `id`=%u;", guid, first_entry);
-                    curmana = 100.0f;
-                }
-
-                if (curhealth > 100.0f)
-                {
-                    sLog.outErrorDb("Table `creature` have creature (GUID: %u Entry: %u) with more than 100%% health.", guid, first_entry);
-                    sLog.out(LOG_DBERRFIX, "UPDATE `creature` SET `health_percent`=100 WHERE `guid`=%u AND `id`=%u;", guid, first_entry);
-                    curhealth = 100.0f;
-                }
-
-                if (curmana > 100.0f)
-                {
-                    sLog.outErrorDb("Table `creature` have creature (GUID: %u Entry: %u) with more than 100%% mana.", guid, first_entry);
-                    sLog.out(LOG_DBERRFIX, "UPDATE `creature` SET `mana_percent`=100 WHERE `guid`=%u AND `id`=%u;", guid, first_entry);
-                    curmana = 100.0f;
-                }
-            }
-        }
-
-        if (skip)
-            continue;
 
         bool alreadyPresent = reload && m_CreatureDataMap.find(guid) != m_CreatureDataMap.end();
         CreatureData& data = m_CreatureDataMap[guid];
 
-        data.creature_id[0]     = fields[ 1].GetUInt32();
-        data.creature_id[1]     = fields[ 2].GetUInt32();
-        data.creature_id[2]     = fields[ 3].GetUInt32();
-        data.creature_id[3]     = fields[ 4].GetUInt32();
-        data.position.mapId     = fields[ 5].GetUInt16();
-        data.display_id         = fields[ 6].GetUInt32();
-        data.equipment_id       = fields[ 7].GetUInt32();
-        data.position.x         = fields[ 8].GetFloat();
-        data.position.y         = fields[ 9].GetFloat();
-        data.position.z         = fields[10].GetFloat();
-        data.position.o         = fields[11].GetFloat();
-        data.spawntimesecsmin   = fields[12].GetUInt32();
-        data.spawntimesecsmax   = fields[13].GetUInt32();
-        data.wander_distance    = fields[14].GetFloat();
-        data.health_percent     = curhealth;
-        data.mana_percent       = curmana;
-        data.movement_type      = fields[17].GetUInt8();
-        data.spawn_flags        = spawnFlags;
-        data.visibility_mod     = fields[22].GetFloat();
-        data.instanciatedContinentInstanceId = sMapMgr.GetContinentInstanceId(data.position.mapId, data.position.x, data.position.y);
-        int16 gameEvent         = fields[18].GetInt16();
-        int16 GuidPoolId        = fields[19].GetInt16();
-        int16 EntryPoolId       = fields[20].GetInt16();
+        data.creature_id[0]     = entry;
+        data.creature_id[1]     = 0;
+        data.creature_id[2]     = 0;
+        data.creature_id[3]     = 0;
+        data.position.mapId     = fields[ 2].GetUInt16();
+        data.position.x         = fields[ 3].GetFloat();
+        data.position.y         = fields[ 4].GetFloat();
+        data.position.z         = fields[ 5].GetFloat();
+        data.position.o         = fields[ 6].GetFloat();
+        data.display_id         = fields[ 7].GetUInt32();
+        data.faction            = fields[ 8].GetUInt32();
+        data.level              = fields[ 9].GetUInt32();
+        data.current_health     = fields[10].GetUInt32();
+        data.max_health         = fields[11].GetUInt32();
+        data.current_mana       = fields[12].GetUInt32();
+        data.max_mana           = fields[13].GetUInt32();
+        data.speed_walk         = fields[14].GetFloat();
+        data.speed_run          = fields[15].GetFloat();
+        data.base_attack_time   = fields[16].GetUInt32();
+        data.ranged_attack_time = fields[17].GetUInt32();
+        data.npc_flags          = fields[18].GetUInt32();
+        data.unit_flags         = fields[19].GetUInt32();
 
+        data.instanciatedContinentInstanceId = sMapMgr.GetContinentInstanceId(data.position.mapId, data.position.x, data.position.y);
+        
         MapEntry const* mapEntry = sMapStorage.LookupEntry<MapEntry>(data.position.mapId);
         if (!mapEntry)
         {
@@ -1942,9 +1858,6 @@ void ObjectMgr::LoadCreatures(bool reload)
             sLog.out(LOG_DBERRFIX, "DELETE FROM `creature` WHERE `guid`=%u AND `id`=%u;", guid, data.creature_id[0]);
             continue;
         }
-
-        if (!existsInPatch)
-            data.spawn_flags |= SPAWN_FLAG_DISABLED;
 
         if (data.spawntimesecsmax < data.spawntimesecsmin)
         {
@@ -1994,7 +1907,7 @@ void ObjectMgr::LoadCreatures(bool reload)
             }
         }
 
-        if (!alreadyPresent && existsInPatch && gameEvent == 0 && GuidPoolId == 0 && EntryPoolId == 0) // if not this is to be managed by GameEvent System or Pool system
+        if (!alreadyPresent) // if not this is to be managed by GameEvent System or Pool system
             AddCreatureToGrid(guid, &data);
         ++count;
 

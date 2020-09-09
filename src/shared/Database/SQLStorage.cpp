@@ -140,6 +140,12 @@ void SQLStorage::Load(bool error_at_empty /*= true*/)
     loader.Load(*this, error_at_empty);
 }
 
+void SQLStorage::LoadFromSniff(bool error_at_empty /*= true*/)
+{
+    SQLStorageLoader loader;
+    loader.LoadFromSniff(*this, error_at_empty);
+}
+
 void SQLStorage::LoadProgressive(uint32 wow_patch, std::string column_name /*= "patch"*/, bool error_at_empty /*= true*/)
 {
     SQLStorageLoader loader;

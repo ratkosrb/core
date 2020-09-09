@@ -194,13 +194,25 @@ struct CreatureData
     WorldLocation position;
     uint32 display_id = 0;
     int32 equipment_id = 0;
-    uint32 spawntimesecsmin = 0;
-    uint32 spawntimesecsmax = 0;
+    uint32 faction = 0;
+    uint32 level = 0;
+    uint32 current_health = 0;
+    uint32 max_health = 0;
+    uint32 current_mana = 0;
+    uint32 max_mana = 0;
+    float speed_walk = 0.0f;
+    float speed_run = 0.0f;
+    uint32 base_attack_time = 0;
+    uint32 ranged_attack_time = 0;
+    uint32 npc_flags = 0;
+    uint32 unit_flags = 0;
+    uint32 spawntimesecsmin = 99999999;
+    uint32 spawntimesecsmax = 99999999;
     float wander_distance = 0.0f;
     float health_percent = 100.0f;
     float mana_percent = 100.0f;
     uint8 movement_type = 0;
-    uint32 spawn_flags = 0;
+    uint32 spawn_flags = 1;
     float visibility_mod = 0.0f;
 
     // non db field
@@ -235,12 +247,19 @@ struct CreatureData
 struct CreatureDataAddon
 {
     uint32 guidOrEntry;
+    uint32 path_id;
     uint32 mount;
     uint32 bytes1;
-    uint8  sheath_state;                                    // SheathState
-    uint8  flags;                                           // UnitBytes2_Flags
+    uint32 stand_state;
+    uint32 pet_talent_points;
+    uint32 vis_flags;
+    uint32 anim_tier;
+    uint32 bytes2;
+    uint32 sheath_state;
+    uint32 pvp_flags;
+    uint32 pet_flags;
+    uint32 shapeshift_form;
     uint32 emote;
-    uint32 move_flags;
     uint32 const* auras;                                    // loaded as char* "spell1 spell2 ... "
 };
 

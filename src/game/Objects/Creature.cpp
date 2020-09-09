@@ -391,18 +391,13 @@ void Creature::UnloadCreatureAddon(CreatureDataAddon const* data)
     // 2 UnitRename         Pet only, so always 0 for default creature
     // 3 ShapeshiftForm     Must be determined/set by shapeshift spell/aura
     SetByteValue(UNIT_FIELD_BYTES_2, 0, 0);
-
-    if (data->flags != 0)
-        SetByteValue(UNIT_FIELD_BYTES_2, 1, 0);
+    SetByteValue(UNIT_FIELD_BYTES_2, 1, 0);
 
     //SetByteValue(UNIT_FIELD_BYTES_2, 2, 0);
     //SetByteValue(UNIT_FIELD_BYTES_2, 3, 0);
 
     if (data->emote != 0)
         SetUInt32Value(UNIT_NPC_EMOTESTATE, 0);
-
-    if (data->move_flags & SPLINEFLAG_FLYING)
-        SetFly(false);
 
     if (data->auras)
     {
@@ -1651,8 +1646,6 @@ bool Creature::LoadFromDB(uint32 guidlow, Map* map)
         return false;
     }
 
-    GameEventCreatureData const* eventData = sGameEventMgr.GetCreatureUpdateDataForActiveEvent(guidlow);
-
     // Creature can be loaded already in map if grid has been unloaded while creature walk to another grid
     if (map->GetCreature(cinfo->GetObjectGuid(guidlow)))
         return false;
@@ -1660,13 +1653,13 @@ bool Creature::LoadFromDB(uint32 guidlow, Map* map)
     CreatureCreatePos pos(map, data->position.x, data->position.y, data->position.z, data->position.o);
     SetHomePosition(data->position.x, data->position.y, data->position.z, data->position.o);
 
-    if (!Create(guidlow, pos, cinfo, TEAM_NONE, data->creature_id[0], data, eventData))
+    if (!Create(guidlow, pos, cinfo, TEAM_NONE, data->creature_id[0], data, nullptr))
         return false;
 
     m_wanderDistance = data->wander_distance;
 
     m_respawnDelay = data->GetRandomRespawnTime();
-    m_deathState = data->spawn_flags & SPAWN_FLAG_DEAD ? DEAD : ALIVE;
+    m_deathState = data->current_health == 0 ? DEAD : ALIVE;
 
     if (data->spawn_flags & SPAWN_FLAG_ACTIVE)
         m_isActiveObject = true;
@@ -1692,42 +1685,22 @@ bool Creature::LoadFromDB(uint32 guidlow, Map* map)
 
         GetMap()->GetPersistentState()->SaveCreatureRespawnTime(GetGUIDLow(), 0);
     }
-
-    uint32 curhealth = cinfo->health_max * data->health_percent / 100.0f;
-    if (curhealth)
-    {
-        curhealth = uint32(curhealth * _GetHealthMod(GetCreatureInfo()->rank));
-        if (curhealth < 1)
-            curhealth = 1;
-    }
-    uint32 curmana = cinfo->mana_max * data->mana_percent / 100.0f;
-
-    if (sCreatureLinkingMgr.IsSpawnedByLinkedMob(this))
-    {
-        m_isSpawningLinked = true;
-        if (m_deathState == ALIVE && !GetMap()->GetCreatureLinkingHolder()->CanSpawn(this))
-        {
-            m_deathState = DEAD;
-
-            // Just set to dead, so need to relocate like above
-            if (CanFly())
-            {
-                float tz = GetTerrain()->GetHeightStatic(data->position.x, data->position.y, data->position.z, false);
-                if (data->position.z - tz > 0.1)
-                    Relocate(data->position.x, data->position.y, tz);
-            }
-        }
-    }
-
-    SetHealth(m_deathState == ALIVE ? curhealth : 0);
-    SetPower(POWER_MANA, curmana);
+    
+    SetLevel(data->level);
+    SetHealth(data->current_health);
+    SetMaxHealth(data->max_health);
+    SetPower(POWER_MANA, data->current_mana);
+    SetMaxPower(POWER_MANA, data->max_mana);
+    SetFactionTemplateId(data->faction);
+    SetSpeedRateReal(MOVE_WALK, data->speed_walk);
+    SetSpeedRateReal(MOVE_RUN, data->speed_run);
+    SetUInt32Value(UNIT_FIELD_BASEATTACKTIME, data->base_attack_time);
+    SetUInt32Value(UNIT_FIELD_RANGEDATTACKTIME, data->ranged_attack_time);
+    SetUInt32Value(UNIT_NPC_FLAGS, data->npc_flags);
+    SetUInt32Value(UNIT_FIELD_FLAGS, data->unit_flags);
 
     // checked at creature_template loading
     m_defaultMovementType = MovementGeneratorType(data->movement_type);
-
-    // Creature Linking, Initial load is handled like respawn
-    if (m_isCreatureLinkingTrigger && IsAlive())
-        GetMap()->GetCreatureLinkingHolder()->DoCreatureLinkingEvent(LINKING_EVENT_RESPAWN, this);
 
     if (data->spawn_flags & SPAWN_FLAG_NOT_VISIBLE)
         SetVisibility(VISIBILITY_OFF);
@@ -2427,19 +2400,12 @@ bool Creature::LoadCreatureAddon(bool reload)
     if (m_mountId != 0)
         Mount(m_mountId);
 
-    if (cainfo->bytes1 != 0)
-    {
-        // 0 StandState
-        // 1 LoyaltyLevel  Pet only, so always 0 for default creature
-        // 2 ShapeshiftForm     Must be determined/set by shapeshift spell/aura
-        // 3 StandMiscFlags
-
-        SetByteValue(UNIT_FIELD_BYTES_1, 0, uint8(cainfo->bytes1 & 0xFF));
-        //SetByteValue(UNIT_FIELD_BYTES_1, 1, uint8((cainfo->bytes1 >> 8) & 0xFF));
-        //SetByteValue(UNIT_FIELD_BYTES_1, 1, 0);
-        //SetByteValue(UNIT_FIELD_BYTES_2, 2, 0);
-        SetByteValue(UNIT_FIELD_BYTES_1, 3, uint8((cainfo->bytes1 >> 24) & 0xFF));
-    }
+    // UNIT_FIELD_BYTES_1
+    // 0 StandState
+    // 1 LoyaltyLevel  Pet only, so always 0 for default creature
+    // 2 ShapeshiftForm     Must be determined/set by shapeshift spell/aura
+    // 3 StandMiscFlags
+    SetByteValue(UNIT_FIELD_BYTES_1, 0, cainfo->stand_state);
 
     // UNIT_FIELD_BYTES_2
     // 0 SheathState
@@ -2448,17 +2414,8 @@ bool Creature::LoadCreatureAddon(bool reload)
     // 3 ShapeshiftForm     Must be determined/set by shapeshift spell/aura
     SetByteValue(UNIT_FIELD_BYTES_2, 0, cainfo->sheath_state);
 
-    if (cainfo->flags != 0)
-        SetByteValue(UNIT_FIELD_BYTES_2, 1, cainfo->flags);
-
-    //SetByteValue(UNIT_FIELD_BYTES_2, 2, 0);
-    //SetByteValue(UNIT_FIELD_BYTES_2, 3, 0);
-
     if (cainfo->emote != 0)
         SetUInt32Value(UNIT_NPC_EMOTESTATE, cainfo->emote);
-
-    if (cainfo->move_flags & SPLINEFLAG_FLYING)
-        SetFly(true);
 
     if (cainfo->auras)
     {
