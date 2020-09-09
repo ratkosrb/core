@@ -39,6 +39,7 @@ set (game_SRCS
     pchdef.cpp
     PlayerDump.cpp
     QuestDef.cpp
+    ReplayMgr.cpp
     ReputationMgr.cpp
     ScriptMgr.cpp
     SocialMgr.cpp
@@ -191,6 +192,7 @@ set (game_SRCS
     PlayerBots/BattleBotWaypoints.cpp
     PlayerBots/PlayerBotAI.cpp
     PlayerBots/PlayerBotMgr.cpp
+    PlayerBots/ReplayBotAI.cpp
     Protocol/Opcodes.cpp
     Protocol/WorldSocket.cpp
     Protocol/WorldSocketMgr.cpp
@@ -238,6 +240,7 @@ set (game_SRCS
     pchdef.h
     PlayerDump.h
     QuestDef.h
+    ReplayMgr.h
     ReputationMgr.h
     ScriptedGossip.h
     ScriptMgr.h
@@ -377,6 +380,7 @@ set (game_SRCS
     PlayerBots/BattleBotWaypoints.h
     PlayerBots/PlayerBotAI.h
     PlayerBots/PlayerBotMgr.h
+    PlayerBots/ReplayBotAI.h
     Protocol/Opcodes.h
     Protocol/WorldSocket.h
     Protocol/WorldSocketMgr.h

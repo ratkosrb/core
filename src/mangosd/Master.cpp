@@ -291,6 +291,7 @@ int Master::Run()
     WorldDatabase.AllowAsyncTransactions();
     LoginDatabase.AllowAsyncTransactions();
     LogsDatabase.AllowAsyncTransactions();
+    SniffDatabase.AllowAsyncTransactions();
 
     ///- Catch termination signals
     _HookSignals();
@@ -461,6 +462,7 @@ int Master::Run()
     WorldDatabase.StopServer();
     LoginDatabase.StopServer();
     LogsDatabase.StopServer();
+    SniffDatabase.StopServer();
 
     sLog.outString( "Halting process..." );
 
@@ -572,6 +574,9 @@ bool StartDB(std::string name, DatabaseType& database, const char **migrations)
         return false;
     }
 
+    if (!migrations)
+        return true;
+
     return database.CheckRequiredMigrations(migrations);
 }
 /// Initialize connection to the databases
@@ -588,12 +593,14 @@ bool Master::_StartDB()
     if (!StartDB("World", WorldDatabase, MIGRATIONS_WORLD) ||
         !StartDB("Character", CharacterDatabase, MIGRATIONS_CHARACTERS) ||
         !StartDB("Login", LoginDatabase, MIGRATIONS_LOGON) ||
-        !StartDB("Logs", LogsDatabase, MIGRATIONS_LOGS))
+        !StartDB("Logs", LogsDatabase, MIGRATIONS_LOGS) ||
+        !StartDB("Sniff", SniffDatabase, nullptr))
     {
         WorldDatabase.HaltDelayThread();
         CharacterDatabase.HaltDelayThread();
         LoginDatabase.HaltDelayThread();
         LogsDatabase.HaltDelayThread();
+        SniffDatabase.HaltDelayThread();
         return false;
     }
 

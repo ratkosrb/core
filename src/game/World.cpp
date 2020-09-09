@@ -80,6 +80,7 @@
 #include "AuraRemovalMgr.h"
 #include "InstanceStatistics.h"
 #include "GuardMgr.h"
+#include "ReplayMgr.h"
 
 #include <chrono>
 
@@ -1749,6 +1750,9 @@ void World::SetInitialWorldSettings()
     sSpellMgr.LoadSpellGroupStackRules();
 
     sObjectMgr.LoadPlayerPremadeTemplates();
+
+    sLog.outString("Loading sniff database ...");
+    sReplayMgr.LoadEverything();
 
     if (getConfig(CONFIG_BOOL_RESTORE_DELETED_ITEMS))
     {
