@@ -52,6 +52,7 @@
 #include "InstanceData.h"
 #include "CharacterDatabaseCache.h"
 #include "HardcodedEvents.h"
+#include "ReplayMgr.h"
 
 #include <limits>
 
@@ -1846,7 +1847,7 @@ void ObjectMgr::LoadCreatures(bool reload)
         data.speed_run          = fields[15].GetFloat();
         data.base_attack_time   = fields[16].GetUInt32();
         data.ranged_attack_time = fields[17].GetUInt32();
-        data.npc_flags          = fields[18].GetUInt32();
+        data.npc_flags          = ConvertClassicNpcFlagsToVanilla(fields[18].GetUInt32());
         data.unit_flags         = fields[19].GetUInt32();
 
         if (data.current_health == 0)

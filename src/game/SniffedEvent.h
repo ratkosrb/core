@@ -28,6 +28,18 @@
 #include "Common.h"
 #include "SharedDefines.h"
 #include "Timer.h"
+#include <string>
+
+inline uint32 GetKnownObjectTypeId(std::string const& typeName)
+{
+    if (typeName == "Creature" || typeName == "Pet")
+        return TYPEID_UNIT;
+    else if (typeName == "Player")
+        return TYPEID_PLAYER;
+    else if (typeName == "GameObject")
+        return TYPEID_GAMEOBJECT;
+    return TYPEID_OBJECT;
+}
 
 struct KnownObject
 {
@@ -58,6 +70,20 @@ struct KnownObject
         return !m_type;
     }
 };
+
+inline std::string FormatObjectName(KnownObject object)
+{
+    std::string name;
+    if (object.m_type == TYPEID_PLAYER)
+        name = "Player (Guid: " + std::to_string(object.m_guid) + ")";
+    else if (object.m_type == TYPEID_UNIT)
+        name = "Creature (Guid: " + std::to_string(object.m_guid) + " Entry: " + std::to_string(object.m_entry) + ")";
+    else if (object.m_type == TYPEID_GAMEOBJECT)
+        name = "GameObject (Guid: " + std::to_string(object.m_guid) + " Entry: " + std::to_string(object.m_entry) + ")";
+    else
+        name = "Entry: " + std::to_string(object.m_entry);
+    return name;
+}
 
 enum SniffedEventType : uint8
 {
@@ -198,5 +224,270 @@ struct SniffedEvent_CreatureFacing : SniffedEvent
         return KnownObject(m_guid, m_entry, TYPEID_UNIT);
     }
 };
+
+struct SniffedEvent_CreatureText : SniffedEvent
+{
+    SniffedEvent_CreatureText(uint32 guid, uint32 entry, std::string text, uint32 chatType, std::string comment) : 
+        m_guid(guid), m_entry(entry), m_chatType(chatType), m_text(text), m_comment(comment) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_chatType = 0;
+    std::string m_text;
+    std::string m_comment;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CREATURE_TEXT;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+    }
+};
+
+struct SniffedEvent_CreatureEmote : SniffedEvent
+{
+    SniffedEvent_CreatureEmote(uint32 guid, uint32 entry, uint32 emoteId) : m_guid(guid), m_entry(entry), m_emoteId(emoteId) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_emoteId = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CREATURE_EMOTE;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+    }
+};
+
+struct SniffedEvent_CreatureAttackStart : SniffedEvent
+{
+    SniffedEvent_CreatureAttackStart(uint32 guid, uint32 entry, uint32 victimGuid, uint32 victimId, uint32 victimType) :
+        m_guid(guid), m_entry(entry), m_victimGuid(victimGuid), m_victimId(victimId), m_victimType(victimType) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_victimGuid = 0;
+    uint32 m_victimId = 0;
+    uint32 m_victimType;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CREATURE_ATTACK_START;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+    }
+    KnownObject GetTargetObject() const final
+    {
+        return KnownObject(m_victimGuid, m_victimId, TypeID(m_victimType));
+    }
+};
+
+struct SniffedEvent_CreatureAttackStop : SniffedEvent
+{
+    SniffedEvent_CreatureAttackStop(uint32 guid, uint32 entry, uint32 victimGuid, uint32 victimId, uint32 victimType) :
+        m_guid(guid), m_entry(entry), m_victimGuid(victimGuid), m_victimId(victimId), m_victimType(victimType) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_victimGuid = 0;
+    uint32 m_victimId = 0;
+    uint32 m_victimType;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CREATURE_ATTACK_STOP;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+    }
+    KnownObject GetTargetObject() const final
+    {
+        return KnownObject(m_victimGuid, m_victimId, TypeID(m_victimType));
+    }
+};
+
+struct SniffedEvent_CreatureUpdate_entry : SniffedEvent
+{
+    SniffedEvent_CreatureUpdate_entry(uint32 guid, uint32 entry, uint32 value) :
+        m_guid(guid), m_entry(entry), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CREATURE_UPDATE_ENTRY;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+    }
+};
+
+struct SniffedEvent_CreatureUpdate_display_id : SniffedEvent
+{
+    SniffedEvent_CreatureUpdate_display_id(uint32 guid, uint32 entry, uint32 value) :
+        m_guid(guid), m_entry(entry), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CREATURE_UPDATE_DISPLAY_ID;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+    }
+};
+
+struct SniffedEvent_CreatureUpdate_faction : SniffedEvent
+{
+    SniffedEvent_CreatureUpdate_faction(uint32 guid, uint32 entry, uint32 value) :
+        m_guid(guid), m_entry(entry), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CREATURE_UPDATE_FACTION;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+    }
+};
+
+struct SniffedEvent_CreatureUpdate_emote_state : SniffedEvent
+{
+    SniffedEvent_CreatureUpdate_emote_state(uint32 guid, uint32 entry, uint32 value) :
+        m_guid(guid), m_entry(entry), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CREATURE_UPDATE_EMOTE_STATE;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+    }
+};
+
+struct SniffedEvent_CreatureUpdate_stand_state : SniffedEvent
+{
+    SniffedEvent_CreatureUpdate_stand_state(uint32 guid, uint32 entry, uint32 value) :
+        m_guid(guid), m_entry(entry), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CREATURE_UPDATE_STAND_STATE;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+    }
+};
+
+struct SniffedEvent_CreatureUpdate_npc_flags : SniffedEvent
+{
+    SniffedEvent_CreatureUpdate_npc_flags(uint32 guid, uint32 entry, uint32 value) :
+        m_guid(guid), m_entry(entry), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CREATURE_UPDATE_NPC_FLAGS;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+    }
+};
+
+struct SniffedEvent_CreatureUpdate_unit_flags : SniffedEvent
+{
+    SniffedEvent_CreatureUpdate_unit_flags(uint32 guid, uint32 entry, uint32 value) :
+        m_guid(guid), m_entry(entry), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CREATURE_UPDATE_UNIT_FLAGS;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+    }
+};
+
+struct SniffedEvent_SpellCastStart : SniffedEvent
+{
+    SniffedEvent_SpellCastStart(uint32 spellId, uint32 castFlags, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType) :
+        m_spellId(spellId), m_castFlags(castFlags), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType), m_targetGuid(targetGuid), m_targetId(targetId), m_targetType(targetType) {};
+    uint32 m_spellId = 0;
+    uint32 m_castFlags = 0;
+    uint32 m_casterGuid = 0;
+    uint32 m_casterId = 0;
+    uint32 m_casterType;
+    uint32 m_targetGuid = 0;
+    uint32 m_targetId = 0;
+    uint32 m_targetType;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_SPELL_CAST_START;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_casterGuid, m_casterId, TypeID(m_casterType));
+    }
+    KnownObject GetTargetObject() const final
+    {
+        return KnownObject(m_targetGuid, m_targetId, TypeID(m_targetType));
+    }
+};
+
+struct SniffedEvent_SpellCastGo : SniffedEvent
+{
+    SniffedEvent_SpellCastGo(uint32 spellId, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType) :
+        m_spellId(spellId), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType), m_targetGuid(targetGuid), m_targetId(targetId), m_targetType(targetType) {};
+    uint32 m_spellId = 0;
+    uint32 m_casterGuid = 0;
+    uint32 m_casterId = 0;
+    uint32 m_casterType;
+    uint32 m_targetGuid = 0;
+    uint32 m_targetId = 0;
+    uint32 m_targetType;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_SPELL_CAST_GO;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_casterGuid, m_casterId, TypeID(m_casterType));
+    }
+    KnownObject GetTargetObject() const final
+    {
+        return KnownObject(m_targetGuid, m_targetId, TypeID(m_targetType));
+    }
+};
+
 
 #endif

@@ -372,7 +372,7 @@ class Spell
         void DoCreateItem(SpellEffectIndex eff_idx, uint32 itemtype);
 
         void WriteSpellGoTargets(WorldPacket* data);
-        void WriteAmmoToPacket(WorldPacket* data);
+        static void WriteAmmoToPacket(WorldPacket* data, WorldObject* m_caster, Unit* m_casterUnit);
 
         typedef std::list<Unit*> UnitList;
         void FillTargetMap();

@@ -29,5 +29,5 @@ NullCreatureAI::~NullCreatureAI()
 void NullCreatureAI::UpdateAI(uint32 const)
 {
     // Needed to correctly enter evade mode and leave combat. Fix combat bugs.
-    m_creature->SelectHostileTarget();
+    //m_creature->SelectHostileTarget();
 }

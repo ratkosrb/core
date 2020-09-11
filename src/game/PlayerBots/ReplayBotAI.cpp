@@ -290,8 +290,6 @@ void ReplayBotAI::UpdateMovement()
         // send the movement
         if (itr.second.position.mapId == me->GetMapId())
         {
-            if (m_guid == 5)
-                printf("%s\n", LookupOpcodeName(DetermineCorrectMovementOpcode(itr.second)));
             me->m_movementInfo.ChangePosition(itr.second.position.x, itr.second.position.y, itr.second.position.z, itr.second.position.o);
             me->m_movementInfo.SetMovementFlags(MovementFlags(itr.second.moveFlags));
             me->m_movementInfo.UpdateTime(itr.second.moveTime);

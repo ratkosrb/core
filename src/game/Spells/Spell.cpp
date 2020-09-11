@@ -4586,7 +4586,7 @@ void Spell::SendSpellStart()
     data << m_targets;
 
     if (castFlags & CAST_FLAG_AMMO)                         // projectile info
-        WriteAmmoToPacket(&data);
+        WriteAmmoToPacket(&data, m_caster, m_casterUnit);
 
     m_caster->SendObjectMessageToSet(&data, true);
 }
@@ -4637,12 +4637,12 @@ void Spell::SendSpellGo(bool bSendToCaster)
     data << m_targets;
 
     if (castFlags & CAST_FLAG_AMMO)                         // projectile info
-        WriteAmmoToPacket(&data);
+        WriteAmmoToPacket(&data, m_caster, m_casterUnit);
 
     m_caster->SendObjectMessageToSet(&data, bSendToCaster);
 }
 
-void Spell::WriteAmmoToPacket(WorldPacket* data)
+void Spell::WriteAmmoToPacket(WorldPacket* data, WorldObject* m_caster, Unit* m_casterUnit)
 {
     uint32 ammoInventoryType = 0;
     uint32 ammoDisplayID = 0;
