@@ -59,6 +59,7 @@
 #include "TemporarySummon.h"
 #include "ScriptedEscortAI.h"
 #include "GuardMgr.h"
+#include "ReplayMgr.h"
 
 // apply implementation of the singletons
 #include "Policies/SingletonImp.h"
@@ -1728,6 +1729,10 @@ bool Creature::LoadFromDB(uint32 guidlow, Map* map)
     // We need to assign new AI on respawn if spawn has multiple creature ids
     if (data->GetCreatureIdCount() > 1)
         AddCreatureState(CSTATE_INIT_AI_ON_RESPAWN);
+
+    // The replay manager needs to store pointers to all sniffed objects.
+    if (m_subtype == CREATURE_SUBTYPE_GENERIC)
+        sReplayMgr.StoreCreature(guidlow, this);
 
     return true;
 }

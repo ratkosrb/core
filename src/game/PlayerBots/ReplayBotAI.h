@@ -20,11 +20,12 @@ public:
 
     void UpdateAI(uint32 const diff) override;
     void UpdateMovement();
+    uint16 DetermineCorrectMovementOpcode(CharacterMovementEntry const& moveData);
 
     bool m_initialized = false;
     uint32 m_guid = 0;
     uint64 m_lastMoveUnixTimeMs = 0;
-    uint32 m_lastMoveWorldMsTime = 0;
+    uint32 m_sniffStartTime = 0;
     CharacterTemplateEntry const* m_template = nullptr;
     CharacterMovementMap const* m_movementMap = nullptr;
 };

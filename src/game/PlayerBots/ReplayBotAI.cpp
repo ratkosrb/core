@@ -204,15 +204,72 @@ void ReplayBotAI::UpdateAI(uint32 const diff)
         me->GetZoneAndAreaId(newzone, newarea);
         me->UpdateZone(newzone, newarea);
 
-        m_lastMoveUnixTimeMs = uint64(sReplayMgr.GetCurrentSniffTime()) * 1000;
-        m_lastMoveWorldMsTime = WorldTimer::getMSTime();
+        m_sniffStartTime = sReplayMgr.GetStartTimeSniff();
+        m_lastMoveUnixTimeMs = sReplayMgr.GetCurrentSniffTimeMs();
         return;
     }
 
     if (!sReplayMgr.IsPlaying())
         return;
 
+    if (m_sniffStartTime != sReplayMgr.GetStartTimeSniff())
+    {
+        m_sniffStartTime = sReplayMgr.GetStartTimeSniff();
+        m_lastMoveUnixTimeMs = sReplayMgr.GetCurrentSniffTimeMs();
+        return;
+    }
+
     UpdateMovement();
+}
+
+uint16 ReplayBotAI::DetermineCorrectMovementOpcode(CharacterMovementEntry const& moveData)
+{
+    // In classic all the movement for other players is sent in SMSG_MOVE_UPDATE.
+    // That upcode does not exist in Vanilla, so we replace it with heartbeat.
+    if (moveData.opcode == MSG_MOVE_HEARTBEAT)
+    {
+        // Determine more appropriate opcode based on movement flags.
+        if (!me->m_movementInfo.HasMovementFlag(MOVEFLAG_FORWARD | MOVEFLAG_BACKWARD | MOVEFLAG_STRAFE_LEFT | MOVEFLAG_STRAFE_RIGHT | MOVEFLAG_TURN_LEFT | MOVEFLAG_TURN_RIGHT) &&
+            (moveData.moveFlags & (MOVEFLAG_FORWARD | MOVEFLAG_BACKWARD | MOVEFLAG_STRAFE_LEFT | MOVEFLAG_STRAFE_RIGHT | MOVEFLAG_TURN_LEFT | MOVEFLAG_TURN_RIGHT)))
+        {
+            if (moveData.moveFlags & MOVEFLAG_FORWARD)
+                return MSG_MOVE_START_FORWARD;
+            else if (moveData.moveFlags & MOVEFLAG_BACKWARD)
+                return MSG_MOVE_START_BACKWARD;
+            else if (moveData.moveFlags & MOVEFLAG_STRAFE_LEFT)
+                return MSG_MOVE_START_STRAFE_LEFT;
+            else if (moveData.moveFlags & MOVEFLAG_STRAFE_RIGHT)
+                return MSG_MOVE_START_STRAFE_RIGHT;
+            else if (moveData.moveFlags & MOVEFLAG_TURN_LEFT)
+                return MSG_MOVE_START_TURN_LEFT;
+            else if (moveData.moveFlags & MOVEFLAG_TURN_RIGHT)
+                return MSG_MOVE_START_TURN_RIGHT;
+        }
+        else if (me->m_movementInfo.HasMovementFlag(MOVEFLAG_JUMPING | MOVEFLAG_FALLINGFAR) && !(moveData.moveFlags & (MOVEFLAG_JUMPING | MOVEFLAG_FALLINGFAR)))
+            return MSG_MOVE_FALL_LAND;
+        else if (!me->m_movementInfo.HasMovementFlag(MOVEFLAG_JUMPING) && (moveData.moveFlags & MOVEFLAG_JUMPING))
+            return MSG_MOVE_JUMP;
+        else if (!(moveData.moveFlags & MOVEFLAG_MASK_MOVING))
+        {
+            if (me->m_movementInfo.HasMovementFlag(MOVEFLAG_STRAFE_LEFT | MOVEFLAG_STRAFE_RIGHT) && !(moveData.moveFlags & (MOVEFLAG_STRAFE_LEFT | MOVEFLAG_STRAFE_RIGHT)))
+                return MSG_MOVE_STOP_STRAFE;
+            else if (me->m_movementInfo.HasMovementFlag(MOVEFLAG_TURN_LEFT | MOVEFLAG_TURN_RIGHT) && !(moveData.moveFlags & (MOVEFLAG_TURN_LEFT | MOVEFLAG_TURN_RIGHT)))
+                return MSG_MOVE_STOP_TURN;
+            else if (me->m_movementInfo.HasMovementFlag(MOVEFLAG_PITCH_UP | MOVEFLAG_PITCH_DOWN) && !(moveData.moveFlags & (MOVEFLAG_PITCH_UP | MOVEFLAG_PITCH_DOWN)))
+                return MSG_MOVE_STOP_PITCH;
+            else if (me->m_movementInfo.HasMovementFlag(MOVEFLAG_SWIMMING) && !(moveData.moveFlags & MOVEFLAG_SWIMMING))
+                return MSG_MOVE_STOP_SWIM;
+            else if (me->m_movementInfo.HasMovementFlag(MOVEFLAG_MASK_MOVING) && (moveData.moveFlags == 0))
+                return MSG_MOVE_STOP;
+            else if ((moveData.moveFlags == 0) &&
+                (moveData.position.x == me->m_movementInfo.pos.x) &&
+                (moveData.position.y == me->m_movementInfo.pos.y) &&
+                (moveData.position.z == me->m_movementInfo.pos.z) &&
+                (moveData.position.o != me->m_movementInfo.pos.o))
+                return MSG_MOVE_SET_FACING;
+        }
+    }
+    return moveData.opcode;
 }
 
 void ReplayBotAI::UpdateMovement()
@@ -220,30 +277,25 @@ void ReplayBotAI::UpdateMovement()
     if (!m_movementMap)
         return;
 
-    uint32 currentWorldMsTime = WorldTimer::getMSTime();
-    uint32 msExpired = currentWorldMsTime - m_lastMoveWorldMsTime;
-    uint64 maxUnixTimeMs = m_lastMoveUnixTimeMs + msExpired;
-        
+    uint64 maxUnixTimeMs = sReplayMgr.GetCurrentSniffTimeMs();
+
     for (const auto& itr : *m_movementMap)
     {
         if (itr.first <= m_lastMoveUnixTimeMs)
             continue;
 
         if (itr.first > maxUnixTimeMs)
-        {
-            m_lastMoveUnixTimeMs += msExpired;
-            m_lastMoveWorldMsTime = currentWorldMsTime;
             return;
-        }
 
         // send the movement
         if (itr.second.position.mapId == me->GetMapId())
         {
-            me->SetPosition(itr.second.position.x, itr.second.position.y, itr.second.position.z, itr.second.position.o);
+            if (m_guid == 5)
+                printf("%s\n", LookupOpcodeName(DetermineCorrectMovementOpcode(itr.second)));
             me->m_movementInfo.ChangePosition(itr.second.position.x, itr.second.position.y, itr.second.position.z, itr.second.position.o);
             me->m_movementInfo.SetMovementFlags(MovementFlags(itr.second.moveFlags));
             me->m_movementInfo.UpdateTime(itr.second.moveTime);
-            WorldPacket data(itr.second.opcode);
+            WorldPacket data(DetermineCorrectMovementOpcode(itr.second));
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
             data << me->GetPackGUID();
 #else
@@ -251,6 +303,7 @@ void ReplayBotAI::UpdateMovement()
 #endif
             data << me->m_movementInfo;
             me->SendMovementMessageToSet(std::move(data), false);
+            me->SetPosition(itr.second.position.x, itr.second.position.y, itr.second.position.z, itr.second.position.o);
         }
         else
         {
@@ -258,6 +311,5 @@ void ReplayBotAI::UpdateMovement()
         }
 
         m_lastMoveUnixTimeMs = itr.first;
-        m_lastMoveWorldMsTime = currentWorldMsTime;
     }
 }

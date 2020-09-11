@@ -44,6 +44,7 @@ set (game_SRCS
     ScriptMgr.cpp
     SocialMgr.cpp
     StatSystem.cpp
+    SniffedEvent.cpp
     UnitAuraProcHandler.cpp
     Weather.cpp
     World.cpp
@@ -246,6 +247,7 @@ set (game_SRCS
     ScriptMgr.h
     SharedDefines.h
     SocialMgr.h
+    SniffedEvent.h
     UnitEvents.h
     Weather.h
     World.h

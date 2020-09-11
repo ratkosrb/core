@@ -148,9 +148,8 @@ uint16 ConvertMovementOpcode(std::string const& opcodeName)
         return MSG_MOVE_STOP_STRAFE;
     else if (opcodeName == "CMSG_MOVE_STOP_TURN")
         return MSG_MOVE_STOP_TURN;
-    else if (opcodeName == "SMSG_MOVE_UPDATE")
-        return MSG_MOVE_HEARTBEAT;
-    return 0;
+
+    return MSG_MOVE_HEARTBEAT;
 }
 
 enum class ModernMovementFlag : uint32
@@ -349,6 +348,70 @@ bool ReplayMgr::GetCurrentClientPosition(WorldLocation& loc)
     return false;
 }
 
+uint32 ReplayMgr::GetCreatureEntryFromGuid(uint32 guid)
+{
+    if (auto pSpawn = sObjectMgr.GetCreatureData(guid))
+        return pSpawn->creature_id[0];
+    return 0;
+}
+
+void ReplayMgr::Update(uint32 const diff)
+{
+    if (!m_enabled)
+        return;
+
+    uint32 oldSniffTime = m_currentSniffTime;
+    m_currentSniffTimeMs += diff;
+    m_currentSniffTime = m_currentSniffTimeMs / 1000;
+
+    if (oldSniffTime == m_currentSniffTime)
+        return;
+
+    for (const auto& itr : m_eventsMap)
+    {
+        if (itr.first <= oldSniffTime)
+            continue;
+
+        if (itr.first > m_currentSniffTime)
+            return;
+
+        itr.second->Execute();
+    }
+}
+
+void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
+{
+    for (const auto itr : m_creatures)
+        if (itr.second->GetVisibility() != VISIBILITY_OFF)
+            itr.second->SetVisibility(VISIBILITY_OFF);
+
+    std::set<uint32> visibleCreatures;
+    for (const auto& itr : m_eventsMap)
+    {
+        if (itr.first > m_currentSniffTime)
+            break;
+
+        switch (itr.second->GetType())
+        {
+            case SE_CREATURE_CREATE1:
+            case SE_CREATURE_CREATE2:
+            {
+                visibleCreatures.insert(itr.second->GetSourceObject().m_guid);
+                break;
+            }
+            case SE_CREATURE_DESTROY:
+            {
+                visibleCreatures.erase(itr.second->GetSourceObject().m_guid);
+                break;
+            }
+        }
+    }
+
+    for (const auto itr : visibleCreatures)
+        if (Creature* pCreature = GetCreature(itr))
+            pCreature->SetVisibility(VISIBILITY_ON);
+}
+
 void ReplayMgr::SetPlayTime(uint32 unixtime)
 {
     uint32 const currentTime = time(nullptr);
@@ -362,9 +425,10 @@ void ReplayMgr::SetPlayTime(uint32 unixtime)
 
     m_startTimeSniff = unixtime;
     m_currentSniffTime = unixtime;
-    m_startTimeReal = currentTime;
-    m_startTimeRealMs = WorldTimer::getMSTime();
-    m_timeDifference = m_startTimeReal - m_startTimeSniff;
+    m_currentSniffTimeMs = uint64(unixtime) * 1000;
+    m_timeDifference = currentTime - m_startTimeSniff;
+
+    UpdateObjectVisiblityForCurrentTime();
 }
 
 void ReplayMgr::StartPlaying()

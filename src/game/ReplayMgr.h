@@ -28,6 +28,8 @@
 #include "Common.h"
 #include "SharedDefines.h"
 #include "Timer.h"
+#include "SniffedEvent.h"
+#include <memory>
 
 struct CharacterEquipment
 {
@@ -73,22 +75,37 @@ class ReplayMgr
             LoadCharacterTemplates();
             LoadCharacterMovements();
             LoadActivePlayer();
+            LoadSniffedEvents();
+        }
+        void LoadSniffedEvents()
+        {
+            LoadCreatureCreate1();
+            LoadCreatureCreate2();
+            LoadCreatureDestroy();
+            LoadCreatureMovement();
         }
         void LoadCharacterTemplates();
         void LoadCharacterMovements();
         void LoadActivePlayer();
 
+        void LoadCreatureCreate1();
+        void LoadCreatureCreate2();
+        void LoadCreatureDestroy();
+        void LoadCreatureMovement();
+
+        void Update(uint32 const diff);
         void SpawnCharacters();
         void SetPlayTime(uint32 unixtime);
+        void UpdateObjectVisiblityForCurrentTime();
         void StartPlaying();
         void StopPlaying() { m_enabled = false; }
         bool IsPlaying() { return m_enabled; }
 
         uint32 GetCurrentSniffTime() { return m_currentSniffTime; }
+        uint64 GetCurrentSniffTimeMs() { return m_currentSniffTimeMs; }
         uint32 GetStartTimeSniff() { return m_startTimeSniff; }
-        uint32 GetStartTimeReal() { return m_startTimeReal; }
-        uint32 GetStartTimeRealMs() { return m_startTimeRealMs; }
         uint32 GetTimeDifference() { return m_timeDifference; }
+
         Player* GetPlayer(uint32 guid);
         ReplayBotAI* GetPlayerBot(uint32 guid)
         {
@@ -97,20 +114,45 @@ class ReplayMgr
                 return itr->second;
             return nullptr;
         }
+        void StoreCreature(uint32 guid, Creature* pCreature)
+        {
+            m_creatures.insert({ guid, pCreature });
+        }
+        Creature* GetCreature(uint32 guid)
+        {
+            auto const itr = m_creatures.find(guid);
+            if (itr != m_creatures.end())
+                return itr->second;
+            return nullptr;
+        }
+        void StoreGameObject(uint32 guid, GameObject* pGo)
+        {
+            m_gameobjects.insert({ guid, pGo });
+        }
+        GameObject* GetGameObject(uint32 guid)
+        {
+            auto const itr = m_gameobjects.find(guid);
+            if (itr != m_gameobjects.end())
+                return itr->second;
+            return nullptr;
+        }
         bool GetCurrentClientPosition(WorldLocation& loc);
+        uint32 GetCreatureEntryFromGuid(uint32 guid);
 
     protected:
         bool m_enabled = false;
         bool m_initialized = false;
         uint32 m_currentSniffTime = 0;
+        uint64 m_currentSniffTimeMs = 0;
         uint32 m_startTimeSniff = 0;
-        uint32 m_startTimeReal = 0;
-        uint32 m_startTimeRealMs = 0;
         uint32 m_timeDifference = 0;
+        std::unordered_map<uint32 /*guid*/, Creature*> m_creatures;
+        std::unordered_map<uint32 /*guid*/, GameObject*> m_gameobjects;
         std::map<uint32 /*unixtime*/, uint32 /*guid*/> m_activePlayers;
         std::unordered_map<uint32 /*guid*/, ReplayBotAI*> m_playerBots;
         std::unordered_map<uint32 /*guid*/, CharacterTemplateEntry> m_characterTemplates;
         std::unordered_map<uint32 /*guid*/, CharacterMovementMap> m_characterMovements;
+        std::multimap<uint32, std::shared_ptr<SniffedEvent>> m_eventsMap;
 };
 
 #define sReplayMgr MaNGOS::Singleton<ReplayMgr>::Instance()
