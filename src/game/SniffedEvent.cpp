@@ -546,6 +546,157 @@ void SniffedEvent_CreatureUpdate_max_health::Execute() const
     pCreature->SetMaxHealth(m_value);
 }
 
+void ReplayMgr::LoadGameObjectCreate1()
+{
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime`, `position_x`, `position_y`, `position_z`, `orientation` FROM `gameobject_create1_time` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint32 entry = GetGameObjectEntryFromGuid(guid);
+            uint32 unixtime = fields[1].GetUInt32();
+            float position_x = fields[2].GetFloat();
+            float position_y = fields[3].GetFloat();
+            float position_z = fields[4].GetFloat();
+            float orientation = fields[5].GetFloat();
+
+            std::shared_ptr<SniffedEvent_GameObjectCreate1> newEvent = std::make_shared<SniffedEvent_GameObjectCreate1>(guid, entry, position_x, position_y, position_z, orientation);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_GameObjectCreate1::Execute() const
+{
+    GameObject* pGo = sReplayMgr.GetGameObject(m_guid);
+    if (!pGo)
+    {
+        sLog.outError("SniffedEvent_GameObjectCreate1: Cannot find source gameobject!");
+        return;
+    }
+    pGo->Relocate(m_x, m_y, m_z, m_o);
+    pGo->SetVisible(true);
+}
+
+void ReplayMgr::LoadGameObjectCreate2()
+{
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime`, `position_x`, `position_y`, `position_z`, `orientation` FROM `gameobject_create2_time` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint32 entry = GetGameObjectEntryFromGuid(guid);
+            uint32 unixtime = fields[1].GetUInt32();
+            float position_x = fields[2].GetFloat();
+            float position_y = fields[3].GetFloat();
+            float position_z = fields[4].GetFloat();
+            float orientation = fields[5].GetFloat();
+
+            std::shared_ptr<SniffedEvent_GameObjectCreate2> newEvent = std::make_shared<SniffedEvent_GameObjectCreate2>(guid, entry, position_x, position_y, position_z, orientation);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_GameObjectCreate2::Execute() const
+{
+    GameObject* pGo = sReplayMgr.GetGameObject(m_guid);
+    if (!pGo)
+    {
+        sLog.outError("SniffedEvent_GameObjectCreate2: Cannot find source gameobject!");
+        return;
+    }
+    pGo->Relocate(m_x, m_y, m_z, m_o);
+    pGo->SetVisible(true);
+}
+
+void ReplayMgr::LoadGameObjectDestroy()
+{
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime` FROM `gameobject_destroy_time` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint32 entry = GetGameObjectEntryFromGuid(guid);
+            uint32 unixtime = fields[1].GetUInt32();
+
+            std::shared_ptr<SniffedEvent_GameObjectDestroy> newEvent = std::make_shared<SniffedEvent_GameObjectDestroy>(guid, entry);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_GameObjectDestroy::Execute() const
+{
+    GameObject* pGo = sReplayMgr.GetGameObject(m_guid);
+    if (!pGo)
+    {
+        sLog.outError("SniffedEvent_GameObjectDestroy: Cannot find source gameobject!");
+        return;
+    }
+    pGo->SetVisible(false);
+}
+
+
+template void ReplayMgr::LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_flags>(char const* fieldName);
+template void ReplayMgr::LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_state>(char const* fieldName);
+
+template <class T>
+void ReplayMgr::LoadGameObjectUpdate(char const* fieldName)
+{
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `gameobject_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();;
+            uint32 entry = GetGameObjectEntryFromGuid(guid);
+            uint32 unixtime = fields[1].GetUInt32();
+            uint32 value = fields[2].GetUInt32();
+
+            std::shared_ptr<T> newEvent = std::make_shared<T>(guid, entry, value);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_GameObjectUpdate_flags::Execute() const
+{
+    GameObject* pGo = sReplayMgr.GetGameObject(m_guid);
+    if (!pGo)
+    {
+        sLog.outError("SniffedEvent_GameObjectUpdate_flags: Cannot find source gameobject!");
+        return;
+    }
+    pGo->SetUInt32Value(GAMEOBJECT_FLAGS, m_value);
+}
+
+void SniffedEvent_GameObjectUpdate_state::Execute() const
+{
+    GameObject* pGo = sReplayMgr.GetGameObject(m_guid);
+    if (!pGo)
+    {
+        sLog.outError("SniffedEvent_GameObjectUpdate_state: Cannot find source gameobject!");
+        return;
+    }
+    pGo->SetGoState(GOState(m_value));
+}
+
 void ReplayMgr::LoadSpellCastStart()
 {
     if (auto result = SniffDatabase.Query("SELECT `UnixTime`, `CasterGuid`, `CasterId`, `CasterType`, `SpellId`, `CastFlags`, `TargetGuid`, `TargetId`, `TargetType` FROM `spell_cast_start` ORDER BY `UnixTime`"))
@@ -621,7 +772,7 @@ void SniffedEvent_SpellCastStart::Execute() const
 
 void ReplayMgr::LoadSpellCastGo()
 {
-    if (auto result = SniffDatabase.Query("SELECT `UnixTime`, `CasterGuid`, `CasterId`, `CasterType`, `SpellId`, `MainTargetGuid`, `MainTargetId`, `MainTargetType` FROM `spell_cast_go` ORDER BY `UnixTime`"))
+    if (auto result = SniffDatabase.Query("SELECT `UnixTime`, `CasterGuid`, `CasterId`, `CasterType`, `SpellId`, `MainTargetGuid`, `MainTargetId`, `MainTargetType`, `HitTargetsCount` FROM `spell_cast_go` ORDER BY `UnixTime`"))
     {
         do
         {
@@ -635,9 +786,9 @@ void ReplayMgr::LoadSpellCastGo()
             uint32 targetGuid = fields[5].GetUInt32();
             uint32 targetId = fields[6].GetUInt32();
             std::string targetType = fields[7].GetCppString();
+            uint32 hitTargetsCount = fields[8].GetUInt32();
 
-
-            std::shared_ptr<SniffedEvent_SpellCastGo> newEvent = std::make_shared<SniffedEvent_SpellCastGo>(spellId, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType));
+            std::shared_ptr<SniffedEvent_SpellCastGo> newEvent = std::make_shared<SniffedEvent_SpellCastGo>(spellId, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType), hitTargetsCount);
             m_eventsMap.insert(std::make_pair(unixtime, newEvent));
 
         } while (result->NextRow());
@@ -678,9 +829,17 @@ void SniffedEvent_SpellCastGo::Execute() const
     data << uint32(m_spellId);                              // spellId
     data << uint16(castFlags);                              // cast flags
 
-    data << (uint8)0; // placeholder
-    data << (uint8)0; // placeholder
     //WriteSpellGoTargets(&data);
+
+    if (m_hitTargetsCount != 0 && pTarget && !GetTargetObject().IsEmpty())
+    {
+        data << (uint8)1;
+        data << pTarget->GetObjectGuid();
+    }
+    else
+        data << (uint8)0; // hit targets count
+
+    data << (uint8)0; // miss  targets count
 
     SpellCastTargets targets;
     if (Unit* pUnitTarget = pTarget->ToUnit())

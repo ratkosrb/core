@@ -1948,16 +1948,10 @@ void ObjectMgr::LoadGameobjects(bool reload)
 {
     uint32 count = 0;
 
-    //                                                                            0                    1     2      3             4             5             6
-    std::unique_ptr<QueryResult> result(WorldDatabase.Query("SELECT `gameobject`.`guid`, `gameobject`.`id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`,"
-    //                      7            8            9            10           11                12              13       14      15
-                          "`rotation0`, `rotation1`, `rotation2`, `rotation3`, `spawntimesecsmin`, `spawntimesecsmax`, `animprogress`, `state`, `event`, "
-    //                                        16                                       17            18             19                             20                        21
-                          "`pool_gameobject`.`pool_entry`, `pool_gameobject_template`.`pool_entry`, `spawn_flags`, `visibility_mod`, `gameobject`.`patch_min`, `gameobject`.`patch_max` "
-                          "FROM `gameobject` "
-                          "LEFT OUTER JOIN `game_event_gameobject` ON `gameobject`.`guid` = `game_event_gameobject`.`guid` "
-                          "LEFT OUTER JOIN `pool_gameobject` ON `gameobject`.`guid` = `pool_gameobject`.`guid` "
-                          "LEFT OUTER JOIN `pool_gameobject_template` ON `gameobject`.`id` = `pool_gameobject_template`.`id`"));
+    //                                                               0       1     2      3             4             5             6
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`,"
+    //                      7            8            9            10           11      12         13              14       15
+                          "`rotation0`, `rotation1`, `rotation2`, `rotation3`, `temp`, `creator`, `animprogress`, `state`, `flags` FROM `gameobject`"));
 
     if (!result)
     {
@@ -1978,19 +1972,6 @@ void ObjectMgr::LoadGameobjects(bool reload)
 
         uint32 guid         = fields[ 0].GetUInt32();
         uint32 entry        = fields[ 1].GetUInt32();
-        uint8 patch_min     = fields[20].GetUInt8();
-        uint8 patch_max     = fields[21].GetUInt8();
-
-        if ((patch_min > patch_max) || (patch_max > 10))
-        {
-            sLog.outErrorDb("Table `gameobject` GUID %u (entry %u) has invalid values patch_min=%u, patch_max=%u.", guid, entry, patch_min, patch_max);
-            sLog.out(LOG_DBERRFIX, "UPDATE gameobject SET patch_min=0, patch_max=10 WHERE guid=%u AND id=%u;", guid, entry);
-            patch_min = 0;
-            patch_max = 10;
-        }
-
-        if (!((sWorld.GetWowPatch() >= patch_min) && (sWorld.GetWowPatch() <= patch_max)))
-            continue;
 
         GameObjectInfo const* gInfo = GetGameObjectInfo(entry);
         if (!gInfo)
@@ -2019,10 +2000,9 @@ void ObjectMgr::LoadGameobjects(bool reload)
         data.rotation1        = fields[ 8].GetFloat();
         data.rotation2        = fields[ 9].GetFloat();
         data.rotation3        = fields[10].GetFloat();
-        data.spawntimesecsmin = fields[11].GetInt32();
-        data.spawntimesecsmax = fields[12].GetInt32();
-        data.spawn_flags      = fields[18].GetUInt32();
-        data.visibility_mod   = fields[19].GetFloat();
+        data.temp             = fields[11].GetBool();
+        data.creator          = fields[12].GetInt32();
+        data.flags            = fields[15].GetUInt32();
         data.instanciatedContinentInstanceId = sMapMgr.GetContinentInstanceId(data.position.mapId, data.position.x, data.position.y);
 
         MapEntry const* mapEntry = sMapStorage.LookupEntry<MapEntry>(data.position.mapId);
@@ -2051,10 +2031,6 @@ void ObjectMgr::LoadGameobjects(bool reload)
             continue;
         }
         data.go_state       = GOState(go_state);
-
-        int16 gameEvent     = fields[15].GetInt16();
-        int16 GuidPoolId    = fields[16].GetInt16();
-        int16 EntryPoolId   = fields[17].GetInt16();
 
         if (data.rotation0 < -1.0f || data.rotation0 > 1.0f)
         {
@@ -2087,7 +2063,7 @@ void ObjectMgr::LoadGameobjects(bool reload)
             continue;
         }
 
-        if (!alreadyPresent && gameEvent == 0 && GuidPoolId == 0 && EntryPoolId == 0) // if not this is to be managed by GameEvent System or Pool system
+        if (!alreadyPresent)
             AddGameobjectToGrid(guid, &data);
         ++count;
 

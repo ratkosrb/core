@@ -310,6 +310,7 @@ bool ChatHandler::HandleUnitInfoCommand(char* args)
     PSendSysMessage("Death state: %hhu", pTarget->GetDeathState());
     PSendSysMessage("Sheath state: %hhu", pTarget->GetSheath());
     PSendSysMessage("Byte flags 2: %hhu", pTarget->GetByteValue(UNIT_FIELD_BYTES_2, 1));
+    PSendSysMessage("Visibility: %u", pTarget->GetVisibility());
 
     return true;
 }

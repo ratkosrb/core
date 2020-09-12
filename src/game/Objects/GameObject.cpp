@@ -46,6 +46,7 @@
 #include "ZoneScript.h"
 #include "DynamicTree.h"
 #include "vmap/GameObjectModel.h"
+#include "ReplayMgr.h"
 
 GameObject::GameObject() : WorldObject(),
     loot(this),
@@ -287,6 +288,9 @@ void GameObject::Update(uint32 update_diff, uint32 /*p_time*/)
     ///- UpdateAI
     if (i_AI)
         i_AI->UpdateAI(update_diff);
+
+    // Disable updates.
+    return;
 
     switch (m_lootState)
     {
@@ -936,11 +940,15 @@ bool GameObject::LoadFromDB(uint32 guid, Map* map)
         }
     }
 
+    SetUInt32Value(GAMEOBJECT_FLAGS, data->flags);
+
     if (data->spawn_flags & SPAWN_FLAG_ACTIVE)
         m_isActiveObject = true;
 
     if (data->visibility_mod)
         m_visibilityModifier = data->visibility_mod; // custom db change aka hack
+
+    sReplayMgr.StoreGameObject(guid, this);
 
     return true;
 }
@@ -1049,11 +1057,11 @@ bool GameObject::IsVisibleForInState(WorldObject const* pDetector, WorldObject c
     {
         if (!IsVisible())
             return false;
-
+        /*
         // despawned and then not visible for non-GM in GM-mode
         if (!isSpawned())
             return false;
-
+        */
         // special invisibility cases
         /* TODO: implement trap stealth, take look at spell 2836
         if (GetGOInfo()->type == GAMEOBJECT_TYPE_TRAP && GetGOInfo()->trap.stealthed && u->IsHostileTo(GetOwner()))
@@ -1061,6 +1069,7 @@ bool GameObject::IsVisibleForInState(WorldObject const* pDetector, WorldObject c
             if (check stuff here)
                 return false;
         }*/
+        /*
         if (Unit const* pDetectorUnit = pDetector->ToUnit())
         {
             if (GetGOInfo()->type == GAMEOBJECT_TYPE_TRAP && GetGOInfo()->trap.stealthed && IsHostileTo(pDetectorUnit))
@@ -1072,7 +1081,7 @@ bool GameObject::IsVisibleForInState(WorldObject const* pDetector, WorldObject c
             if (GetEntry() == 187039 && ((pDetectorUnit->m_detectInvisibilityMask | pDetectorUnit->m_invisibilityMask) & (1 << 10)) == 0)
                 return false;
         }
-        
+        */
     }
 
     // check distance

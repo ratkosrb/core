@@ -204,6 +204,11 @@ class ReplayMgr
             LoadCreatureUpdate<SniffedEvent_CreatureUpdate_unit_flags>("unit_flags");
             LoadCreatureUpdate<SniffedEvent_CreatureUpdate_max_health>("max_health");
             LoadCreatureUpdate<SniffedEvent_CreatureUpdate_current_health>("current_health");
+            LoadGameObjectCreate1();
+            LoadGameObjectCreate2();
+            LoadGameObjectDestroy();
+            LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_flags>("flags");
+            LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_state>("state");
             LoadSpellCastStart();
             LoadSpellCastGo();
             LoadPlayMusic();
@@ -224,6 +229,11 @@ class ReplayMgr
         void LoadCreatureTargetChange(char const* tableName);
         template <class T>
         void LoadCreatureUpdate(char const* fieldName);
+        void LoadGameObjectCreate1();
+        void LoadGameObjectCreate2();
+        void LoadGameObjectDestroy();
+        template <class T>
+        void LoadGameObjectUpdate(char const* fieldName);
         void LoadSpellCastStart();
         void LoadSpellCastGo();
         void LoadPlayMusic();
@@ -288,6 +298,7 @@ class ReplayMgr
         }
         bool GetCurrentClientPosition(WorldLocation& loc);
         uint32 GetCreatureEntryFromGuid(uint32 guid);
+        uint32 GetGameObjectEntryFromGuid(uint32 guid);
 
         CreatureText const* GetCreatureTextTemplate(uint32 creatureId, uint32 groupId)
         {

@@ -5965,117 +5965,20 @@ bool Unit::IsVisibleForOrDetect(WorldObject const* pDetector, WorldObject const*
     Unit const* pDetectorUnit = pDetector->ToUnit();
     Player const* pDetectorPlayer = pDetector->ToPlayer();
 
-    // Grid dead/alive checks
-    if (pDetectorPlayer)
-    {
-        // non visible at grid for any stealth state
-        if (!IsVisibleInGridForPlayer(pDetectorPlayer))
-            return false;
-
-        // if player is dead then he can't detect anyone in any cases
-        if (!pDetectorPlayer->IsAlive())
-            detect = false;
-    }
-    else
-    {
-        // all dead creatures/players not visible for any creatures
-        if ((pDetectorUnit && !pDetectorUnit->IsAlive()) || !IsAlive())
-            return false;
-    }
-
     // always seen by owner
     if (GetCharmerOrOwnerGuid() == pDetector->GetObjectGuid())
         return true;
-
-    // IsInvisibleForAlive() those units can only be seen by dead or if other
-    // unit is also invisible for alive.. if an isinvisibleforalive unit dies we
-    // should be able to see it too
-    if (pDetectorUnit && pDetectorUnit->IsAlive() && IsAlive() && IsInvisibleForAlive() != pDetectorUnit->IsInvisibleForAlive())
-        if (!pDetectorPlayer || !pDetectorPlayer->IsGameMaster())
-            return false;
-
-    // redundant phasing
-    //if (!pDetector->CanSeeInWorld(this))
-    //    return false;
-
-    if (Creature const* pCreature = ToCreature())
-    {
-        if (pCreature->HasExtraFlag(CREATURE_FLAG_EXTRA_ONLY_VISIBLE_TO_FRIENDLY) &&
-            !pCreature->IsFriendlyTo(pDetector))
-            return false;
-    } 
 
     // Visible units are always visible for all units
     if (m_Visibility == VISIBILITY_ON)
         return true;
 
-    // GMs see any players, not higher GMs and all units
-    if (pDetectorPlayer && pDetectorPlayer->IsGameMaster())
+    if (!pDetectorPlayer || !pDetectorPlayer->IsGameMaster())
     {
-        if (IsPlayer())
-            return ToPlayer()->GetGMInvisibilityLevel() <= uint8(pDetectorPlayer->GetSession()->GetSecurity());
-        return true;
-    }
-
-    // non faction visibility non-breakable for non-GMs
-    if (m_Visibility == VISIBILITY_OFF)
-        return false;
-
-    // raw invisibility
-    bool invisible = m_invisibilityMask != 0;
-
-    // Detectable invisibility case
-    if (invisible && pDetectorUnit && (
-            // Invisible units are always visible for units under same
-            // invisibility type
-            (m_invisibilityMask & pDetectorUnit->m_invisibilityMask) ||
-            // Invisible units are always visible for units that can detect the
-            // appropriate invisibility level
-        pDetectorUnit->CanDetectInvisibilityOf(this)))
-        invisible = false;
-
-    // special cases for always overwrite invisibility/stealth
-    if (invisible || m_Visibility == VISIBILITY_GROUP_STEALTH)
-    {
-        // non-hostile case
-        if (!pDetector->IsHostileTo(this))
-        {
-            // player see other player with stealth/invisibility only if he in same group or raid or same team (raid/team case dependent from conf setting)
-            if (IsPlayer() && pDetectorPlayer)
-            {
-                if (((Player*)this)->IsGroupVisibleFor(pDetectorPlayer))
-                    return true;
-
-                // else apply same rules as for hostile case (detecting check for stealth)
-            }
-        }
-
-        // none other cases for detect invisibility, so invisible
-        if (invisible)
+        // non faction visibility non-breakable for non-GMs
+        if (m_Visibility == VISIBILITY_OFF)
             return false;
-
-        // else apply stealth detecting check
     }
-
-    // unit got in stealth in this moment and must ignore old detected state
-    if (m_Visibility == VISIBILITY_GROUP_NO_DETECT)
-        return false;
-
-    // GM invisibility checks early, invisibility if any detectable, so if not stealth then visible
-    if (m_Visibility != VISIBILITY_GROUP_STEALTH)
-        return true;
-
-    // NOW ONLY STEALTH CASE
-    //if in non-detect mode then invisible for unit
-    //mobs always detect players (detect == true)... return 'false' for those mobs which have (detect == false)
-    //players detect players only in Player::HandleStealthedUnitsDetection()
-    // Units detect Units only in Units::HandleStealthedUnitsDetection()
-    if (!detect)
-        return pDetectorPlayer ? pDetectorPlayer->IsInVisibleList(this) : false;
-
-    // Special cases
-    if (pDetectorUnit && !pDetectorUnit->CanDetectStealthOf(this, GetDistance(viewPoint), alert))
-         return false;
 
     // Now check if target is visible with LoS
     float ox, oy, oz;
@@ -6125,95 +6028,11 @@ void Unit::SetVisibility(UnitVisibility x)
 
 bool Unit::CanDetectInvisibilityOf(Unit const* u) const
 {
-    if (Creature const* worldBoss = ToCreature())
-        if (worldBoss->IsWorldBoss())
-            return true;
-
-    if (uint32 mask = (m_detectInvisibilityMask & u->m_invisibilityMask))
-    {
-        for (int32 i = 0; i < 32; ++i)
-        {
-            if (((1 << i) & mask) == 0)
-                continue;
-
-            // find invisibility level
-            int32 invLevel = 0;
-            Unit::AuraList const& iAuras = u->GetAurasByType(SPELL_AURA_MOD_INVISIBILITY);
-            for (const auto& itr : iAuras)
-                if (itr->GetModifier()->m_miscvalue == i && invLevel < itr->GetModifier()->m_amount)
-                    invLevel = itr->GetModifier()->m_amount;
-
-            // find invisibility detect level
-            int32 detectLevel = 0;
-            Unit::AuraList const& dAuras = GetAurasByType(SPELL_AURA_MOD_INVISIBILITY_DETECTION);
-            for (const auto& itr : dAuras)
-                if (itr->GetModifier()->m_miscvalue == i && detectLevel < itr->GetModifier()->m_amount)
-                    detectLevel = itr->GetModifier()->m_amount;
-
-            if (i == 6 && IsPlayer())     // special drunk detection case
-                detectLevel = ((Player*)this)->GetDrunkValue();
-
-            if (invLevel <= detectLevel)
-                return true;
-        }
-    }
-
-    return false;
+    return true;
 }
 
 bool Unit::CanDetectStealthOf(Unit const* target, float distance, bool* alert) const
 {
-    if (HasUnitState(UNIT_STAT_STUNNED | UNIT_STAT_PENDING_STUNNED))
-        return false;
-    if (distance < 0.388f) //collision
-        return true;
-
-    // Hunter mark functionality
-    AuraList const& auras = target->GetAurasByType(SPELL_AURA_MOD_STALKED);
-    for (const auto& iter : auras)
-        if (iter->GetCasterGuid() == GetObjectGuid())
-            return true;
-
-    // set max distance
-    float MaxStealthDetectRange = sWorld.getConfig(CONFIG_FLOAT_MAX_PLAYERS_STEALTH_DETECT_RANGE);
-    float visibleDistance = IsPlayer() ? MaxStealthDetectRange : ((Creature*)this)->GetAttackDistance(target);
-
-    //Always invisible from back (when stealth detection is on), also filter max distance cases
-    bool isInFront = distance < visibleDistance && HasInArc(M_PI_F, target);
-    if (!isInFront)
-        return false;
-
-    visibleDistance = 10.5f - target->GetTotalAuraModifier(SPELL_AURA_MOD_STEALTH) / 100.0f;
-
-    //Visible distance is modified by
-    //-Level Diff (every level diff = 1.0f in visible distance)
-    int32 level_diff = int32(GetLevelForTarget(target)) - int32(target->GetLevelForTarget(this));
-    if (abs(level_diff) > 3)
-        visibleDistance += level_diff;
-    else
-        visibleDistance += 0.5f * level_diff;
-
-    //This allows to check talent tree and will add addition stealth dependent on used points)
-    int32 stealthMod = target->GetTotalAuraModifier(SPELL_AURA_MOD_STEALTH_LEVEL);
-    if (stealthMod < 0)
-        stealthMod = 0;
-
-    //-Stealth Mod(positive like Master of Deception) and Stealth Detection(negative like paranoia)
-    //based on wowwiki every 5 mod we have 1 more level diff in calculation
-    visibleDistance += (int32(GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_STEALTH_DETECT, 0)) - stealthMod) / 5.0f;
-    visibleDistance = visibleDistance > MaxStealthDetectRange ? MaxStealthDetectRange : visibleDistance;
-
-    // recheck new distance
-    if (visibleDistance <= 0 || distance > visibleDistance)
-    {
-        if (alert && distance < 15.0f /*TODO: add MAX ALERT DISTANCE config*/)
-        {
-            visibleDistance = visibleDistance * 1.08f + 1.5f;
-            *alert = distance < visibleDistance;
-        }
-        return false;
-    }
-
     return true;
 }
 

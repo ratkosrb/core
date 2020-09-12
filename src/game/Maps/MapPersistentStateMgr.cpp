@@ -78,46 +78,11 @@ bool MapPersistentState::UnloadIfEmpty()
 void MapPersistentState::SaveCreatureRespawnTime(uint32 loguid, time_t t)
 {
     SetCreatureRespawnTime(loguid, t);
-
-    // BGs/Arenas always reset at server restart/unload, so no reason store in DB
-    if (GetMapEntry()->IsBattleGround())
-        return;
-    static SqlStatementID delSpawnTime;
-    static SqlStatementID replSpawnTime;
-
-
-    if (t > sWorld.GetGameTime())
-    {
-        SqlStatement stmt = CharacterDatabase.CreateStatement(replSpawnTime, "REPLACE INTO creature_respawn (guid, respawntime, instance, map) VALUES ( ?, ?, ?, ?)");
-        stmt.PExecute(loguid, uint64(t), m_instanceid, GetMapId());
-    }
-    else
-    {
-        SqlStatement stmt = CharacterDatabase.CreateStatement(delSpawnTime, "DELETE FROM creature_respawn WHERE guid = ? AND instance = ?");
-        stmt.PExecute(loguid, m_instanceid);
-    }
 }
 
 void MapPersistentState::SaveGORespawnTime(uint32 loguid, time_t t)
 {
     SetGORespawnTime(loguid, t);
-
-    // BGs/Arenas always reset at server restart/unload, so no reason store in DB
-    if (GetMapEntry()->IsBattleGround())
-        return;
-    static SqlStatementID delSpawnTime;
-    static SqlStatementID replSpawnTime;
-
-    if (t > sWorld.GetGameTime())
-    {
-        SqlStatement stmt = CharacterDatabase.CreateStatement(replSpawnTime, "REPLACE INTO gameobject_respawn (guid, respawntime, instance, map) VALUES ( ?, ?, ?, ?)");
-        stmt.PExecute(loguid, uint64(t), m_instanceid, GetMapId());
-    }
-    else
-    {
-        SqlStatement stmt = CharacterDatabase.CreateStatement(delSpawnTime, "DELETE FROM gameobject_respawn WHERE guid = ? AND instance = ?");
-        stmt.PExecute(loguid, m_instanceid);
-    }
 }
 
 void MapPersistentState::SetCreatureRespawnTime(uint32 loguid, time_t t)
@@ -1010,160 +975,10 @@ void MapPersistentStateManager::_CleanupExpiredInstancesAtTime(time_t t)
 
 void MapPersistentStateManager::LoadCreatureRespawnTimes()
 {
-    // remove outdated data
-    CharacterDatabase.DirectExecute("DELETE FROM creature_respawn WHERE respawntime <= UNIX_TIMESTAMP(NOW())");
 
-    uint32 count = 0;
-
-    QueryResult* result = CharacterDatabase.Query("SELECT guid, respawntime, creature_respawn.map, instance, resettime FROM creature_respawn LEFT JOIN instance ON instance = id");
-    if (!result)
-    {
-        BarGoLink bar(1);
-        bar.step();
-
-        sLog.outString();
-        sLog.outString(">> Loaded 0 creature respawn time.");
-        return;
-    }
-
-    BarGoLink bar(result->GetRowCount());
-
-    do
-    {
-        bar.step();
-        Field* fields = result->Fetch();
-
-        uint32 loguid       = fields[0].GetUInt32();
-        uint64 respawn_time = fields[1].GetUInt64();
-        uint32 mapId        = fields[2].GetUInt32();
-        uint32 instanceId   = fields[3].GetUInt32();
-
-        time_t resetTime = (time_t)fields[4].GetUInt64();
-
-        CreatureData const* data = sObjectMgr.GetCreatureData(loguid);
-        if (!data)
-            continue;
-
-        if (mapId != data->position.mapId)
-            continue;
-
-        MapEntry const* mapEntry = sMapStorage.LookupEntry<MapEntry>(mapId);
-        if (!mapEntry)
-            continue;
-
-        int beginInstance = instanceId;
-        int endInstance = instanceId + 1;
-        // Special case for instanciated continents
-        if (sWorld.getConfig(CONFIG_BOOL_CONTINENTS_INSTANCIATE))
-        {
-            if (mapEntry->id == 0)
-            {
-                beginInstance = MAP0_FIRST;
-                endInstance = MAP0_LAST;
-            }
-            if (mapEntry->id == 1)
-            {
-                beginInstance = MAP1_FIRST;
-                endInstance = MAP1_LAST;
-            }
-        }
-
-        for (int instance = beginInstance; instance < endInstance; ++instance)
-        {
-            MapPersistentState* state = AddPersistentState(mapEntry, instance,
-                resetTime, mapEntry->IsDungeon(), true, false /*= initPools*/);
-            if (!state)
-                continue;
-
-            state->SetCreatureRespawnTime(loguid, time_t(respawn_time));
-        }
-
-        ++count;
-
-    }
-    while (result->NextRow());
-
-    delete result;
-
-    sLog.outString();
-    sLog.outString(">> Loaded %u creature respawn times", count);
 }
 
 void MapPersistentStateManager::LoadGameobjectRespawnTimes()
 {
-    // remove outdated data
-    CharacterDatabase.DirectExecute("DELETE FROM gameobject_respawn WHERE respawntime <= UNIX_TIMESTAMP(NOW())");
-
-    uint32 count = 0;
-
-    QueryResult* result = CharacterDatabase.Query("SELECT guid, respawntime, gameobject_respawn.map, instance, resettime FROM gameobject_respawn LEFT JOIN instance ON instance = id");
-
-    if (!result)
-    {
-        BarGoLink bar(1);
-        bar.step();
-
-        sLog.outString();
-        sLog.outString(">> Loaded 0 gameobject respawn time.");
-        return;
-    }
-
-    BarGoLink bar(result->GetRowCount());
-
-    do
-    {
-        bar.step();
-        Field* fields = result->Fetch();
-
-        uint32 loguid       = fields[0].GetUInt32();
-        uint64 respawn_time = fields[1].GetUInt64();
-        uint32 mapId        = fields[2].GetUInt32();
-        uint32 instanceId   = fields[3].GetUInt32();
-
-        time_t resetTime = (time_t)fields[4].GetUInt64();
-
-        GameObjectData const* data = sObjectMgr.GetGOData(loguid);
-        if (!data)
-            continue;
-
-        if (mapId != data->position.mapId)
-            continue;
-
-        MapEntry const* mapEntry = sMapStorage.LookupEntry<MapEntry>(mapId);
-        if (!mapEntry)
-            continue;
-
-        int beginInstance = instanceId;
-        int endInstance = instanceId + 1;
-
-        if (mapEntry->id == 0)
-        {
-            beginInstance = MAP0_FIRST;
-            endInstance = MAP0_LAST;
-        }
-        if (mapEntry->id == 1)
-        {
-            beginInstance = MAP1_FIRST;
-            endInstance = MAP1_LAST;
-        }
-
-        for (int instance = beginInstance; instance < endInstance; ++instance)
-        {
-            MapPersistentState* state = AddPersistentState(mapEntry, instance,
-                resetTime, mapEntry->IsDungeon(), true, false /*= initPools*/);
-            if (!state)
-                continue;
-
-            state->SetGORespawnTime(loguid, time_t(respawn_time));
-        }
-
-        ++count;
-
-    }
-    while (result->NextRow());
-
-    delete result;
-
-    sLog.outString();
-    sLog.outString(">> Loaded %u gameobject respawn times", count);
+    
 }

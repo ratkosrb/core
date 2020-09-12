@@ -573,18 +573,21 @@ enum GOState
 // from `gameobject`
 struct GameObjectData
 {
-    uint32 id;                                              // entry in gamobject_template
+    uint32 id = 0;                                          // entry in gamobject_template
     WorldLocation position;
-    float rotation0;
-    float rotation1;
-    float rotation2;
-    float rotation3;
-    int32  spawntimesecsmin;
-    int32  spawntimesecsmax;
-    uint32 animprogress;
-    GOState go_state;
-    uint32 spawn_flags;
-    float visibility_mod;
+    float rotation0 = 0.0f;
+    float rotation1 = 0.0f;
+    float rotation2 = 0.0f;
+    float rotation3 = 0.0f;
+    int32  spawntimesecsmin = 1800;
+    int32  spawntimesecsmax = 1800;
+    uint32 animprogress = 0;
+    bool temp = false;
+    uint32 creator = 0;
+    GOState go_state = GO_STATE_ACTIVE;
+    uint32 flags = 0;
+    uint32 spawn_flags = SPAWN_FLAG_ACTIVE;
+    float visibility_mod = 0.0f;
 
     uint32 instanciatedContinentInstanceId;
     uint32 ComputeRespawnDelay(uint32 baseDelay) const;

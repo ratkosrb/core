@@ -518,6 +518,100 @@ struct SniffedEvent_CreatureUpdate_max_health : SniffedEvent
     }
 };
 
+struct SniffedEvent_GameObjectCreate1 : SniffedEvent
+{
+    SniffedEvent_GameObjectCreate1(uint32 guid, uint32 entry, float x, float y, float z, float o) :
+        m_guid(guid), m_entry(entry), m_x(x), m_y(y), m_z(z), m_o(o) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    float m_x = 0.0f;
+    float m_y = 0.0f;
+    float m_z = 0.0f;
+    float m_o = 0.0f;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_GAMEOBJECT_CREATE1;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_GAMEOBJECT);
+    }
+};
+
+struct SniffedEvent_GameObjectCreate2 : SniffedEvent
+{
+    SniffedEvent_GameObjectCreate2(uint32 guid, uint32 entry, float x, float y, float z, float o) :
+        m_guid(guid), m_entry(entry), m_x(x), m_y(y), m_z(z), m_o(o) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    float m_x = 0.0f;
+    float m_y = 0.0f;
+    float m_z = 0.0f;
+    float m_o = 0.0f;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_GAMEOBJECT_CREATE2;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_GAMEOBJECT);
+    }
+};
+
+struct SniffedEvent_GameObjectDestroy : SniffedEvent
+{
+    SniffedEvent_GameObjectDestroy(uint32 guid, uint32 entry) : m_guid(guid), m_entry(entry) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_GAMEOBJECT_DESTROY;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_GAMEOBJECT);
+    }
+};
+
+struct SniffedEvent_GameObjectUpdate_flags : SniffedEvent
+{
+    SniffedEvent_GameObjectUpdate_flags(uint32 guid, uint32 entry, uint32 value) :
+        m_guid(guid), m_entry(entry), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_GAMEOBJECT_UPDATE_FLAGS;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_GAMEOBJECT);
+    }
+};
+
+struct SniffedEvent_GameObjectUpdate_state : SniffedEvent
+{
+    SniffedEvent_GameObjectUpdate_state(uint32 guid, uint32 entry, uint32 value) :
+        m_guid(guid), m_entry(entry), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_GAMEOBJECT_UPDATE_STATE;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_GAMEOBJECT);
+    }
+};
+
 struct SniffedEvent_SpellCastStart : SniffedEvent
 {
     SniffedEvent_SpellCastStart(uint32 spellId, uint32 castFlags, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType) :
@@ -529,7 +623,7 @@ struct SniffedEvent_SpellCastStart : SniffedEvent
     uint32 m_casterType;
     uint32 m_targetGuid = 0;
     uint32 m_targetId = 0;
-    uint32 m_targetType;
+    uint32 m_targetType = 0;
     void Execute() const final;
     SniffedEventType GetType() const final
     {
@@ -547,15 +641,16 @@ struct SniffedEvent_SpellCastStart : SniffedEvent
 
 struct SniffedEvent_SpellCastGo : SniffedEvent
 {
-    SniffedEvent_SpellCastGo(uint32 spellId, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType) :
-        m_spellId(spellId), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType), m_targetGuid(targetGuid), m_targetId(targetId), m_targetType(targetType) {};
+    SniffedEvent_SpellCastGo(uint32 spellId, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType, uint32 hitTargetsCount) :
+        m_spellId(spellId), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType), m_targetGuid(targetGuid), m_targetId(targetId), m_targetType(targetType), m_hitTargetsCount(hitTargetsCount) {};
     uint32 m_spellId = 0;
     uint32 m_casterGuid = 0;
     uint32 m_casterId = 0;
     uint32 m_casterType;
     uint32 m_targetGuid = 0;
     uint32 m_targetId = 0;
-    uint32 m_targetType;
+    uint32 m_targetType = 0;
+    uint32 m_hitTargetsCount = 0;
     void Execute() const final;
     SniffedEventType GetType() const final
     {
@@ -590,7 +685,7 @@ struct SniffedEvent_PlaySound : SniffedEvent
     uint32 m_sound = 0;
     uint32 m_sourceGuid = 0;
     uint32 m_sourceId = 0;
-    uint32 m_sourceType;
+    uint32 m_sourceType = 0;
     void Execute() const final;
     SniffedEventType GetType() const final
     {

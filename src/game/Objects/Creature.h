@@ -206,8 +206,8 @@ struct CreatureData
     uint32 ranged_attack_time = 0;
     uint32 npc_flags = 0;
     uint32 unit_flags = 0;
-    uint32 spawntimesecsmin = 99999999;
-    uint32 spawntimesecsmax = 99999999;
+    uint32 spawntimesecsmin = 1800;
+    uint32 spawntimesecsmax = 1800;
     float wander_distance = 0.0f;
     float health_percent = 100.0f;
     float mana_percent = 100.0f;
