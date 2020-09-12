@@ -213,6 +213,11 @@ class ReplayMgr
             LoadSpellCastGo();
             LoadPlayMusic();
             LoadPlaySound();
+            LoadQuestAcceptTimes();
+            LoadQuestCompleteTimes();
+            LoadCreatureInteractTimes();
+            LoadGameObjectUseTimes();
+            LoadItemUseTimes();
         }
         void LoadCharacterTemplates();
         void LoadCharacterMovements();
@@ -238,10 +243,15 @@ class ReplayMgr
         void LoadSpellCastGo();
         void LoadPlayMusic();
         void LoadPlaySound();
+        void LoadQuestAcceptTimes();
+        void LoadQuestCompleteTimes();
+        void LoadCreatureInteractTimes();
+        void LoadGameObjectUseTimes();
+        void LoadItemUseTimes();
 
         void Update(uint32 const diff);
         void SpawnCharacters();
-        void SetPlayTime(uint32 unixtime);
+        void SetPlayTime(uint32 unixtime, bool updateObjectsState = true);
         void UpdateObjectVisiblityForCurrentTime();
         void StartPlaying();
         void StopPlaying() { m_enabled = false; }
@@ -299,6 +309,10 @@ class ReplayMgr
         bool GetCurrentClientPosition(WorldLocation& loc);
         uint32 GetCreatureEntryFromGuid(uint32 guid);
         uint32 GetGameObjectEntryFromGuid(uint32 guid);
+        char const* GetCreatureName(uint32 entry);
+        char const* GetGameObjectName(uint32 entry);
+        char const* GetItemName(uint32 entry);
+        std::string GetQuestName(uint32 entry);
 
         CreatureText const* GetCreatureTextTemplate(uint32 creatureId, uint32 groupId)
         {

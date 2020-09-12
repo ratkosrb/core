@@ -930,3 +930,162 @@ void SniffedEvent_PlaySound::Execute() const
         pPlayer->PlayDirectSound(m_sound);
     }
 }
+
+void ReplayMgr::LoadQuestAcceptTimes()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `object_guid`, `object_id`, `object_type`, `quest_id` FROM `quest_client_accept` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+            uint32 objectGuid = fields[1].GetUInt32();
+            uint32 objectId = fields[2].GetUInt32();
+            std::string objectType = fields[3].GetCppString();
+            uint32 questId = fields[4].GetUInt32();
+
+            std::shared_ptr<SniffedEvent_QuestAccept> newEvent = std::make_shared<SniffedEvent_QuestAccept>(questId, objectGuid, objectId, objectType);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+    }
+}
+
+void SniffedEvent_QuestAccept::Execute() const
+{
+    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    if (!pPlayer)
+    {
+        sLog.outError("SniffedEvent_QuestAccept: Cannot find active player!");
+        return;
+    }
+    std::string txt = "Client accepts Quest " + sReplayMgr.GetQuestName(m_questId) + " (Entry: " + std::to_string(m_questId) + ") from " + FormatObjectName(KnownObject(m_objectGuid, m_objectId, TypeID(GetKnownObjectTypeId(m_objectType)))) + ".";
+    pPlayer->MonsterSay(txt.c_str());
+}
+
+void ReplayMgr::LoadQuestCompleteTimes()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `object_guid`, `object_id`, `object_type`, `quest_id` FROM `quest_client_complete` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+            uint32 objectGuid = fields[1].GetUInt32();
+            uint32 objectId = fields[2].GetUInt32();
+            std::string objectType = fields[3].GetCppString();
+            uint32 questId = fields[4].GetUInt32();
+
+            std::shared_ptr<SniffedEvent_QuestComplete> newEvent = std::make_shared<SniffedEvent_QuestComplete>(questId, objectGuid, objectId, objectType);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+    }
+}
+
+void SniffedEvent_QuestComplete::Execute() const
+{
+    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    if (!pPlayer)
+    {
+        sLog.outError("SniffedEvent_QuestComplete: Cannot find active player!");
+        return;
+    }
+    std::string txt = "Client turns in Quest " + sReplayMgr.GetQuestName(m_questId) + " (Entry: " + std::to_string(m_questId) + ") to " + FormatObjectName(KnownObject(m_objectGuid, m_objectId, TypeID(GetKnownObjectTypeId(m_objectType)))) + ".";
+    pPlayer->MonsterSay(txt.c_str());
+}
+
+void ReplayMgr::LoadCreatureInteractTimes()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `guid` FROM `creature_client_interact` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+            uint32 guid = fields[1].GetUInt32();
+            uint32 entry = GetCreatureEntryFromGuid(guid);
+
+            std::shared_ptr<SniffedEvent_CreatureInteract> newEvent = std::make_shared<SniffedEvent_CreatureInteract>(guid, entry);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+    }
+}
+
+void SniffedEvent_CreatureInteract::Execute() const
+{
+    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    if (!pPlayer)
+    {
+        sLog.outError("SniffedEvent_CreatureInteract: Cannot find active player!");
+        return;
+    }
+    std::string txt = "Client interacts with Creature " + std::string(sReplayMgr.GetCreatureName(m_entry)) + " (Guid: " + std::to_string(m_guid) + " Entry: " + std::to_string(m_entry) + ").";
+    pPlayer->MonsterSay(txt.c_str());
+}
+
+void ReplayMgr::LoadGameObjectUseTimes()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `guid` FROM `gameobject_client_use` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+            uint32 guid = fields[1].GetUInt32();
+            uint32 entry = GetGameObjectEntryFromGuid(guid);
+
+            std::shared_ptr<SniffedEvent_GameObjectUse> newEvent = std::make_shared<SniffedEvent_GameObjectUse>(guid, entry);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+    }
+}
+
+void SniffedEvent_GameObjectUse::Execute() const
+{
+    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    if (!pPlayer)
+    {
+        sLog.outError("SniffedEvent_GameObjectUse: Cannot find active player!");
+        return;
+    }
+    std::string txt = "Client uses GameObject " + std::string(sReplayMgr.GetGameObjectName(m_entry)) + " (Guid: " + std::to_string(m_guid) + " Entry: " + std::to_string(m_entry) + ").";
+    pPlayer->MonsterSay(txt.c_str());
+}
+
+void ReplayMgr::LoadItemUseTimes()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `entry` FROM `item_client_use` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+            uint32 entry = fields[1].GetUInt32();
+
+            std::shared_ptr<SniffedEvent_ItemUse> newEvent = std::make_shared<SniffedEvent_ItemUse>(entry);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+    }
+}
+
+void SniffedEvent_ItemUse::Execute() const
+{
+    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    if (!pPlayer)
+    {
+        sLog.outError("SniffedEvent_ItemUse: Cannot find active player!");
+        return;
+    }
+    std::string txt = "Client uses Item " + std::string(sReplayMgr.GetItemName(m_itemId)) + " (Entry: " + std::to_string(m_itemId) + ").";
+    pPlayer->MonsterSay(txt.c_str());
+
+}

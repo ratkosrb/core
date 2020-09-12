@@ -367,6 +367,34 @@ uint32 ReplayMgr::GetGameObjectEntryFromGuid(uint32 guid)
     return 0;
 }
 
+char const* ReplayMgr::GetCreatureName(uint32 entry)
+{
+    if (auto data = sObjectMgr.GetCreatureTemplate(entry))
+        return data->name;
+    return "Unknown Creature";
+}
+
+char const* ReplayMgr::GetGameObjectName(uint32 entry)
+{
+    if (auto data = sObjectMgr.GetGameObjectInfo(entry))
+        return data->name;
+    return "Unknown GameObject";
+}
+
+char const* ReplayMgr::GetItemName(uint32 entry)
+{
+    if (auto data = sObjectMgr.GetItemPrototype(entry))
+        return data->Name1;
+    return "Unknown Item";
+}
+
+std::string ReplayMgr::GetQuestName(uint32 entry)
+{
+    if (auto data = sObjectMgr.GetQuestTemplate(entry))
+        return data->GetTitle();
+    return "Unknown Quest";
+}
+
 void ReplayMgr::Update(uint32 const diff)
 {
     if (!m_enabled)
@@ -527,7 +555,7 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
     }
 }
 
-void ReplayMgr::SetPlayTime(uint32 unixtime)
+void ReplayMgr::SetPlayTime(uint32 unixtime, bool updateObjectsState)
 {
     uint32 const currentTime = time(nullptr);
     if (unixtime > currentTime)
@@ -543,13 +571,26 @@ void ReplayMgr::SetPlayTime(uint32 unixtime)
     m_currentSniffTimeMs = uint64(unixtime) * 1000;
     m_timeDifference = currentTime - m_startTimeSniff;
 
-    UpdateObjectVisiblityForCurrentTime();
+    if (updateObjectsState)
+        UpdateObjectVisiblityForCurrentTime();
 }
 
 void ReplayMgr::StartPlaying()
 {
     if (!m_initialized)
     {
+        if (m_eventsMap.empty())
+        {
+            sLog.outError("[ReplayMgr] Events map is empty!");
+            return;
+        }
+
+        if (!m_startTimeSniff)
+        {
+            uint32 earliestEventTime = m_eventsMap.begin()->first;
+            SetPlayTime(earliestEventTime);
+        }
+        
         SpawnCharacters();
         m_initialized = true;
     }

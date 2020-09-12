@@ -697,5 +697,72 @@ struct SniffedEvent_PlaySound : SniffedEvent
     }
 };
 
+struct SniffedEvent_QuestAccept : SniffedEvent
+{
+    SniffedEvent_QuestAccept(uint32 questId, uint32 objectGuid, uint32 objectId, std::string objectType) :
+        m_questId(questId), m_objectGuid(objectGuid), m_objectId(objectId), m_objectType(objectType) {};
+    uint32 m_questId = 0;
+    uint32 m_objectGuid = 0;
+    uint32 m_objectId = 0;
+    std::string m_objectType;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CLIENT_QUEST_ACCEPT;
+    }
+};
+
+struct SniffedEvent_QuestComplete : SniffedEvent
+{
+    SniffedEvent_QuestComplete(uint32 questId, uint32 objectGuid, uint32 objectId, std::string objectType) :
+        m_questId(questId), m_objectGuid(objectGuid), m_objectId(objectId), m_objectType(objectType) {};
+    uint32 m_questId = 0;
+    uint32 m_objectGuid = 0;
+    uint32 m_objectId = 0;
+    std::string m_objectType;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CLIENT_QUEST_COMPLETE;
+    }
+};
+
+struct SniffedEvent_CreatureInteract : SniffedEvent
+{
+    SniffedEvent_CreatureInteract(uint32 guid, uint32 entry) :
+        m_guid(guid), m_entry(entry) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CLIENT_CREATURE_INTERACT;
+    }
+};
+
+struct SniffedEvent_GameObjectUse : SniffedEvent
+{
+    SniffedEvent_GameObjectUse(uint32 guid, uint32 entry) :
+        m_guid(guid), m_entry(entry) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CLIENT_GAMEOBJECT_USE;
+    }
+};
+
+struct SniffedEvent_ItemUse : SniffedEvent
+{
+    SniffedEvent_ItemUse(uint32 itemId) :
+        m_itemId(itemId) {};
+    uint32 m_itemId = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CLIENT_ITEM_USE;
+    }
+};
 
 #endif
