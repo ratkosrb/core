@@ -324,7 +324,7 @@ void ReplayMgr::SpawnCharacters()
     sLog.outString("[ReplayMgr] All characters spawned");
 }
 
-bool ReplayMgr::GetCurrentClientPosition(WorldLocation& loc)
+Player* ReplayMgr::GetActivePlayer()
 {
     uint32 currentCharacterGuid = 0;
     for (const auto& itr : m_activePlayers)
@@ -335,7 +335,12 @@ bool ReplayMgr::GetCurrentClientPosition(WorldLocation& loc)
             break;
     }
 
-    if (Player* pPlayer = GetPlayer(currentCharacterGuid))
+    return GetPlayer(currentCharacterGuid);
+}
+
+bool ReplayMgr::GetCurrentClientPosition(WorldLocation& loc)
+{
+    if (Player* pPlayer = GetActivePlayer())
     {
         loc.mapId = pPlayer->GetMapId();
         loc.x = pPlayer->GetPositionX();

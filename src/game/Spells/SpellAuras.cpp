@@ -54,6 +54,7 @@
 #include "PlayerBotAI.h"
 #include "PlayerBotMgr.h"
 #include "Anticheat.h"
+#include "ReplayMgr.h"
 
 using namespace Spells;
 
@@ -861,7 +862,9 @@ void Aura::ApplyModifier(bool apply, bool Real, bool skipCheckExclusive)
         return;
     }
     m_applied = apply;
-    if (aura < TOTAL_AURAS)
+
+    // Disable aura effects while replaying sniff.
+    if (aura < TOTAL_AURAS && !sReplayMgr.IsPlaying())
         (*this.*AuraHandler [aura])(apply, Real);
 
     if (!apply && !skipCheckExclusive && IsExclusive())
@@ -5583,6 +5586,10 @@ void Aura::HandleSchoolAbsorb(bool apply, bool Real)
 
 void Aura::PeriodicTick(SpellEntry const* sProto, AuraType auraType, uint32 data)
 {
+    // Disable aura effects while replaying sniff.
+    if (sReplayMgr.IsPlaying())
+        return;
+
     Unit* target = GetTarget();
     SpellEntry const* spellProto = sProto ? sProto : GetSpellProto();
     AuraType const aura_type = sProto ? auraType : m_modifier.m_auraname;

@@ -55,6 +55,7 @@
 #include "packet_builder.h"
 #include "MovementBroadcaster.h"
 #include "PlayerBroadcaster.h"
+#include "ReplayMgr.h"
 
 ////////////////////////////////////////////////////////////
 // Methods of class MovementInfo
@@ -3482,6 +3483,10 @@ SpellMissInfo WorldObject::SpellHitResult(Unit* pVictim, SpellEntry const* spell
 
 void WorldObject::ProcDamageAndSpell(Unit* pVictim, uint32 procAttacker, uint32 procVictim, uint32 procExtra, uint32 amount, WeaponAttackType attType, SpellEntry const* procSpell, Spell* spell)
 {
+    // Disable procs while replaying sniff.
+    if (sReplayMgr.IsPlaying())
+        return;
+
     if ((pVictim && !IsInMap(pVictim)) || !IsInWorld())
         return;
 

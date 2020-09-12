@@ -64,6 +64,7 @@
 #include "CreatureLinkingMgr.h"
 #include "InstanceStatistics.h"
 #include "MovementPacketSender.h"
+#include "ReplayMgr.h"
 
 #include <math.h>
 #include <stdarg.h>
@@ -678,6 +679,10 @@ void Unit::DoKillUnit(Unit* pVictim)
 
 uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDamage, DamageEffectType damagetype, SpellSchoolMask damageSchoolMask, SpellEntry const* spellProto, bool durabilityLoss, Spell* spell)
 {
+    // Disable spell damage while replaying sniff.
+    if (spellProto && sReplayMgr.IsPlaying())
+        return 0;
+
     // remove affects from attacker at any non-DoT damage (including 0 damage)
     if (damagetype != DOT)
     {

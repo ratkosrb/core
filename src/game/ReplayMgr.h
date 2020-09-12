@@ -186,21 +186,28 @@ class ReplayMgr
             LoadCreatureCreate1();
             LoadCreatureCreate2();
             LoadCreatureDestroy();
-            LoadCreatureMovement();
+            LoadCreatureMovement("creature_movement");
+            LoadCreatureMovement("creature_movement_combat");
             LoadCreatureTextTemplate();
             LoadCreatureText();
             LoadCreatureEmote();
-            LoadCreatureAttackStart();
-            LoadCreatureAttackStop();
+            LoadCreatureTargetChange<SniffedEvent_CreatureTargetChange>("creature_target_change");
+            LoadCreatureTargetChange<SniffedEvent_CreatureAttackStart>("creature_attack_start");
+            LoadCreatureTargetChange<SniffedEvent_CreatureAttackStop>("creature_attack_stop");
             LoadCreatureUpdate<SniffedEvent_CreatureUpdate_entry>("entry");
             LoadCreatureUpdate<SniffedEvent_CreatureUpdate_display_id>("display_id");
+            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_mount>("mount");
             LoadCreatureUpdate<SniffedEvent_CreatureUpdate_faction>("faction");
             LoadCreatureUpdate<SniffedEvent_CreatureUpdate_emote_state>("emote_state");
             LoadCreatureUpdate<SniffedEvent_CreatureUpdate_stand_state>("stand_state");
             LoadCreatureUpdate<SniffedEvent_CreatureUpdate_npc_flags>("npc_flags");
             LoadCreatureUpdate<SniffedEvent_CreatureUpdate_unit_flags>("unit_flags");
+            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_max_health>("max_health");
+            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_current_health>("current_health");
             LoadSpellCastStart();
             LoadSpellCastGo();
+            LoadPlayMusic();
+            LoadPlaySound();
         }
         void LoadCharacterTemplates();
         void LoadCharacterMovements();
@@ -209,16 +216,18 @@ class ReplayMgr
         void LoadCreatureCreate1();
         void LoadCreatureCreate2();
         void LoadCreatureDestroy();
-        void LoadCreatureMovement();
+        void LoadCreatureMovement(char const* tableName);
         void LoadCreatureTextTemplate();
         void LoadCreatureText();
         void LoadCreatureEmote();
-        void LoadCreatureAttackStart();
-        void LoadCreatureAttackStop();
+        template <class T>
+        void LoadCreatureTargetChange(char const* tableName);
         template <class T>
         void LoadCreatureUpdate(char const* fieldName);
         void LoadSpellCastStart();
         void LoadSpellCastGo();
+        void LoadPlayMusic();
+        void LoadPlaySound();
 
         void Update(uint32 const diff);
         void SpawnCharacters();
@@ -234,6 +243,7 @@ class ReplayMgr
         uint32 GetTimeDifference() { return m_timeDifference; }
 
         Player* GetPlayer(uint32 guid);
+        Player* GetActivePlayer();
         ReplayBotAI* GetPlayerBot(uint32 guid)
         {
             auto const itr = m_playerBots.find(guid);
