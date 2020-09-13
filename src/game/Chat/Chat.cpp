@@ -1023,6 +1023,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { "play",           SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffPlayCommand,            "", nullptr },
         { "stop",           SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffStopCommand,            "", nullptr },
         { "settime",        SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffSetTimeCommand,         "", nullptr },
+        { "gettime",        SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffGetTimeCommand,         "", nullptr },
         { "gotoclient",     SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffGoToClientCommand,      "", nullptr },
         { nullptr,          0,                  false, nullptr,                                         "", nullptr }
     };

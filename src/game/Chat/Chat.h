@@ -229,6 +229,7 @@ class ChatHandler
         bool HandleSniffPlayCommand(char *);
         bool HandleSniffStopCommand(char *);
         bool HandleSniffSetTimeCommand(char *);
+        bool HandleSniffGetTimeCommand(char *);
         bool HandleSniffGoToClientCommand(char *);
 
         // Packet dump

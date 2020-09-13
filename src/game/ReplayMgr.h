@@ -341,8 +341,8 @@ class ReplayMgr
         std::unordered_map<uint32 /*guid*/, GameObject*> m_gameobjects;
         std::map<uint32 /*unixtime*/, uint32 /*guid*/> m_activePlayers;
         std::unordered_map<uint32 /*guid*/, ReplayBotAI*> m_playerBots;
-        std::unordered_map<uint32 /*guid*/, CharacterTemplateEntry> m_characterTemplates;
-        std::unordered_map<uint32 /*guid*/, CharacterMovementMap> m_characterMovements;
+        std::map<uint32 /*guid*/, CharacterTemplateEntry> m_characterTemplates;
+        std::map<uint32 /*guid*/, CharacterMovementMap> m_characterMovements;
         std::vector<CreatureText> m_creatureTextTemplates;
         std::multimap<uint32, std::shared_ptr<SniffedEvent>> m_eventsMap;
 };

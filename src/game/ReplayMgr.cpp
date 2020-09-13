@@ -594,7 +594,7 @@ void ReplayMgr::StartPlaying()
         if (!m_startTimeSniff)
         {
             uint32 earliestEventTime = m_eventsMap.begin()->first;
-            SetPlayTime(earliestEventTime, false);
+            SetPlayTime(earliestEventTime);
         }
         
         SpawnCharacters();
@@ -639,6 +639,12 @@ bool ChatHandler::HandleSniffSetTimeCommand(char* args)
     if (!ExtractUInt32(&args, unixtime))
         return false;
     sReplayMgr.SetPlayTime(unixtime);
+    return true;
+}
+
+bool ChatHandler::HandleSniffGetTimeCommand(char* args)
+{
+    PSendSysMessage("Current sniff time: %u", sReplayMgr.GetCurrentSniffTime());
     return true;
 }
 
