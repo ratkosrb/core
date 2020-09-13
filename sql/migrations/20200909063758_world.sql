@@ -23,7 +23,7 @@ TRUNCATE `pool_template`;
 TRUNCATE `script_waypoint`;
 TRUNCATE `game_event_creature`;
 TRUNCATE `game_event_creature_data`;
-TRUNCATE `game_event_gameobject`
+TRUNCATE `game_event_gameobject`;
 DELETE FROM `creature_ai_scripts` WHERE `target_type` IN (9, 12);
 DELETE FROM `creature_movement_scripts` WHERE `target_type` IN (9, 12);
 DELETE FROM `creature_spells_scripts` WHERE `target_type` IN (9, 12);
