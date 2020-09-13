@@ -863,7 +863,7 @@ void ReplayMgr::LoadPlayMusic()
             Field* fields = result->Fetch();
 
             uint32 unixtime = fields[0].GetUInt32();
-            uint32 musicId = fields[0].GetUInt32();
+            uint32 musicId = fields[1].GetUInt32();
 
             std::shared_ptr<SniffedEvent_PlayMusic> newEvent = std::make_shared<SniffedEvent_PlayMusic>(musicId);
             m_eventsMap.insert(std::make_pair(unixtime, newEvent));
@@ -929,6 +929,30 @@ void SniffedEvent_PlaySound::Execute() const
         }
         pPlayer->PlayDirectSound(m_sound);
     }
+}
+
+void ReplayMgr::LoadWorldText()
+{
+    if (auto result = SniffDatabase.Query("SELECT `UnixTime`, `Text` FROM `world_text` ORDER BY `UnixTime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+            std::string text = fields[1].GetCppString();
+
+            std::shared_ptr<SniffedEvent_WorldText> newEvent = std::make_shared<SniffedEvent_WorldText>(text);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_WorldText::Execute() const
+{
+    sWorld.SendGlobalText(m_text.c_str(), nullptr);
 }
 
 void ReplayMgr::LoadQuestAcceptTimes()
@@ -1088,4 +1112,60 @@ void SniffedEvent_ItemUse::Execute() const
     std::string txt = "Client uses Item " + std::string(sReplayMgr.GetItemName(m_itemId)) + " (Entry: " + std::to_string(m_itemId) + ").";
     pPlayer->MonsterSay(txt.c_str());
 
+}
+
+void ReplayMgr::LoadReclaimCorpseTimes()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtime` FROM `client_reclaim_corpse` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+
+            std::shared_ptr<SniffedEvent_ReclaimCorpse> newEvent = std::make_shared<SniffedEvent_ReclaimCorpse>();
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+    }
+}
+
+void SniffedEvent_ReclaimCorpse::Execute() const
+{
+    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    if (!pPlayer)
+    {
+        sLog.outError("SniffedEvent_ReclaimCorpse: Cannot find active player!");
+        return;
+    }
+    pPlayer->MonsterSay("Client reclaims corpse.");
+}
+
+void ReplayMgr::LoadReleaseSpiritTimes()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtime` FROM `client_release_spirit` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+
+            std::shared_ptr<SniffedEvent_ReleaseSpirit> newEvent = std::make_shared<SniffedEvent_ReleaseSpirit>();
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+    }
+}
+
+void SniffedEvent_ReleaseSpirit::Execute() const
+{
+    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    if (!pPlayer)
+    {
+        sLog.outError("SniffedEvent_ReleaseSpirit: Cannot find active player!");
+        return;
+    }
+    pPlayer->MonsterSay("Client releases spirit.");
 }

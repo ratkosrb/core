@@ -417,6 +417,12 @@ void ReplayMgr::Update(uint32 const diff)
 
         itr.second->Execute();
     }
+
+    if (m_currentSniffTime > m_eventsMap.rbegin()->first)
+    {
+        sLog.outInfo("[ReplayMgr] Sniff replay is over.");
+        m_enabled = false;
+    }
 }
 
 void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
@@ -588,7 +594,7 @@ void ReplayMgr::StartPlaying()
         if (!m_startTimeSniff)
         {
             uint32 earliestEventTime = m_eventsMap.begin()->first;
-            SetPlayTime(earliestEventTime);
+            SetPlayTime(earliestEventTime, false);
         }
         
         SpawnCharacters();

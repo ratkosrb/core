@@ -213,11 +213,14 @@ class ReplayMgr
             LoadSpellCastGo();
             LoadPlayMusic();
             LoadPlaySound();
+            LoadWorldText();
             LoadQuestAcceptTimes();
             LoadQuestCompleteTimes();
             LoadCreatureInteractTimes();
             LoadGameObjectUseTimes();
             LoadItemUseTimes();
+            LoadReclaimCorpseTimes();
+            LoadReleaseSpiritTimes();
         }
         void LoadCharacterTemplates();
         void LoadCharacterMovements();
@@ -243,11 +246,14 @@ class ReplayMgr
         void LoadSpellCastGo();
         void LoadPlayMusic();
         void LoadPlaySound();
+        void LoadWorldText();
         void LoadQuestAcceptTimes();
         void LoadQuestCompleteTimes();
         void LoadCreatureInteractTimes();
         void LoadGameObjectUseTimes();
         void LoadItemUseTimes();
+        void LoadReclaimCorpseTimes();
+        void LoadReleaseSpiritTimes();
 
         void Update(uint32 const diff);
         void SpawnCharacters();

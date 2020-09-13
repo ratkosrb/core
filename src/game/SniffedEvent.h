@@ -120,7 +120,9 @@ enum SniffedEventType : uint8
     SE_CLIENT_QUEST_COMPLETE,
     SE_CLIENT_CREATURE_INTERACT,
     SE_CLIENT_GAMEOBJECT_USE,
-    SE_CLIENT_ITEM_USE
+    SE_CLIENT_ITEM_USE,
+    SE_CLIENT_RECLAIM_CORPSE,
+    SE_CLIENT_RELEASE_SPIRIT,
 };
 
 struct SniffedEvent
@@ -697,6 +699,18 @@ struct SniffedEvent_PlaySound : SniffedEvent
     }
 };
 
+struct SniffedEvent_WorldText : SniffedEvent
+{
+    SniffedEvent_WorldText(std::string text) :
+        m_text(text) {};
+    std::string m_text;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_PLAY_MUSIC;
+    }
+};
+
 struct SniffedEvent_QuestAccept : SniffedEvent
 {
     SniffedEvent_QuestAccept(uint32 questId, uint32 objectGuid, uint32 objectId, std::string objectType) :
@@ -762,6 +776,26 @@ struct SniffedEvent_ItemUse : SniffedEvent
     SniffedEventType GetType() const final
     {
         return SE_CLIENT_ITEM_USE;
+    }
+};
+
+struct SniffedEvent_ReclaimCorpse : SniffedEvent
+{
+    SniffedEvent_ReclaimCorpse() {};
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CLIENT_RECLAIM_CORPSE;
+    }
+};
+
+struct SniffedEvent_ReleaseSpirit : SniffedEvent
+{
+    SniffedEvent_ReleaseSpirit() {};
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CLIENT_RELEASE_SPIRIT;
     }
 };
 
