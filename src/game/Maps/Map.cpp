@@ -52,7 +52,6 @@
 #include "GridSearchers.h"
 #include "AuraRemovalMgr.h"
 #include "GameEventMgr.h"
-#include "world/world_event_wareffort.h"
 #include "LFGMgr.h"
 
 Map::~Map()

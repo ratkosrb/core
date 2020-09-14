@@ -1037,16 +1037,6 @@ bool ConditionEntry::IsValid()
         }
         case CONDITION_WAR_EFFORT_STAGE:
         {
-            if (m_value1 < 0 || m_value1 > WAR_EFFORT_STAGE_COMPLETE)
-            {
-                sLog.outErrorDb("War Effort stage condition (entry %u, type %u) has invalid stage %u", m_entry, m_condition, m_value1);
-                return false;
-            }
-            if (m_value2 < 0 || m_value2 > 2)
-            {
-                sLog.outErrorDb("War Effort stage condition (entry %u, type %u) has invalid equality %u", m_entry, m_condition, m_value2);
-                return false;
-            }
             break;
         }
         case CONDITION_MAP_ID:

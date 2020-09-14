@@ -30,7 +30,6 @@ set(SUPPORTED_CLIENT_BUILD "CLIENT_BUILD_1_12_1" CACHE STRING "Client version th
 option(USE_STD_MALLOC "Use standard malloc instead of TBB" 0)
 option(TBB_DEBUG "Use TBB debug librairies" 0)
 option(USE_ANTICHEAT "Use anticheat" 0)
-option(SCRIPTS "Compile scripts" 1)
 option(USE_EXTRACTORS "Compile extractors" 0)
 option(USE_LIBCURL "Compile with libcurl for email support" 0)
 
@@ -307,12 +306,6 @@ if(USE_ANTICHEAT)
   set(DEFINITIONS ${DEFINITIONS} USE_ANTICHEAT)
 else()
   message(STATUS "Use anticheat    : No  (default)")
-endif()
-
-if(SCRIPTS)
-  message(STATUS "Build scripts    : Yes (default)")
-else()
-  message(STATUS "Build scripts    : No")
 endif()
 
 if(UNIX)

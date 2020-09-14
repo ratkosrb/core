@@ -426,19 +426,6 @@ if(WIN32)
   endif()
 endif()
 
-# Used in game ScriptMgr
-if(SCRIPTS)
-  list(APPEND game_SRCS
-      ${CMAKE_SOURCE_DIR}/src/scripts/ScriptLoader.cpp
-      ${CMAKE_SOURCE_DIR}/src/scripts/ScriptLoader.h
-  )
-else()
-  list(APPEND game_SRCS
-      ${CMAKE_SOURCE_DIR}/src/scripts/ScriptLoader_noscripts.cpp
-      ${CMAKE_SOURCE_DIR}/src/scripts/ScriptLoader.h
-  )
-endif()
-
 if(USE_ANTICHEAT)
   list(APPEND game_SRCS
       Anticheat/MovementAnticheat/MovementAnticheat.cpp

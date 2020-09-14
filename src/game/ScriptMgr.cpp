@@ -26,7 +26,6 @@
 #include "World.h"
 #include "GossipDef.h"
 #include "SpellAuras.h"
-#include "ScriptLoader.h"
 #include "Conditions.h"
 #include "GameEventMgr.h"
 #include "CreatureGroups.h"
@@ -1959,8 +1958,6 @@ void ScriptMgr::Initialize()
 
     // Resize script ids to needed ammount of assigned ScriptNames (from core)
     m_scripts.resize(GetScriptIdsCount(), nullptr);
-
-    AddScripts();
 
     // Check existance scripts for all registered by core script names
     for (uint32 i = 1; i < GetScriptIdsCount(); ++i)

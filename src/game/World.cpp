@@ -1700,8 +1700,10 @@ void World::SetInitialWorldSettings()
     sLog.outString("Deleting expired bans...");
     LoginDatabase.Execute("DELETE FROM ip_banned WHERE unbandate<=UNIX_TIMESTAMP() AND unbandate<>bandate");
 
+    /*
     sHonorMaintenancer.Initialize();
     sHonorMaintenancer.DoMaintenance();
+    */
 
     sLog.outString("Starting Game Event system...");
     uint32 nextGameEvent = sGameEventMgr.Initialize();
@@ -1958,7 +1960,8 @@ void World::Update(uint32 diff)
 
     // update the instance reset times
     sMapPersistentStateMgr.Update();
-
+    
+    /*
     /// Maintenance checker
     if (m_MaintenanceTimeChecker < diff)
     {
@@ -1967,6 +1970,7 @@ void World::Update(uint32 diff)
     }
     else
         m_MaintenanceTimeChecker -= diff;
+    */
 
     //Update PlayerBotMgr
     sReplayMgr.Update(diff);
