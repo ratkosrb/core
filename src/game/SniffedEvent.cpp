@@ -618,6 +618,70 @@ void SniffedEvent_GameObjectCreate2::Execute() const
     pGo->SetVisible(true);
 }
 
+void ReplayMgr::LoadGameObjectCustomAnim()
+{
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `anim_id`, `unixtime` FROM `gameobject_custom_anim` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint32 entry = GetGameObjectEntryFromGuid(guid);
+            uint32 animId = fields[1].GetUInt32();
+
+            uint32 unixtime = fields[2].GetUInt32();
+
+            std::shared_ptr<SniffedEvent_GameObjectCustomAnim> newEvent = std::make_shared<SniffedEvent_GameObjectCustomAnim>(guid, entry, animId);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_GameObjectCustomAnim::Execute() const
+{
+    GameObject* pGo = sReplayMgr.GetGameObject(m_guid);
+    if (!pGo)
+    {
+        sLog.outError("SniffedEvent_GameObjectCustomAnim: Cannot find source gameobject!");
+        return;
+    }
+    pGo->SendGameObjectCustomAnim(m_animId);
+}
+
+void ReplayMgr::LoadGameObjectDespawnAnim()
+{
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime` FROM `gameobject_despawn_anim` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint32 entry = GetGameObjectEntryFromGuid(guid);
+            uint32 unixtime = fields[1].GetUInt32();
+
+            std::shared_ptr<SniffedEvent_GameObjectDespawnAnim> newEvent = std::make_shared<SniffedEvent_GameObjectDespawnAnim>(guid, entry);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_GameObjectDespawnAnim::Execute() const
+{
+    GameObject* pGo = sReplayMgr.GetGameObject(m_guid);
+    if (!pGo)
+    {
+        sLog.outError("SniffedEvent_GameObjectDespawnAnim: Cannot find source gameobject!");
+        return;
+    }
+    pGo->SendObjectDeSpawnAnim(pGo->GetObjectGuid());
+}
+
 void ReplayMgr::LoadGameObjectDestroy()
 {
     if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime` FROM `gameobject_destroy_time` ORDER BY `unixtime`"))
@@ -929,6 +993,40 @@ void SniffedEvent_PlaySound::Execute() const
         }
         pPlayer->PlayDirectSound(m_sound);
     }
+}
+
+void ReplayMgr::LoadPlaySpellVisualKit()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `kit_id`, `caster_guid`, `caster_id`, `caster_type` FROM `play_spell_visual_kit` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+            uint32 kitId = fields[1].GetUInt32();
+            uint32 sourceGuid = fields[2].GetUInt32();
+            uint32 sourceId = fields[3].GetUInt32();
+            std::string sourceType = fields[4].GetCppString();
+
+            std::shared_ptr<SniffedEvent_PlaySpellVisualKit> newEvent = std::make_shared<SniffedEvent_PlaySpellVisualKit>(kitId, sourceGuid, sourceId, GetKnownObjectTypeId(sourceType));
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_PlaySpellVisualKit::Execute() const
+{
+    Unit* pUnit = ToUnit(sReplayMgr.GetStoredObject(GetSourceObject()));
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_PlaySpellVisualKit: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SendPlaySpellVisual(m_kitId);
 }
 
 void ReplayMgr::LoadWorldText()

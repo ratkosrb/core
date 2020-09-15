@@ -206,6 +206,8 @@ class ReplayMgr
             LoadCreatureUpdate<SniffedEvent_CreatureUpdate_current_health>("current_health");
             LoadGameObjectCreate1();
             LoadGameObjectCreate2();
+            LoadGameObjectCustomAnim();
+            LoadGameObjectDespawnAnim();
             LoadGameObjectDestroy();
             LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_flags>("flags");
             LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_state>("state");
@@ -213,6 +215,7 @@ class ReplayMgr
             LoadSpellCastGo();
             LoadPlayMusic();
             LoadPlaySound();
+            LoadPlaySpellVisualKit();
             LoadWorldText();
             LoadQuestAcceptTimes();
             LoadQuestCompleteTimes();
@@ -239,6 +242,8 @@ class ReplayMgr
         void LoadCreatureUpdate(char const* fieldName);
         void LoadGameObjectCreate1();
         void LoadGameObjectCreate2();
+        void LoadGameObjectCustomAnim();
+        void LoadGameObjectDespawnAnim();
         void LoadGameObjectDestroy();
         template <class T>
         void LoadGameObjectUpdate(char const* fieldName);
@@ -246,6 +251,7 @@ class ReplayMgr
         void LoadSpellCastGo();
         void LoadPlayMusic();
         void LoadPlaySound();
+        void LoadPlaySpellVisualKit();
         void LoadWorldText();
         void LoadQuestAcceptTimes();
         void LoadQuestCompleteTimes();

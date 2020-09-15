@@ -109,11 +109,14 @@ enum SniffedEventType : uint8
     SE_CREATURE_UPDATE_MAX_HEALTH,
     SE_GAMEOBJECT_CREATE1,
     SE_GAMEOBJECT_CREATE2,
+    SE_GAMEOBJECT_CUSTOM_ANIM,
+    SE_GAMEOBJECT_DESPAWN_ANIM,
     SE_GAMEOBJECT_DESTROY,
     SE_GAMEOBJECT_UPDATE_FLAGS,
     SE_GAMEOBJECT_UPDATE_STATE,
     SE_PLAY_MUSIC,
     SE_PLAY_SOUND,
+    SE_PLAY_SPELL_VISUAL_KIT,
     SE_SPELL_CAST_START,
     SE_SPELL_CAST_GO,
     SE_CLIENT_QUEST_ACCEPT,
@@ -562,6 +565,39 @@ struct SniffedEvent_GameObjectCreate2 : SniffedEvent
     }
 };
 
+struct SniffedEvent_GameObjectCustomAnim : SniffedEvent
+{
+    SniffedEvent_GameObjectCustomAnim(uint32 guid, uint32 entry, uint32 animId) : m_guid(guid), m_entry(entry), m_animId(animId) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_animId = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_GAMEOBJECT_CUSTOM_ANIM;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_GAMEOBJECT);
+    }
+};
+
+struct SniffedEvent_GameObjectDespawnAnim : SniffedEvent
+{
+    SniffedEvent_GameObjectDespawnAnim(uint32 guid, uint32 entry) : m_guid(guid), m_entry(entry) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_GAMEOBJECT_DESPAWN_ANIM;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_GAMEOBJECT);
+    }
+};
+
 struct SniffedEvent_GameObjectDestroy : SniffedEvent
 {
     SniffedEvent_GameObjectDestroy(uint32 guid, uint32 entry) : m_guid(guid), m_entry(entry) {};
@@ -696,6 +732,25 @@ struct SniffedEvent_PlaySound : SniffedEvent
     KnownObject GetSourceObject() const final
     {
         return KnownObject(m_sourceGuid, m_sourceId, TypeID(m_sourceType));
+    }
+};
+
+struct SniffedEvent_PlaySpellVisualKit : SniffedEvent
+{
+    SniffedEvent_PlaySpellVisualKit(uint32 kitId, uint32 casterGuid, uint32 casterId, uint32 casterType) :
+        m_kitId(kitId), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType) {};
+    uint32 m_kitId = 0;
+    uint32 m_casterGuid = 0;
+    uint32 m_casterId = 0;
+    uint32 m_casterType;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_PLAY_SPELL_VISUAL_KIT;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_casterGuid, m_casterId, TypeID(m_casterType));
     }
 };
 
