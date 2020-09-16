@@ -761,6 +761,46 @@ void SniffedEvent_GameObjectUpdate_state::Execute() const
     pGo->SetGoState(GOState(m_value));
 }
 
+void ReplayMgr::LoadSpellCastFailed()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `spell_id` FROM `spell_cast_failed` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+            uint32 casterGuid = fields[1].GetUInt32();
+            uint32 casterId = fields[2].GetUInt32();
+            std::string casterType = fields[3].GetCppString();
+            uint32 spellId = fields[4].GetUInt32();
+
+            if (casterType == "Pet")
+                continue;
+
+            std::shared_ptr<SniffedEvent_SpellCastFailed> newEvent = std::make_shared<SniffedEvent_SpellCastFailed>(spellId, casterGuid, casterId, GetKnownObjectTypeId(casterType));
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_SpellCastFailed::Execute() const
+{
+    WorldObject* pCaster = sReplayMgr.GetStoredObject(GetSourceObject());
+    if (!pCaster)
+    {
+        sLog.outError("SniffedEvent_SpellCastFailed: Cannot find caster %s!", FormatObjectName(GetSourceObject()).c_str());
+        return;
+    }
+
+    WorldPacket data(SMSG_SPELL_FAILED_OTHER, (8 + 4));
+    data << pCaster->GetObjectGuid();
+    data << m_spellId;
+    pCaster->SendObjectMessageToSet(&data, false);
+}
+
 void ReplayMgr::LoadSpellCastStart()
 {
     if (auto result = SniffDatabase.Query("SELECT `UnixTime`, `CasterGuid`, `CasterId`, `CasterType`, `SpellId`, `CastFlags`, `TargetGuid`, `TargetId`, `TargetType` FROM `spell_cast_start` ORDER BY `UnixTime`"))

@@ -211,6 +211,7 @@ class ReplayMgr
             LoadGameObjectDestroy();
             LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_flags>("flags");
             LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_state>("state");
+            LoadSpellCastFailed();
             LoadSpellCastStart();
             LoadSpellCastGo();
             LoadPlayMusic();
@@ -247,6 +248,7 @@ class ReplayMgr
         void LoadGameObjectDestroy();
         template <class T>
         void LoadGameObjectUpdate(char const* fieldName);
+        void LoadSpellCastFailed();
         void LoadSpellCastStart();
         void LoadSpellCastGo();
         void LoadPlayMusic();

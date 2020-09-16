@@ -117,6 +117,7 @@ enum SniffedEventType : uint8
     SE_PLAY_MUSIC,
     SE_PLAY_SOUND,
     SE_PLAY_SPELL_VISUAL_KIT,
+    SE_SPELL_CAST_FAILED,
     SE_SPELL_CAST_START,
     SE_SPELL_CAST_GO,
     SE_CLIENT_QUEST_ACCEPT,
@@ -647,6 +648,25 @@ struct SniffedEvent_GameObjectUpdate_state : SniffedEvent
     KnownObject GetSourceObject() const final
     {
         return KnownObject(m_guid, m_entry, TYPEID_GAMEOBJECT);
+    }
+};
+
+struct SniffedEvent_SpellCastFailed : SniffedEvent
+{
+    SniffedEvent_SpellCastFailed(uint32 spellId, uint32 casterGuid, uint32 casterId, uint32 casterType) :
+        m_spellId(spellId), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType) {};
+    uint32 m_spellId = 0;
+    uint32 m_casterGuid = 0;
+    uint32 m_casterId = 0;
+    uint32 m_casterType;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_SPELL_CAST_FAILED;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_casterGuid, m_casterId, TypeID(m_casterType));
     }
 };
 
