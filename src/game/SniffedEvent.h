@@ -699,8 +699,8 @@ struct SniffedEvent_SpellCastStart : SniffedEvent
 
 struct SniffedEvent_SpellCastGo : SniffedEvent
 {
-    SniffedEvent_SpellCastGo(uint32 spellId, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType, uint32 hitTargetsCount) :
-        m_spellId(spellId), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType), m_targetGuid(targetGuid), m_targetId(targetId), m_targetType(targetType), m_hitTargetsCount(hitTargetsCount) {};
+    SniffedEvent_SpellCastGo(uint32 spellId, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType, uint32 hitTargetsCount, uint32 hitTargetsListId, uint32 missTargetsCount, uint32 missTargetsListId) :
+        m_spellId(spellId), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType), m_targetGuid(targetGuid), m_targetId(targetId), m_targetType(targetType), m_hitTargetsCount(hitTargetsCount), m_hitTargetsListId(hitTargetsListId), m_missTargetsCount(missTargetsCount), m_missTargetsListId(missTargetsListId) {};
     uint32 m_spellId = 0;
     uint32 m_casterGuid = 0;
     uint32 m_casterId = 0;
@@ -709,6 +709,9 @@ struct SniffedEvent_SpellCastGo : SniffedEvent
     uint32 m_targetId = 0;
     uint32 m_targetType = 0;
     uint32 m_hitTargetsCount = 0;
+    uint32 m_hitTargetsListId = 0;
+    uint32 m_missTargetsCount = 0;
+    uint32 m_missTargetsListId = 0;
     void Execute() const final;
     SniffedEventType GetType() const final
     {

@@ -287,6 +287,8 @@ void ReplayBotAI::UpdateMovement()
         if (itr.first > maxUnixTimeMs)
             return;
 
+        m_lastMoveUnixTimeMs = itr.first;
+
         // send the movement
         if (itr.second.position.mapId == me->GetMapId())
         {
@@ -306,8 +308,7 @@ void ReplayBotAI::UpdateMovement()
         else
         {
             me->TeleportTo(itr.second.position);
+            return;
         }
-
-        m_lastMoveUnixTimeMs = itr.first;
     }
 }

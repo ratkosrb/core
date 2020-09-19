@@ -36,6 +36,57 @@
 #include "PlayerBotMgr.h"
 #include "Chat.h"
 #include "Spell.h"
+#include "SpellAuras.h"
+
+void ReplayMgr::LoadSniffedEvents()
+{
+    LoadCreatureCreate1();
+    LoadCreatureCreate2();
+    LoadCreatureDestroy();
+    LoadCreatureMovement("creature_movement");
+    LoadCreatureMovement("creature_movement_combat");
+    LoadCreatureTextTemplate();
+    LoadCreatureText();
+    LoadCreatureEmote();
+    LoadCreatureTargetChange<SniffedEvent_CreatureTargetChange>("creature_target_change");
+    LoadCreatureTargetChange<SniffedEvent_CreatureAttackStart>("creature_attack_start");
+    LoadCreatureTargetChange<SniffedEvent_CreatureAttackStop>("creature_attack_stop");
+    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_entry>("entry");
+    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_display_id>("display_id");
+    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_mount>("mount");
+    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_faction>("faction");
+    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_emote_state>("emote_state");
+    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_stand_state>("stand_state");
+    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_npc_flags>("npc_flags");
+    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_unit_flags>("unit_flags");
+    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_max_health>("max_health");
+    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_current_health>("current_health");
+    LoadGameObjectCreate1();
+    LoadGameObjectCreate2();
+    LoadGameObjectCustomAnim();
+    LoadGameObjectDespawnAnim();
+    LoadGameObjectDestroy();
+    LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_flags>("flags");
+    LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_state>("state");
+    LoadSpellCastFailed();
+    LoadSpellCastStart();
+    LoadSpellCastGo();
+    LoadSpellCastGoTargets();
+    LoadPlayMusic();
+    LoadPlaySound();
+    LoadPlaySpellVisualKit();
+    LoadWorldText();
+    LoadQuestAcceptTimes();
+    LoadQuestCompleteTimes();
+    LoadCreatureInteractTimes();
+    LoadGameObjectUseTimes();
+    LoadItemUseTimes();
+    LoadReclaimCorpseTimes();
+    LoadReleaseSpiritTimes();
+    
+    sLog.outString(">> Loaded %u sniffed events", (uint32)m_eventsMap.size());
+    sLog.outString();
+}
 
 void ReplayMgr::LoadCreatureCreate1()
 {
@@ -803,7 +854,7 @@ void SniffedEvent_SpellCastFailed::Execute() const
 
 void ReplayMgr::LoadSpellCastStart()
 {
-    if (auto result = SniffDatabase.Query("SELECT `UnixTime`, `CasterGuid`, `CasterId`, `CasterType`, `SpellId`, `CastFlags`, `TargetGuid`, `TargetId`, `TargetType` FROM `spell_cast_start` ORDER BY `UnixTime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `cast_flags`, `target_guid`, `target_id`, `target_type` FROM `spell_cast_start` ORDER BY `unixtime`"))
     {
         do
         {
@@ -876,7 +927,7 @@ void SniffedEvent_SpellCastStart::Execute() const
 
 void ReplayMgr::LoadSpellCastGo()
 {
-    if (auto result = SniffDatabase.Query("SELECT `UnixTime`, `CasterGuid`, `CasterId`, `CasterType`, `SpellId`, `MainTargetGuid`, `MainTargetId`, `MainTargetType`, `HitTargetsCount` FROM `spell_cast_go` ORDER BY `UnixTime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `main_target_guid`, `main_target_id`, `main_target_type`, `hit_targets_count`, `hit_targets_list_id`, `miss_targets_count`, `miss_targets_list_id` FROM `spell_cast_go` ORDER BY `unixtime`"))
     {
         do
         {
@@ -891,9 +942,32 @@ void ReplayMgr::LoadSpellCastGo()
             uint32 targetId = fields[6].GetUInt32();
             std::string targetType = fields[7].GetCppString();
             uint32 hitTargetsCount = fields[8].GetUInt32();
+            uint32 hitTargetsListId = fields[9].GetUInt32();
+            uint32 missTargetsCount = fields[10].GetUInt32();
+            uint32 missTargetsListId = fields[11].GetUInt32();
 
-            std::shared_ptr<SniffedEvent_SpellCastGo> newEvent = std::make_shared<SniffedEvent_SpellCastGo>(spellId, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType), hitTargetsCount);
+            std::shared_ptr<SniffedEvent_SpellCastGo> newEvent = std::make_shared<SniffedEvent_SpellCastGo>(spellId, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType), hitTargetsCount, hitTargetsListId, missTargetsCount, missTargetsListId);
             m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void ReplayMgr::LoadSpellCastGoTargets()
+{
+    if (auto result = SniffDatabase.Query("SELECT `list_id`, `target_guid`, `target_id`, `target_type` FROM `spell_cast_go_target` ORDER BY `list_id`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 listId = fields[0].GetUInt32();
+            uint32 targetGuid = fields[1].GetUInt32();
+            uint32 targetId = fields[2].GetUInt32();
+            std::string targetType = fields[3].GetCppString();
+            
+            m_spellCastGoTargets[listId].push_back(KnownObject(targetGuid, targetId, TypeID(GetKnownObjectTypeId(targetType))));
 
         } while (result->NextRow());
         delete result;
@@ -935,15 +1009,82 @@ void SniffedEvent_SpellCastGo::Execute() const
 
     //WriteSpellGoTargets(&data);
 
-    if (m_hitTargetsCount != 0 && pTarget && !GetTargetObject().IsEmpty())
+    if (m_hitTargetsCount != 0 && m_hitTargetsListId != 0)
     {
-        data << (uint8)1;
-        data << pTarget->GetObjectGuid();
+        uint32 targetsCount = 0;
+        size_t hitPos = data.wpos();
+        data << (uint8)0; // placeholder
+        if (std::vector<KnownObject> const* vTargets = sReplayMgr.GetSpellTargetList(m_hitTargetsListId))
+        {
+            for (const auto& itr : *vTargets)
+            {
+                if (WorldObject* pHitTarget = sReplayMgr.GetStoredObject(itr))
+                {
+                    targetsCount++;
+                    data << pHitTarget->GetObjectGuid();
+
+                    /*
+                    // uncomment code to fake aura application
+                    if (SpellEntry const* pSpellInfo = sSpellMgr.GetSpellEntry(m_spellId))
+                    {
+                        if (pSpellInfo->HasEffect(SPELL_EFFECT_APPLY_AURA) && !pSpellInfo->IsChanneledSpell())
+                        {
+                            if (Unit* pUnitTarget = pHitTarget->ToUnit())
+                            {
+                                if (!pUnitTarget->HasAura(m_spellId))
+                                {
+                                    Unit* pUnitCaster = pCaster->IsUnit() ? pCaster->ToUnit() : pUnitTarget;
+                                    SpellAuraHolder* holder = CreateSpellAuraHolder(pSpellInfo, pUnitTarget, pUnitCaster, pCaster);
+
+                                    for (uint32 i = 0; i < MAX_EFFECT_INDEX; ++i)
+                                    {
+                                        uint8 eff = pSpellInfo->Effect[i];
+                                        if (eff >= TOTAL_SPELL_EFFECTS)
+                                            continue;
+                                        if (eff == SPELL_EFFECT_APPLY_AURA)
+                                        {
+                                            Aura* aur = CreateAura(pSpellInfo, SpellEffectIndex(i), nullptr, holder, pUnitTarget, pUnitCaster);
+                                            holder->AddAura(aur, SpellEffectIndex(i));
+                                        }
+                                    }
+                                    if (!pUnitTarget->AddSpellAuraHolder(holder))
+                                        holder = nullptr;
+                                }
+                            }
+                        }
+                    }
+                    */
+                }
+            }
+        }
+        if (targetsCount)
+            data.put<uint8>(hitPos, (uint8)targetsCount);
     }
     else
         data << (uint8)0; // hit targets count
 
-    data << (uint8)0; // miss  targets count
+    if (m_missTargetsCount != 0 && m_missTargetsListId != 0)
+    {
+        uint32 targetsCount = 0;
+        size_t missPos = data.wpos();
+        data << (uint8)0; // placeholder
+        if (std::vector<KnownObject> const* vTargets = sReplayMgr.GetSpellTargetList(m_missTargetsListId))
+        {
+            for (const auto& itr : *vTargets)
+            {
+                if (WorldObject* pMissTarget = sReplayMgr.GetStoredObject(itr))
+                {
+                    targetsCount++;
+                    data << pMissTarget->GetObjectGuid();
+                    data << (uint8)SPELL_MISS_MISS;
+                }
+            }
+        }
+        if (targetsCount)
+            data.put<uint8>(missPos, (uint8)targetsCount);
+    }
+    else
+        data << (uint8)0; // miss targets count
 
     SpellCastTargets targets;
     if (Unit* pUnitTarget = pTarget->ToUnit())

@@ -112,7 +112,6 @@ void ReplayMgr::LoadCharacterTemplates()
     }
     while (result->NextRow());
 
-    sLog.outString();
     sLog.outString(">> Loaded %u sniffed character templates", count);
 }
 
@@ -242,7 +241,7 @@ void ReplayMgr::LoadCharacterMovements()
         bar.step();
 
         sLog.outString();
-        sLog.outErrorDb(">> Loaded 0 character definitions. DB table `characters` is empty.");
+        sLog.outErrorDb(">> Loaded 0 character movements. DB table `character_movement` is empty.");
         return;
     }
 
@@ -273,7 +272,6 @@ void ReplayMgr::LoadCharacterMovements()
         ++count;
     } while (result->NextRow());
 
-    sLog.outString();
     sLog.outString(">> Loaded %u sniffed character movements", count);
 }
 

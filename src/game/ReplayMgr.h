@@ -181,51 +181,7 @@ class ReplayMgr
             LoadActivePlayer();
             LoadSniffedEvents();
         }
-        void LoadSniffedEvents()
-        {
-            LoadCreatureCreate1();
-            LoadCreatureCreate2();
-            LoadCreatureDestroy();
-            LoadCreatureMovement("creature_movement");
-            LoadCreatureMovement("creature_movement_combat");
-            LoadCreatureTextTemplate();
-            LoadCreatureText();
-            LoadCreatureEmote();
-            LoadCreatureTargetChange<SniffedEvent_CreatureTargetChange>("creature_target_change");
-            LoadCreatureTargetChange<SniffedEvent_CreatureAttackStart>("creature_attack_start");
-            LoadCreatureTargetChange<SniffedEvent_CreatureAttackStop>("creature_attack_stop");
-            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_entry>("entry");
-            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_display_id>("display_id");
-            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_mount>("mount");
-            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_faction>("faction");
-            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_emote_state>("emote_state");
-            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_stand_state>("stand_state");
-            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_npc_flags>("npc_flags");
-            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_unit_flags>("unit_flags");
-            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_max_health>("max_health");
-            LoadCreatureUpdate<SniffedEvent_CreatureUpdate_current_health>("current_health");
-            LoadGameObjectCreate1();
-            LoadGameObjectCreate2();
-            LoadGameObjectCustomAnim();
-            LoadGameObjectDespawnAnim();
-            LoadGameObjectDestroy();
-            LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_flags>("flags");
-            LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_state>("state");
-            LoadSpellCastFailed();
-            LoadSpellCastStart();
-            LoadSpellCastGo();
-            LoadPlayMusic();
-            LoadPlaySound();
-            LoadPlaySpellVisualKit();
-            LoadWorldText();
-            LoadQuestAcceptTimes();
-            LoadQuestCompleteTimes();
-            LoadCreatureInteractTimes();
-            LoadGameObjectUseTimes();
-            LoadItemUseTimes();
-            LoadReclaimCorpseTimes();
-            LoadReleaseSpiritTimes();
-        }
+        void LoadSniffedEvents();
         void LoadCharacterTemplates();
         void LoadCharacterMovements();
         void LoadActivePlayer();
@@ -251,6 +207,7 @@ class ReplayMgr
         void LoadSpellCastFailed();
         void LoadSpellCastStart();
         void LoadSpellCastGo();
+        void LoadSpellCastGoTargets();
         void LoadPlayMusic();
         void LoadPlaySound();
         void LoadPlaySpellVisualKit();
@@ -337,6 +294,13 @@ class ReplayMgr
             }
             return nullptr;
         }
+        std::vector<KnownObject> const* GetSpellTargetList(uint32 listId)
+        {
+            auto const itr = m_spellCastGoTargets.find(listId);
+            if (itr != m_spellCastGoTargets.end())
+                return &itr->second;
+            return nullptr;
+        }
 
     protected:
         bool m_enabled = false;
@@ -345,6 +309,7 @@ class ReplayMgr
         uint64 m_currentSniffTimeMs = 0;
         uint32 m_startTimeSniff = 0;
         uint32 m_timeDifference = 0;
+        std::map<uint32 /*list_id*/, std::vector<KnownObject>> m_spellCastGoTargets;
         std::unordered_map<uint32 /*guid*/, Creature*> m_creatures;
         std::unordered_map<uint32 /*guid*/, GameObject*> m_gameobjects;
         std::map<uint32 /*unixtime*/, uint32 /*guid*/> m_activePlayers;
