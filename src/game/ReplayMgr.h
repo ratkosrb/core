@@ -30,6 +30,7 @@
 #include "Timer.h"
 #include "SniffedEvent.h"
 #include <memory>
+#include "WaypointManager.h"
 
 struct CharacterEquipment
 {
@@ -302,6 +303,9 @@ class ReplayMgr
             return nullptr;
         }
 
+        std::shared_ptr<WaypointPath> GetOrCreateWaypoints(uint32 guid, bool useStartPosition);
+        uint32 GetTotalMovementPointsForCreature(uint32 guid);
+
     protected:
         bool m_enabled = false;
         bool m_initialized = false;
@@ -309,6 +313,7 @@ class ReplayMgr
         uint64 m_currentSniffTimeMs = 0;
         uint32 m_startTimeSniff = 0;
         uint32 m_timeDifference = 0;
+        std::map<uint32 /*guid*/, std::shared_ptr<WaypointPath>> m_creatureWaypoints;
         std::map<uint32 /*list_id*/, std::vector<KnownObject>> m_spellCastGoTargets;
         std::unordered_map<uint32 /*guid*/, Creature*> m_creatures;
         std::unordered_map<uint32 /*guid*/, GameObject*> m_gameobjects;

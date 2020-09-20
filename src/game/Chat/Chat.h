@@ -847,10 +847,7 @@ class ChatHandler
         bool HandleUnBanCharacterCommand(char* args);
         bool HandleUnBanIPCommand(char* args);
 
-        bool HandleWpAddCommand(char* args);
-        bool HandleWpModifyCommand(char* args);
         bool HandleWpShowCommand(char* args);
-        bool HandleWpExportCommand(char* args);
 
         bool HandleHelpCommand(char* args);
         bool HandleCommandsCommand(char* args);

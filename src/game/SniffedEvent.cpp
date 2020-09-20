@@ -37,6 +37,7 @@
 #include "Chat.h"
 #include "Spell.h"
 #include "SpellAuras.h"
+#include "WaypointManager.h"
 
 void ReplayMgr::LoadSniffedEvents()
 {
@@ -1447,4 +1448,130 @@ void SniffedEvent_ReleaseSpirit::Execute() const
         return;
     }
     pPlayer->MonsterSay("Client releases spirit.");
+}
+
+std::shared_ptr<WaypointPath> ReplayMgr::GetOrCreateWaypoints(uint32 guid, bool useStartPosition)
+{
+    // Only generate path if we haven't done it before.
+    auto existingPathsItr = m_creatureWaypoints.find(guid);
+    if (existingPathsItr != m_creatureWaypoints.end())
+        return existingPathsItr->second;
+
+    uint32 firstMoveTime = 0;
+    std::shared_ptr<WaypointPath> path = std::make_shared<WaypointPath>();
+    //                                              0     1        2            3               4               5                   6                   7                   8                 9                 10                11             12
+    if (auto result = SniffDatabase.PQuery("SELECT `id`, `point`, `move_time`, `spline_flags`, `spline_count`, `start_position_x`, `start_position_y`, `start_position_z`, `end_position_x`, `end_position_y`, `end_position_z`, `orientation`, `unixtime` FROM `creature_movement` WHERE `id`=%u", guid))
+    {
+        uint32 pointCounter = 0;
+        WaypointNode* lastPoint = nullptr;
+        uint32 lastMoveTime = 0;
+        uint32 lastUnixTime = 0;
+        float lastOrientation = 100.0f;
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 const id = fields[0].GetUInt32();
+            uint32 const point = fields[1].GetUInt32();
+
+            uint32 const move_time = fields[2].GetUInt32();
+            //uint32 const spline_flags = fields[3].GetUInt32();
+            uint32 const spline_count = fields[4].GetUInt32();
+
+            float const start_position_x = fields[5].GetFloat();
+            float const start_position_y = fields[6].GetFloat();
+            float const start_position_z = fields[7].GetFloat();
+
+            float const end_position_x = fields[8].GetFloat();
+            float const end_position_y = fields[9].GetFloat();
+            float const end_position_z = fields[10].GetFloat();
+            float const final_orientation = fields[11].GetFloat();
+
+            uint32 unixtime = fields[12].GetUInt32();
+
+            if (point == 1)
+                firstMoveTime = unixtime;
+
+            uint32 waittime = 0;
+
+            if (lastPoint)
+            {
+                float fMoveTime = (float)lastMoveTime;
+                fMoveTime = fMoveTime / 1000.0f;
+                fMoveTime = ceilf(fMoveTime);
+                uint32 roundedUpMoveTime = (uint32)fMoveTime;
+                uint32 timeDiff = unixtime - lastUnixTime;
+
+                if (timeDiff > (roundedUpMoveTime * 2))
+                {
+                    if (useStartPosition)
+                        waittime = (timeDiff - roundedUpMoveTime) * 1000;
+                    else
+                        lastPoint->delay = (timeDiff - roundedUpMoveTime) * 1000;
+                }
+            }
+
+            WaypointNode node;
+
+            if (useStartPosition)
+            {
+                float orientation = lastOrientation;
+                lastOrientation = final_orientation;
+                node.x = start_position_x;
+                node.y = start_position_y;
+                node.z = start_position_z;
+                node.orientation = orientation;
+                node.delay = waittime;
+            }
+            else
+            {
+                float posX = (spline_count == 0) ? start_position_x : end_position_x;
+                float posY = (spline_count == 0) ? start_position_y : end_position_y;
+                float posZ = (spline_count == 0) ? start_position_z : end_position_z;
+                node.x = posX;
+                node.y = posY;
+                node.z = posZ;
+                node.orientation = final_orientation;
+                node.delay = waittime;
+            }
+
+            auto insertResult = (*path).insert({ pointCounter, node });
+            if (insertResult.second)
+                lastPoint = &insertResult.first->second;
+
+            pointCounter++;
+
+            lastMoveTime = move_time;
+            lastUnixTime = unixtime;
+
+            if (path->size() >= 200)
+            {
+                sLog.outInfo("[ReplayMgr] Waypoint count for guid %u exceeds 200 points. Cutting it off to prevent client crash.", guid);
+                break;
+            }
+
+        } while (result->NextRow());
+        delete result;
+    }
+
+    if (path->empty())
+        return nullptr;
+
+    m_creatureWaypoints.insert({ guid, path });
+    return path;
+}
+
+uint32 ReplayMgr::GetTotalMovementPointsForCreature(uint32 guid)
+{
+    uint32 count = 0;
+    if (auto result = SniffDatabase.PQuery("SELECT COUNT(`point`) FROM `creature_movement` WHERE `id`=%u", guid))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+            count = fields[0].GetUInt32();
+        } while (result->NextRow());
+        delete result;
+    }
+    return count;
 }

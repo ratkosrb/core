@@ -209,9 +209,11 @@ struct CreatureData
     uint32 spawntimesecsmin = 1800;
     uint32 spawntimesecsmax = 1800;
     float wander_distance = 0.0f;
+    float wander_distance_real = 0.0f; // for display in .npc spawn info
     float health_percent = 100.0f;
     float mana_percent = 100.0f;
     uint8 movement_type = 0;
+    uint8 movement_type_real = 0; // for display in .npc spawn info
     uint32 spawn_flags = 1;
     float visibility_mod = 0.0f;
 
