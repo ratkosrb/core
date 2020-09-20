@@ -35,6 +35,7 @@
 #include "ReplayBotAI.h"
 #include "PlayerBotMgr.h"
 #include "Chat.h"
+#include "Language.h"
 
 INSTANTIATE_SINGLETON_1(ReplayMgr);
 
@@ -598,7 +599,16 @@ void ReplayMgr::StartPlaying()
         SpawnCharacters();
         m_initialized = true;
     }
+    sLog.outInfo("[ReplayMgr] Sniff replay started");
+    sWorld.SendGlobalText("[ReplayMgr] Sniff replay started", nullptr);
     m_enabled = true;
+}
+
+void ReplayMgr::StopPlaying()
+{
+    sLog.outInfo("[ReplayMgr] Sniff replay stopped");
+    sWorld.SendGlobalText("[ReplayMgr] Sniff replay stopped", nullptr);
+    m_enabled = false;
 }
 
 Player* ReplayMgr::GetPlayer(uint32 guid)
@@ -653,5 +663,42 @@ bool ChatHandler::HandleSniffGoToClientCommand(char* args)
         m_session->GetPlayer()->TeleportTo(loc);
     else
         SendSysMessage("Cannot identify client's position.");
+    return true;
+}
+
+std::string ReplayMgr::ListSniffedEventsForObject(KnownObject object)
+{
+    std::stringstream eventsList;
+    for (const auto& itr : m_eventsMap)
+    {
+        if (itr.second->GetSourceObject() == object)
+        {
+            eventsList << itr.first << " - " << GetSniffedEventName(itr.second->GetType()) << "\n";
+        }
+    }
+    return eventsList.str();
+}
+
+bool ChatHandler::HandleNpcListEventsCommand(char* /*args*/)
+{
+    Creature* pCreature = GetSelectedCreature();
+
+    if (!pCreature || !pCreature->HasStaticDBSpawnData())
+    {
+        PSendSysMessage(LANG_SELECT_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    KnownObject objectGuid = KnownObject(pCreature->GetGUIDLow(), pCreature->GetEntry(), TYPEID_UNIT);
+    std::string eventsList = sReplayMgr.ListSniffedEventsForObject(objectGuid);
+    if (eventsList.empty())
+        SendSysMessage("No events for target.");
+    else
+    {
+        PSendSysMessage("Events for %s", pCreature->GetObjectGuid().GetString().c_str());
+        PSendSysMessage("%s", eventsList.c_str());
+    }
+
     return true;
 }

@@ -226,7 +226,7 @@ class ReplayMgr
         void SetPlayTime(uint32 unixtime, bool updateObjectsState = true);
         void UpdateObjectVisiblityForCurrentTime();
         void StartPlaying();
-        void StopPlaying() { m_enabled = false; }
+        void StopPlaying();
         bool IsPlaying() { return m_enabled; }
 
         uint32 GetCurrentSniffTime() { return m_currentSniffTime; }
@@ -305,6 +305,7 @@ class ReplayMgr
 
         std::shared_ptr<WaypointPath> GetOrCreateWaypoints(uint32 guid, bool useStartPosition);
         uint32 GetTotalMovementPointsForCreature(uint32 guid);
+        std::string ListSniffedEventsForObject(KnownObject object);
 
     protected:
         bool m_enabled = false;

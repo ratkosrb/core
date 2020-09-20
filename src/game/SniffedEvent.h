@@ -129,6 +129,94 @@ enum SniffedEventType : uint8
     SE_CLIENT_RELEASE_SPIRIT,
 };
 
+inline char const* GetSniffedEventName(SniffedEventType eventType)
+{
+    switch (eventType)
+    {
+        case SE_CREATURE_CREATE1:
+            return "Creature Create 1";
+        case SE_CREATURE_CREATE2:
+            return "Creature Create 2";
+        case SE_CREATURE_DESTROY:
+            return "Creature Destroy";
+        case SE_CREATURE_TEXT:
+            return "Creature Text";
+        case SE_CREATURE_EMOTE:
+            return "Creature Emote";
+        case SE_CREATURE_TARGET_CHANGE:
+            return "Creature Target Change";
+        case SE_CREATURE_ATTACK_START:
+            return "Creature Attack Start";
+        case SE_CREATURE_ATTACK_STOP:
+            return "Creature Attack Stop";
+        case SE_CREATURE_MOVEMENT:
+            return "Creature Movement";
+        case SE_CREATURE_FACING:
+            return "Creature Facing";
+        case SE_CREATURE_UPDATE_ENTRY:
+            return "Creature Update Entry";
+        case SE_CREATURE_UPDATE_DISPLAY_ID:
+            return "Creature Update Display Id";
+        case SE_CREATURE_UPDATE_MOUNT:
+            return "Creature Update Mount";
+        case SE_CREATURE_UPDATE_FACTION:
+            return "Creature Update Faction";
+        case SE_CREATURE_UPDATE_EMOTE_STATE:
+            return "Creature Update Emote State";
+        case SE_CREATURE_UPDATE_STAND_STATE:
+            return "Creature Update Stand State";
+        case SE_CREATURE_UPDATE_NPC_FLAGS:
+            return "Creature Update NPC Flags";
+        case SE_CREATURE_UPDATE_UNIT_FLAGS:
+            return "Creature Update Unit Flags";
+        case SE_CREATURE_UPDATE_CURRENT_HEALTH:
+            return "Creature Update Current Health";
+        case SE_CREATURE_UPDATE_MAX_HEALTH:
+            return "Creature Update Max Health";
+        case SE_GAMEOBJECT_CREATE1:
+            return "GameObject Create 1";
+        case SE_GAMEOBJECT_CREATE2:
+            return "GameObject Create 2";
+        case SE_GAMEOBJECT_CUSTOM_ANIM:
+            return "GameObject Custom Anim";
+        case SE_GAMEOBJECT_DESPAWN_ANIM:
+            return "GameObject Despawn Anim";
+        case SE_GAMEOBJECT_DESTROY:
+            return "GameObject Destroy";
+        case SE_GAMEOBJECT_UPDATE_FLAGS:
+            return "GameObject Update Flags";
+        case SE_GAMEOBJECT_UPDATE_STATE:
+            return "GameObject Update State";
+        case SE_PLAY_MUSIC:
+            return "Play Music";
+        case SE_PLAY_SOUND:
+            return "Play Sound";
+        case SE_PLAY_SPELL_VISUAL_KIT:
+            return "Play Spell Visual Kit";
+        case SE_SPELL_CAST_FAILED:
+            return "Spell Cast Failed";
+        case SE_SPELL_CAST_START:
+            return "Spell Cast Start";
+        case SE_SPELL_CAST_GO:
+            return "Spell Cast Go";
+        case SE_CLIENT_QUEST_ACCEPT:
+            return "Client Quest Accept";
+        case SE_CLIENT_QUEST_COMPLETE:
+            return "Client Quest Complete";
+        case SE_CLIENT_CREATURE_INTERACT:
+            return "Client Creature Interact";
+        case SE_CLIENT_GAMEOBJECT_USE:
+            return "Client GameObject Use";
+        case SE_CLIENT_ITEM_USE:
+            return "Client Item Use";
+        case SE_CLIENT_RECLAIM_CORPSE:
+            return "Client Reclam Corpse";
+        case SE_CLIENT_RELEASE_SPIRIT:
+            return "Client Release Spirit";
+    }
+    return "Unknown Event";
+}
+
 struct SniffedEvent
 {
     virtual void Execute() const = 0;
