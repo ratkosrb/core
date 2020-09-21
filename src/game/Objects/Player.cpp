@@ -1338,15 +1338,18 @@ void Player::Update(uint32 update_diff, uint32 p_time)
     if (m_cannotBeDetectedTimer > 0)
         m_cannotBeDetectedTimer -= update_diff;
 
-    if (IsAlive())
+    if (!GetSession()->GetBot())
     {
-        m_regenTimer -= update_diff;
-        HandleFoodEmotes(update_diff);
-        RegenerateAll();
-    }
-    else
-    {
-        m_regenTimer = 0;
+        if (IsAlive())
+        {
+            m_regenTimer -= update_diff;
+            HandleFoodEmotes(update_diff);
+            RegenerateAll();
+        }
+        else
+        {
+            m_regenTimer = 0;
+        }
     }
 
     if (m_deathState == JUST_DIED)
@@ -1365,7 +1368,8 @@ void Player::Update(uint32 update_diff, uint32 p_time)
     }
 
     //Handle Water/drowning
-    HandleDrowning(update_diff);
+    if (!GetSession()->GetBot())
+        HandleDrowning(update_diff);
 
     // Played time
     if (now > m_Last_tick)

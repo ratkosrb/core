@@ -49,19 +49,38 @@ void ReplayMgr::LoadSniffedEvents()
     LoadCreatureTextTemplate();
     LoadCreatureText();
     LoadCreatureEmote();
-    LoadCreatureTargetChange<SniffedEvent_CreatureTargetChange>("creature_target_change");
-    LoadCreatureTargetChange<SniffedEvent_CreatureAttackStart>("creature_attack_start");
-    LoadCreatureTargetChange<SniffedEvent_CreatureAttackStop>("creature_attack_stop");
-    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_entry>("entry");
-    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_display_id>("display_id");
-    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_mount>("mount");
-    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_faction>("faction");
-    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_emote_state>("emote_state");
-    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_stand_state>("stand_state");
-    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_npc_flags>("npc_flags");
-    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_unit_flags>("unit_flags");
-    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_max_health>("max_health");
-    LoadCreatureUpdate<SniffedEvent_CreatureUpdate_current_health>("current_health");
+    LoadUnitTargetChange<SniffedEvent_UnitTargetChange>("creature_target_change", TYPEID_UNIT);
+    LoadUnitTargetChange<SniffedEvent_UnitAttackStart>("creature_attack_start", TYPEID_UNIT);
+    LoadUnitTargetChange<SniffedEvent_UnitAttackStop>("creature_attack_stop", TYPEID_UNIT);
+    LoadUnitTargetChange<SniffedEvent_UnitTargetChange>("character_target_change", TYPEID_PLAYER);
+    LoadUnitTargetChange<SniffedEvent_UnitAttackStart>("character_attack_start", TYPEID_PLAYER);
+    LoadUnitTargetChange<SniffedEvent_UnitAttackStop>("character_attack_stop", TYPEID_PLAYER);
+    LoadCreatureUpdate<SniffedEvent_UnitUpdate_entry>("entry");
+    LoadCreatureUpdate_float<SniffedEvent_UnitUpdate_scale>("scale");
+    LoadCreatureUpdate<SniffedEvent_UnitUpdate_display_id>("display_id");
+    LoadCreatureUpdate<SniffedEvent_UnitUpdate_mount>("mount");
+    LoadCreatureUpdate<SniffedEvent_UnitUpdate_faction>("faction");
+    LoadCreatureUpdate<SniffedEvent_UnitUpdate_emote_state>("emote_state");
+    LoadCreatureUpdate<SniffedEvent_UnitUpdate_stand_state>("stand_state");
+    LoadCreatureUpdate<SniffedEvent_UnitUpdate_npc_flags>("npc_flags");
+    LoadCreatureUpdate<SniffedEvent_UnitUpdate_unit_flags>("unit_flags");
+    LoadCreatureUpdate<SniffedEvent_UnitUpdate_max_health>("max_health");
+    LoadCreatureUpdate<SniffedEvent_UnitUpdate_current_health>("current_health");
+    LoadCreatureUpdate<SniffedEvent_UnitUpdate_max_mana>("max_mana");
+    LoadCreatureUpdate<SniffedEvent_UnitUpdate_current_mana>("current_mana");
+    LoadPlayerUpdate<SniffedEvent_UnitUpdate_entry>("entry");
+    LoadPlayerUpdate_float<SniffedEvent_UnitUpdate_scale>("scale");
+    LoadPlayerUpdate<SniffedEvent_UnitUpdate_display_id>("display_id");
+    LoadPlayerUpdate<SniffedEvent_UnitUpdate_mount>("mount");
+    LoadPlayerUpdate<SniffedEvent_UnitUpdate_faction>("faction");
+    LoadPlayerUpdate<SniffedEvent_UnitUpdate_emote_state>("emote_state");
+    LoadPlayerUpdate<SniffedEvent_UnitUpdate_stand_state>("stand_state");
+    LoadPlayerUpdate<SniffedEvent_UnitUpdate_npc_flags>("npc_flags");
+    LoadPlayerUpdate<SniffedEvent_UnitUpdate_unit_flags>("unit_flags");
+    LoadPlayerUpdate<SniffedEvent_UnitUpdate_max_health>("max_health");
+    LoadPlayerUpdate<SniffedEvent_UnitUpdate_current_health>("current_health");
+    LoadPlayerUpdate<SniffedEvent_UnitUpdate_max_mana>("max_mana");
+    LoadPlayerUpdate<SniffedEvent_UnitUpdate_current_mana>("current_mana");
     LoadGameObjectCreate1();
     LoadGameObjectCreate2();
     LoadGameObjectCustomAnim();
@@ -73,6 +92,8 @@ void ReplayMgr::LoadSniffedEvents()
     LoadSpellCastStart();
     LoadSpellCastGo();
     LoadSpellCastGoTargets();
+    LoadSpellChannelStart();
+    LoadSpellChannelUpdate();
     LoadPlayMusic();
     LoadPlaySound();
     LoadPlaySpellVisualKit();
@@ -373,12 +394,12 @@ void SniffedEvent_CreatureEmote::Execute() const
     pCreature->HandleEmote(m_emoteId);
 }
 
-template void ReplayMgr::LoadCreatureTargetChange<SniffedEvent_CreatureTargetChange>(char const* tableName);
-template void ReplayMgr::LoadCreatureTargetChange<SniffedEvent_CreatureAttackStart>(char const* tableName);
-template void ReplayMgr::LoadCreatureTargetChange<SniffedEvent_CreatureAttackStop>(char const* tableName);
+template void ReplayMgr::LoadUnitTargetChange<SniffedEvent_UnitTargetChange>(char const* tableName, uint32 typeId);
+template void ReplayMgr::LoadUnitTargetChange<SniffedEvent_UnitAttackStart>(char const* tableName, uint32 typeId);
+template void ReplayMgr::LoadUnitTargetChange<SniffedEvent_UnitAttackStop>(char const* tableName, uint32 typeId);
 
 template <class T>
-void ReplayMgr::LoadCreatureTargetChange(char const* tableName)
+void ReplayMgr::LoadUnitTargetChange(char const* tableName, uint32 typeId)
 {
     if (auto result = SniffDatabase.PQuery("SELECT `unixtime`, `victim_guid`, `victim_id`, `victim_type`, `guid` FROM `%s` ORDER BY `unixtime`", tableName))
     {
@@ -393,7 +414,7 @@ void ReplayMgr::LoadCreatureTargetChange(char const* tableName)
             uint32 guid = fields[4].GetUInt32();
             uint32 creatureId = GetCreatureEntryFromGuid(guid);
 
-            std::shared_ptr<T> newEvent = std::make_shared<T>(guid, creatureId, victimGuid, victimId, GetKnownObjectTypeId(victimType));
+            std::shared_ptr<T> newEvent = std::make_shared<T>(guid, creatureId, typeId, victimGuid, victimId, GetKnownObjectTypeId(victimType));
             m_eventsMap.insert(std::make_pair(unixtime, newEvent));
 
         } while (result->NextRow());
@@ -401,57 +422,59 @@ void ReplayMgr::LoadCreatureTargetChange(char const* tableName)
     }
 }
 
-void SniffedEvent_CreatureTargetChange::Execute() const
+void SniffedEvent_UnitTargetChange::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureTargetChange: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitTargetChange: Cannot find source unit!");
         return;
     }
 
     if (GetTargetObject().IsEmpty())
-        pCreature->ClearTarget();
+        pUnit->ClearTarget();
     else if (Unit* pVictim = ToUnit(sReplayMgr.GetStoredObject(GetTargetObject())))
-        pCreature->SetTargetGuid(pVictim->GetObjectGuid());
+        pUnit->SetTargetGuid(pVictim->GetObjectGuid());
 }
 
-void SniffedEvent_CreatureAttackStart::Execute() const
+void SniffedEvent_UnitAttackStart::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureAttackStart: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitAttackStart: Cannot find source unit!");
         return;
     }
 
     if (Unit* pVictim = ToUnit(sReplayMgr.GetStoredObject(GetTargetObject())))
-        pCreature->SendMeleeAttackStart(pVictim);
+        pUnit->SendMeleeAttackStart(pVictim);
 }
 
-void SniffedEvent_CreatureAttackStop::Execute() const
+void SniffedEvent_UnitAttackStop::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureAttackStop: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitAttackStop: Cannot find source unit!");
         return;
     }
 
     if (Unit* pVictim = ToUnit(sReplayMgr.GetStoredObject(GetTargetObject())))
-        pCreature->SendMeleeAttackStop(pVictim);
+        pUnit->SendMeleeAttackStop(pVictim);
 }
 
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_CreatureUpdate_max_health>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_CreatureUpdate_current_health>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_CreatureUpdate_unit_flags>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_CreatureUpdate_npc_flags>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_CreatureUpdate_stand_state>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_CreatureUpdate_emote_state>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_CreatureUpdate_faction>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_CreatureUpdate_mount>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_CreatureUpdate_display_id>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_CreatureUpdate_entry>(char const* fieldName);
+template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_max_mana>(char const* fieldName);
+template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_current_mana>(char const* fieldName);
+template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_max_health>(char const* fieldName);
+template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_current_health>(char const* fieldName);
+template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_unit_flags>(char const* fieldName);
+template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_npc_flags>(char const* fieldName);
+template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_stand_state>(char const* fieldName);
+template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_emote_state>(char const* fieldName);
+template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_faction>(char const* fieldName);
+template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_mount>(char const* fieldName);
+template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_display_id>(char const* fieldName);
+template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_entry>(char const* fieldName);
 
 template <class T>
 void ReplayMgr::LoadCreatureUpdate(char const* fieldName)
@@ -467,7 +490,7 @@ void ReplayMgr::LoadCreatureUpdate(char const* fieldName)
             uint32 unixtime = fields[1].GetUInt32();
             uint32 value = fields[2].GetUInt32();
 
-            std::shared_ptr<T> newEvent = std::make_shared<T>(guid, creatureId, value);
+            std::shared_ptr<T> newEvent = std::make_shared<T>(guid, creatureId, TYPEID_UNIT, value);
             m_eventsMap.insert(std::make_pair(unixtime, newEvent));
 
         } while (result->NextRow());
@@ -475,127 +498,244 @@ void ReplayMgr::LoadCreatureUpdate(char const* fieldName)
     }
 }
 
-void SniffedEvent_CreatureUpdate_entry::Execute() const
+template void ReplayMgr::LoadCreatureUpdate_float<SniffedEvent_UnitUpdate_scale>(char const* fieldName);
+
+template <class T>
+void ReplayMgr::LoadCreatureUpdate_float(char const* fieldName)
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `creature_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
     {
-        sLog.outError("SniffedEvent_CreatureUpdate_entry: Cannot find source creature!");
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();;
+            uint32 creatureId = GetCreatureEntryFromGuid(guid);
+            uint32 unixtime = fields[1].GetUInt32();
+            float value = fields[2].GetFloat();
+
+            std::shared_ptr<T> newEvent = std::make_shared<T>(guid, creatureId, TYPEID_UNIT, value);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_max_mana>(char const* fieldName);
+template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_current_mana>(char const* fieldName);
+template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_max_health>(char const* fieldName);
+template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_current_health>(char const* fieldName);
+template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_unit_flags>(char const* fieldName);
+template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_npc_flags>(char const* fieldName);
+template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_stand_state>(char const* fieldName);
+template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_emote_state>(char const* fieldName);
+template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_faction>(char const* fieldName);
+template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_mount>(char const* fieldName);
+template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_display_id>(char const* fieldName);
+template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_entry>(char const* fieldName);
+
+template <class T>
+void ReplayMgr::LoadPlayerUpdate(char const* fieldName)
+{
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `character_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();;
+            uint32 unixtime = fields[1].GetUInt32();
+            uint32 value = fields[2].GetUInt32();
+
+            std::shared_ptr<T> newEvent = std::make_shared<T>(guid, 0, TYPEID_PLAYER, value);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+template void ReplayMgr::LoadPlayerUpdate_float<SniffedEvent_UnitUpdate_scale>(char const* fieldName);
+
+template <class T>
+void ReplayMgr::LoadPlayerUpdate_float(char const* fieldName)
+{
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `character_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();;
+            uint32 unixtime = fields[1].GetUInt32();
+            float value = fields[2].GetFloat();
+
+            std::shared_ptr<T> newEvent = std::make_shared<T>(guid, 0, TYPEID_PLAYER, value);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_UnitUpdate_entry::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_entry: Cannot find source unit!");
         return;
     }
 
-    pCreature->SetUInt32Value(OBJECT_FIELD_ENTRY, m_value);
+    pUnit->SetUInt32Value(OBJECT_FIELD_ENTRY, m_value);
 }
 
-void SniffedEvent_CreatureUpdate_display_id::Execute() const
+void SniffedEvent_UnitUpdate_scale::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureUpdate_display_id: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitUpdate_scale: Cannot find source unit!");
         return;
     }
 
-    pCreature->SetUInt32Value(UNIT_FIELD_DISPLAYID, m_value);
+    pUnit->SetObjectScale(m_value);
 }
 
-void SniffedEvent_CreatureUpdate_mount::Execute() const
+void SniffedEvent_UnitUpdate_display_id::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureUpdate_mount: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitUpdate_display_id: Cannot find source unit!");
         return;
     }
 
-    pCreature->SetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID, m_value);
+    pUnit->SetUInt32Value(UNIT_FIELD_DISPLAYID, m_value);
 }
 
-void SniffedEvent_CreatureUpdate_faction::Execute() const
+void SniffedEvent_UnitUpdate_mount::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureUpdate_faction: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitUpdate_mount: Cannot find source unit!");
         return;
     }
 
-    pCreature->SetUInt32Value(UNIT_FIELD_FACTIONTEMPLATE, m_value);
+    pUnit->SetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID, m_value);
 }
 
-void SniffedEvent_CreatureUpdate_emote_state::Execute() const
+void SniffedEvent_UnitUpdate_faction::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureUpdate_emote_state: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitUpdate_faction: Cannot find source unit!");
         return;
     }
 
-    pCreature->SetUInt32Value(UNIT_NPC_EMOTESTATE, m_value);
+    pUnit->SetUInt32Value(UNIT_FIELD_FACTIONTEMPLATE, m_value);
 }
 
-void SniffedEvent_CreatureUpdate_stand_state::Execute() const
+void SniffedEvent_UnitUpdate_emote_state::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureUpdate_stand_state: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitUpdate_emote_state: Cannot find source unit!");
         return;
     }
 
-    pCreature->SetStandState(m_value);
+    pUnit->SetUInt32Value(UNIT_NPC_EMOTESTATE, m_value);
 }
 
-void SniffedEvent_CreatureUpdate_npc_flags::Execute() const
+void SniffedEvent_UnitUpdate_stand_state::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureUpdate_npc_flags: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitUpdate_stand_state: Cannot find source unit!");
         return;
     }
 
-    pCreature->SetUInt32Value(UNIT_NPC_FLAGS, ConvertClassicNpcFlagsToVanilla(m_value));
+    pUnit->SetStandState(m_value);
 }
 
-void SniffedEvent_CreatureUpdate_unit_flags::Execute() const
+void SniffedEvent_UnitUpdate_npc_flags::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureUpdate_unit_flags: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitUpdate_npc_flags: Cannot find source unit!");
         return;
     }
 
-    pCreature->SetUInt32Value(UNIT_FIELD_FLAGS, m_value);
+    pUnit->SetUInt32Value(UNIT_NPC_FLAGS, ConvertClassicNpcFlagsToVanilla(m_value));
 }
 
-void SniffedEvent_CreatureUpdate_current_health::Execute() const
+void SniffedEvent_UnitUpdate_unit_flags::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureUpdate_current_health: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitUpdate_unit_flags: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SetUInt32Value(UNIT_FIELD_FLAGS, m_value);
+}
+
+void SniffedEvent_UnitUpdate_current_health::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_current_health: Cannot find source unit!");
         return;
     }
 
     if (m_value == 0)
-        pCreature->DoKillUnit();
+        pUnit->DoKillUnit();
     else
-        pCreature->SetHealth(m_value);
+        pUnit->SetHealth(m_value);
 }
 
-void SniffedEvent_CreatureUpdate_max_health::Execute() const
+void SniffedEvent_UnitUpdate_max_health::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureUpdate_max_health: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitUpdate_max_health: Cannot find source unit!");
         return;
     }
 
-    pCreature->SetMaxHealth(m_value);
+    pUnit->SetMaxHealth(m_value);
+}
+
+void SniffedEvent_UnitUpdate_current_mana::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_current_mana: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SetPower(POWER_MANA, m_value);
+}
+
+void SniffedEvent_UnitUpdate_max_mana::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_max_mana: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SetMaxPower(POWER_MANA, m_value);
 }
 
 void ReplayMgr::LoadGameObjectCreate1()
@@ -1098,6 +1238,94 @@ void SniffedEvent_SpellCastGo::Execute() const
         Spell::WriteAmmoToPacket(&data, pCaster, pCaster->ToUnit());
 
     pCaster->SendObjectMessageToSet(&data, false);
+}
+
+void ReplayMgr::LoadSpellChannelStart()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `duration` FROM `spell_channel_start` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+            uint32 casterGuid = fields[1].GetUInt32();
+            uint32 casterId = fields[2].GetUInt32();
+            std::string casterType = fields[3].GetCppString();
+            uint32 spellId = fields[4].GetUInt32();
+            uint32 duration = fields[5].GetUInt32();
+
+            if (casterType == "Pet")
+                continue;
+
+            std::shared_ptr<SniffedEvent_SpellChannelStart> newEvent = std::make_shared<SniffedEvent_SpellChannelStart>(spellId, duration, casterGuid, casterId, GetKnownObjectTypeId(casterType));
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_SpellChannelStart::Execute() const
+{
+    WorldObject* pCaster = sReplayMgr.GetStoredObject(GetSourceObject());
+    if (!pCaster)
+    {
+        sLog.outError("SniffedEvent_SpellChannelStart: Cannot find caster %s!", FormatObjectName(GetSourceObject()).c_str());
+        return;
+    }
+
+    // In vanilla MSG_CHANNEL_START is only sent to the caster itself.
+    if (Unit* pUnitCaster = pCaster->ToUnit())
+    {
+        pUnitCaster->SetChannelObjectGuid(pUnitCaster->GetTargetGuid());
+        pUnitCaster->SetUInt32Value(UNIT_CHANNEL_SPELL, m_spellId);
+    }
+}
+
+void ReplayMgr::LoadSpellChannelUpdate()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `remaining_time` FROM `spell_channel_update` ORDER BY `unixtime`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+            uint32 casterGuid = fields[1].GetUInt32();
+            uint32 casterId = fields[2].GetUInt32();
+            std::string casterType = fields[3].GetCppString();
+            uint32 remainingTime = fields[4].GetUInt32();
+
+            if (casterType == "Pet")
+                continue;
+
+            std::shared_ptr<SniffedEvent_SpellChannelUpdate> newEvent = std::make_shared<SniffedEvent_SpellChannelUpdate>(remainingTime, casterGuid, casterId, GetKnownObjectTypeId(casterType));
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_SpellChannelUpdate::Execute() const
+{
+    WorldObject* pCaster = sReplayMgr.GetStoredObject(GetSourceObject());
+    if (!pCaster)
+    {
+        sLog.outError("SniffedEvent_SpellChannelUpdate: Cannot find caster %s!", FormatObjectName(GetSourceObject()).c_str());
+        return;
+    }
+
+    // In vanilla MSG_CHANNEL_UPDATE is only sent to the caster itself.
+    if (m_duration == 0)
+    {
+        if (Unit* pUnitCaster = pCaster->ToUnit())
+        {
+            pUnitCaster->SetChannelObjectGuid(ObjectGuid());
+            pUnitCaster->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
+        }
+    }
 }
 
 void ReplayMgr::LoadPlayMusic()

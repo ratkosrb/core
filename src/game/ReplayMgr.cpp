@@ -489,16 +489,16 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
                     visibleCreatures.erase(itr.second->GetSourceObject().m_guid);
                     break;
                 }
-                case SE_CREATURE_UPDATE_ENTRY:
-                case SE_CREATURE_UPDATE_DISPLAY_ID:
-                case SE_CREATURE_UPDATE_MOUNT:
-                case SE_CREATURE_UPDATE_FACTION:
-                case SE_CREATURE_UPDATE_EMOTE_STATE:
-                case SE_CREATURE_UPDATE_STAND_STATE:
-                case SE_CREATURE_UPDATE_NPC_FLAGS:
-                case SE_CREATURE_UPDATE_UNIT_FLAGS:
-                case SE_CREATURE_UPDATE_CURRENT_HEALTH:
-                case SE_CREATURE_UPDATE_MAX_HEALTH:
+                case SE_UNIT_UPDATE_ENTRY:
+                case SE_UNIT_UPDATE_DISPLAY_ID:
+                case SE_UNIT_UPDATE_MOUNT:
+                case SE_UNIT_UPDATE_FACTION:
+                case SE_UNIT_UPDATE_EMOTE_STATE:
+                case SE_UNIT_UPDATE_STAND_STATE:
+                case SE_UNIT_UPDATE_NPC_FLAGS:
+                case SE_UNIT_UPDATE_UNIT_FLAGS:
+                case SE_UNIT_UPDATE_CURRENT_HEALTH:
+                case SE_UNIT_UPDATE_MAX_HEALTH:
                 {
                     itr.second->Execute();
                     break;

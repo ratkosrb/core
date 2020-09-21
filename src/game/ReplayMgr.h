@@ -195,9 +195,15 @@ class ReplayMgr
         void LoadCreatureText();
         void LoadCreatureEmote();
         template <class T>
-        void LoadCreatureTargetChange(char const* tableName);
+        void LoadUnitTargetChange(char const* tableName, uint32 typeId);
         template <class T>
         void LoadCreatureUpdate(char const* fieldName);
+        template <class T>
+        void LoadCreatureUpdate_float(char const* fieldName);
+        template <class T>
+        void LoadPlayerUpdate(char const* fieldName);
+        template <class T>
+        void LoadPlayerUpdate_float(char const* fieldName);
         void LoadGameObjectCreate1();
         void LoadGameObjectCreate2();
         void LoadGameObjectCustomAnim();
@@ -209,6 +215,8 @@ class ReplayMgr
         void LoadSpellCastStart();
         void LoadSpellCastGo();
         void LoadSpellCastGoTargets();
+        void LoadSpellChannelStart();
+        void LoadSpellChannelUpdate();
         void LoadPlayMusic();
         void LoadPlaySound();
         void LoadPlaySpellVisualKit();
@@ -263,6 +271,17 @@ class ReplayMgr
             auto const itr = m_gameobjects.find(guid);
             if (itr != m_gameobjects.end())
                 return itr->second;
+            return nullptr;
+        }
+        Unit* GetUnit(KnownObject const& object)
+        {
+            switch (object.m_type)
+            {
+                case TYPEID_UNIT:
+                    return GetCreature(object.m_guid);
+                case TYPEID_PLAYER:
+                    return GetPlayer(object.m_guid);
+            }
             return nullptr;
         }
         WorldObject* GetStoredObject(KnownObject const& object)
