@@ -48,6 +48,8 @@ struct CharacterTemplateEntry
     uint32 level = 0;
     uint32 playerBytes = 0;
     uint32 playerBytes2 = 0;
+    uint32 health = 0;
+    uint32 mana = 0;
     WorldLocation position;
     CharacterEquipment equipment[EQUIPMENT_SLOT_END] = {};
 };

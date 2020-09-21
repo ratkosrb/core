@@ -78,6 +78,8 @@ void ReplayMgr::LoadCharacterTemplates()
         character.position.z = fields[14].GetFloat();
         character.position.mapId = fields[15].GetUInt16();
         character.position.o = fields[16].GetFloat();
+        character.health = fields[17].GetUInt32();
+        character.mana = fields[18].GetUInt32();
         std::string equipmentCache = fields[19].GetCppString();
         std::string temp;
         bool isItemId = true;
@@ -445,6 +447,11 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
                         itr.second->SetHealth(data->current_health);
                 } 
 
+                if (itr.second->GetMaxPower(POWER_MANA) != data->max_mana)
+                    itr.second->SetMaxPower(POWER_MANA, data->max_mana);
+                if (itr.second->GetPower(POWER_MANA) != data->current_mana)
+                    itr.second->SetPower(POWER_MANA, data->current_mana);
+
                 if (itr.second->GetUInt32Value(OBJECT_FIELD_ENTRY) != data->creature_id[0])
                     itr.second->SetUInt32Value(OBJECT_FIELD_ENTRY, data->creature_id[0]);
                 if (itr.second->GetDisplayId() != data->display_id)
@@ -468,6 +475,9 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
                 if (itr.second->GetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID) != addon->mount)
                     itr.second->SetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID, addon->mount);
             }
+
+            itr.second->SetChannelObjectGuid(ObjectGuid());
+            itr.second->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
         }
 
         std::set<uint32> visibleCreatures;
@@ -475,6 +485,9 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
         {
             if (itr.first > m_currentSniffTime)
                 break;
+
+            if (itr.second->GetSourceObject().m_type != TYPEID_UNIT)
+                continue;
 
             switch (itr.second->GetType())
             {
@@ -490,6 +503,7 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
                     break;
                 }
                 case SE_UNIT_UPDATE_ENTRY:
+                case SE_UNIT_UPDATE_SCALE:
                 case SE_UNIT_UPDATE_DISPLAY_ID:
                 case SE_UNIT_UPDATE_MOUNT:
                 case SE_UNIT_UPDATE_FACTION:
@@ -499,6 +513,11 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
                 case SE_UNIT_UPDATE_UNIT_FLAGS:
                 case SE_UNIT_UPDATE_CURRENT_HEALTH:
                 case SE_UNIT_UPDATE_MAX_HEALTH:
+                case SE_UNIT_UPDATE_CURRENT_MANA:
+                case SE_UNIT_UPDATE_MAX_MANA:
+                case SE_UNIT_TARGET_CHANGE:
+                case SE_SPELL_CHANNEL_START:
+                case SE_SPELL_CHANNEL_UPDATE:
                 {
                     itr.second->Execute();
                     break;
@@ -557,6 +576,63 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
         for (const auto itr : visibleGameObjects)
             if (GameObject* pGo = GetGameObject(itr))
                 pGo->SetVisible(true);
+    }
+    // Players
+    if (m_initialized)
+    {
+        for (const auto& itr : m_characterTemplates)
+        {
+            if (Player* pPlayer = GetPlayer(itr.first))
+            {
+                pPlayer->SetObjectScale(pPlayer->GetNativeScale());
+                pPlayer->SetUInt32Value(UNIT_FIELD_DISPLAYID, pPlayer->GetNativeDisplayId());
+                pPlayer->SetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID, 0);
+                pPlayer->SetFactionForRace(pPlayer->GetRace());
+                pPlayer->SetUInt32Value(UNIT_NPC_EMOTESTATE, 0);
+                pPlayer->SetStandState(UNIT_STAND_STATE_STAND);
+                pPlayer->SetUInt32Value(UNIT_FIELD_FLAGS, 0);
+                if (itr.second.health > 100)
+                    pPlayer->SetHealth(itr.second.health);
+                else
+                    pPlayer->SetHealthPercent(itr.second.health);
+                pPlayer->SetPower(POWER_MANA, itr.second.mana);
+                pPlayer->ClearTarget();
+                pPlayer->SetChannelObjectGuid(ObjectGuid());
+                pPlayer->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
+            }
+        }
+        for (const auto& itr : m_eventsMap)
+        {
+            if (itr.first > m_currentSniffTime)
+                break;
+
+            if (itr.second->GetSourceObject().m_type != TYPEID_PLAYER)
+                continue;
+
+            switch (itr.second->GetType())
+            {
+                case SE_UNIT_UPDATE_ENTRY:
+                case SE_UNIT_UPDATE_SCALE:
+                case SE_UNIT_UPDATE_DISPLAY_ID:
+                case SE_UNIT_UPDATE_MOUNT:
+                case SE_UNIT_UPDATE_FACTION:
+                case SE_UNIT_UPDATE_EMOTE_STATE:
+                case SE_UNIT_UPDATE_STAND_STATE:
+                case SE_UNIT_UPDATE_NPC_FLAGS:
+                case SE_UNIT_UPDATE_UNIT_FLAGS:
+                case SE_UNIT_UPDATE_CURRENT_HEALTH:
+                case SE_UNIT_UPDATE_MAX_HEALTH:
+                case SE_UNIT_UPDATE_CURRENT_MANA:
+                case SE_UNIT_UPDATE_MAX_MANA:
+                case SE_UNIT_TARGET_CHANGE:
+                case SE_SPELL_CHANNEL_START:
+                case SE_SPELL_CHANNEL_UPDATE:
+                {
+                    itr.second->Execute();
+                    break;
+                }
+            }
+        }
     }
 }
 

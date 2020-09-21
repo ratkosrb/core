@@ -902,10 +902,10 @@ struct SniffedEvent_SpellCastGo : SniffedEvent
 
 struct SniffedEvent_SpellChannelStart : SniffedEvent
 {
-    SniffedEvent_SpellChannelStart(uint32 spellId, uint32 duration, uint32 casterGuid, uint32 casterId, uint32 casterType) :
+    SniffedEvent_SpellChannelStart(uint32 spellId, int32 duration, uint32 casterGuid, uint32 casterId, uint32 casterType) :
         m_spellId(spellId), m_duration(duration), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType) {};
     uint32 m_spellId = 0;
-    uint32 m_duration = 0;
+    int32 m_duration = 0;
     uint32 m_casterGuid = 0;
     uint32 m_casterId = 0;
     uint32 m_casterType;
@@ -922,9 +922,9 @@ struct SniffedEvent_SpellChannelStart : SniffedEvent
 
 struct SniffedEvent_SpellChannelUpdate : SniffedEvent
 {
-    SniffedEvent_SpellChannelUpdate(uint32 duration, uint32 casterGuid, uint32 casterId, uint32 casterType) :
+    SniffedEvent_SpellChannelUpdate(int32 duration, uint32 casterGuid, uint32 casterId, uint32 casterType) :
         m_duration(duration), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType) {};
-    uint32 m_duration = 0;
+    int32 m_duration = 0;
     uint32 m_casterGuid = 0;
     uint32 m_casterId = 0;
     uint32 m_casterType;

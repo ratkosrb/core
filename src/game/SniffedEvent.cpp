@@ -696,7 +696,7 @@ void SniffedEvent_UnitUpdate_current_health::Execute() const
         return;
     }
 
-    if (m_value == 0)
+    if (m_value == 0 && pUnit->IsCreature())
         pUnit->DoKillUnit();
     else
         pUnit->SetHealth(m_value);
@@ -1253,7 +1253,7 @@ void ReplayMgr::LoadSpellChannelStart()
             uint32 casterId = fields[2].GetUInt32();
             std::string casterType = fields[3].GetCppString();
             uint32 spellId = fields[4].GetUInt32();
-            uint32 duration = fields[5].GetUInt32();
+            int32 duration = fields[5].GetInt32();
 
             if (casterType == "Pet")
                 continue;
@@ -1285,7 +1285,7 @@ void SniffedEvent_SpellChannelStart::Execute() const
 
 void ReplayMgr::LoadSpellChannelUpdate()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `remaining_time` FROM `spell_channel_update` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `duration` FROM `spell_channel_update` ORDER BY `unixtime`"))
     {
         do
         {
@@ -1295,12 +1295,12 @@ void ReplayMgr::LoadSpellChannelUpdate()
             uint32 casterGuid = fields[1].GetUInt32();
             uint32 casterId = fields[2].GetUInt32();
             std::string casterType = fields[3].GetCppString();
-            uint32 remainingTime = fields[4].GetUInt32();
+            int32 duration = fields[4].GetInt32();
 
             if (casterType == "Pet")
                 continue;
 
-            std::shared_ptr<SniffedEvent_SpellChannelUpdate> newEvent = std::make_shared<SniffedEvent_SpellChannelUpdate>(remainingTime, casterGuid, casterId, GetKnownObjectTypeId(casterType));
+            std::shared_ptr<SniffedEvent_SpellChannelUpdate> newEvent = std::make_shared<SniffedEvent_SpellChannelUpdate>(duration, casterGuid, casterId, GetKnownObjectTypeId(casterType));
             m_eventsMap.insert(std::make_pair(unixtime, newEvent));
 
         } while (result->NextRow());
