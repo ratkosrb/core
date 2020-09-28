@@ -600,6 +600,16 @@ class Map : public GridRefManager<NGridType>, public MaNGOS::ObjectLevelLockable
         bool GetWalkRandomPosition(Transport* t, float &x, float &y, float &z, float maxRadius, uint32 moveAllowedFlags = 0xF) const;
         VMAP::ModelInstance* FindCollisionModel(float x1, float y1, float z1, float x2, float y2, float z2);
 
+        // Dynamic VMaps
+        bool GetHeightInRange(float x, float y, float& z, float maxSearchDist = 4.0f) const;
+        bool GetHitPosition(float srcX, float srcY, float srcZ, float& destX, float& destY, float& destZ, float modifyDist) const;
+
+        // Random on map generation
+        bool GetReachableRandomPosition(Unit* unit, float& x, float& y, float& z, float radius, bool randomRange = true) const;
+        bool GetReachableRandomPointOnGround(float& x, float& y, float& z, float radius, bool randomRange = true) const;
+        bool GetRandomPointInTheAir(float& x, float& y, float& z, float radius, bool randomRange = true) const;
+        bool GetRandomPointUnderWater(float& x, float& y, float& z, float radius, GridMapLiquidData& liquid_status, bool randomRange = true) const;
+
         void Balance() { _dynamicTree.balance(); }
         void RemoveGameObjectModel(GameObjectModel const& model)
         {

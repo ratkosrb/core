@@ -27,29 +27,13 @@
 void RandomMovementGenerator::_setRandomLocation(Creature &creature)
 {
     // Don't move if invalid coordinates have been set somehow.
-    if (i_positionX == 0.0f && i_positionY == 0.0f)
+    if (i_positionX == 0.0f || i_positionY == 0.0f)
         return;
 
-    if (creature.CanFly())
-    {
-        //typedef std::vector<Vector3> PointsArray;
-        Movement::PointsArray path;
-        uint32 ptsPerCycle = ceil(i_wanderDistance * 2);
-        static uint32 const nbCyclesPerPacket = 1;
-        for (uint32 i = 0; i <= nbCyclesPerPacket * ptsPerCycle; ++i)
-            path.push_back(Vector3(i_positionX + i_wanderDistance * cos(i * 2 * M_PI / ptsPerCycle), i_positionY + i_wanderDistance * sin(i * 2 * M_PI / ptsPerCycle), i_positionZ));
-        Movement::MoveSplineInit init(creature, "RandomMovementGenerator (CanFly)");
-        init.SetFly();
-        init.SetWalk(false);
-        init.MovebyPath(path);
-        init.SetFirstPointId(1);
-        init.Launch();
-        i_nextMoveTime.Reset(0);
-        return;
-    }
-
-    float destX, destY, destZ;
-    if (!creature.GetRandomPoint(i_positionX, i_positionY, i_positionZ, i_wanderDistance, destX, destY, destZ))
+    float destX = i_positionX;
+    float destY = i_positionY;
+    float destZ = i_positionZ;
+    if (!creature.GetMap()->GetReachableRandomPosition(&creature, destX, destY, destZ, i_wanderDistance))
         return;
 
     creature.AddUnitState(UNIT_STAT_ROAMING_MOVE);
