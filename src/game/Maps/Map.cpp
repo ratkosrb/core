@@ -3357,34 +3357,6 @@ bool Map::GetWalkRandomPosition(Transport* transport, float &x, float &y, float 
     return true;
 }
 
-/**
-* get the hit position and return true if we hit something (in this case the dest position will hold the hit-position)
-* otherwise the result pos will be the dest pos
-*/
-bool Map::GetHitPosition(float srcX, float srcY, float srcZ, float& destX, float& destY, float& destZ, float modifyDist) const
-{
-    // at first check all static objects
-    float tempX, tempY, tempZ = 0.0f;
-    bool result0 = VMAP::VMapFactory::createOrGetVMapManager()->getObjectHitPos(GetId(), srcX, srcY, srcZ, destX, destY, destZ, tempX, tempY, tempZ, modifyDist);
-    if (result0)
-    {
-        //DEBUG_LOG("Map::GetHitPosition vmaps corrects gained with static objects! new dest coords are X:%f Y:%f Z:%f", destX, destY, destZ);
-        destX = tempX;
-        destY = tempY;
-        destZ = tempZ;
-    }
-    // at second all dynamic objects, if static check has an hit, then we can calculate only to this closer point
-    bool result1 = _dynamicTree.getObjectHitPos(srcX, srcY, srcZ, destX, destY, destZ, tempX, tempY, tempZ, modifyDist);
-    if (result1)
-    {
-        //DEBUG_LOG("Map::GetHitPosition vmaps corrects gained with dynamic objects! new dest coords are X:%f Y:%f Z:%f", destX, destY, destZ);
-        destX = tempX;
-        destY = tempY;
-        destZ = tempZ;
-    }
-    return result0 || result1;
-}
-
 // Find an height within a reasonable range of provided Z. This method may fail so we have to handle that case.
 bool Map::GetHeightInRange(float x, float y, float& z, float maxSearchDist /*= 4.0f*/) const
 {
@@ -3437,7 +3409,7 @@ bool Map::GetHeightInRange(float x, float y, float& z, float maxSearchDist /*= 4
             return false;
     }
 
-    z = std::max<float>(height, _dynamicTree.getHeight(x, y, height + 1.0f, maxSearchDist));
+    z = std::max<float>(height, GetDynamicTreeHeight(x, y, height + 1.0f, maxSearchDist));
     return true;
 }
 
@@ -3525,7 +3497,7 @@ bool Map::GetReachableRandomPointOnGround(float& x, float& y, float& z, float ra
     float i_y = y + range * sin(angle);
     float i_z = z + 1.0f;
 
-    GetHitPosition(x, y, z + 1.0f, i_x, i_y, i_z, -0.5f);
+    GetLosHitPosition(x, y, z + 1.0f, i_x, i_y, i_z, -0.5f);
     i_z = z; // reset i_z to z value to avoid too much difference from original point before GetHeightInRange
     if (!GetHeightInRange(i_x, i_y, i_z)) // GetHeight can fail
         return false;
