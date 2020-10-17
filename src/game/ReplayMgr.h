@@ -217,6 +217,7 @@ class ReplayMgr
         void LoadSpellCastStart();
         void LoadSpellCastGo();
         void LoadSpellCastGoTargets();
+        void LoadSpellCastGoPositions();
         void LoadSpellChannelStart();
         void LoadSpellChannelUpdate();
         void LoadPlayMusic();
@@ -323,6 +324,13 @@ class ReplayMgr
                 return &itr->second;
             return nullptr;
         }
+        G3D::Vector3* GetSpellPosition(uint32 id)
+        {
+            auto const itr = m_spellCastGoPositions.find(id);
+            if (itr != m_spellCastGoPositions.end())
+                return &itr->second;
+            return nullptr;
+        }
 
         std::shared_ptr<WaypointPath> GetOrCreateWaypoints(uint32 guid, bool useStartPosition);
         uint32 GetTotalMovementPointsForCreature(uint32 guid);
@@ -337,6 +345,7 @@ class ReplayMgr
         uint32 m_timeDifference = 0;
         std::map<uint32 /*guid*/, std::shared_ptr<WaypointPath>> m_creatureWaypoints;
         std::map<uint32 /*list_id*/, std::vector<KnownObject>> m_spellCastGoTargets;
+        std::map<uint32 /*position_id*/, G3D::Vector3> m_spellCastGoPositions;
         std::unordered_map<uint32 /*guid*/, Creature*> m_creatures;
         std::unordered_map<uint32 /*guid*/, GameObject*> m_gameobjects;
         std::map<uint32 /*unixtime*/, uint32 /*guid*/> m_activePlayers;

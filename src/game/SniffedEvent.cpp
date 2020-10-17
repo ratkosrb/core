@@ -92,6 +92,7 @@ void ReplayMgr::LoadSniffedEvents()
     LoadSpellCastStart();
     LoadSpellCastGo();
     LoadSpellCastGoTargets();
+    LoadSpellCastGoPositions();
     LoadSpellChannelStart();
     LoadSpellChannelUpdate();
     LoadPlayMusic();
@@ -1068,7 +1069,7 @@ void SniffedEvent_SpellCastStart::Execute() const
 
 void ReplayMgr::LoadSpellCastGo()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `main_target_guid`, `main_target_id`, `main_target_type`, `hit_targets_count`, `hit_targets_list_id`, `miss_targets_count`, `miss_targets_list_id` FROM `spell_cast_go` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `main_target_guid`, `main_target_id`, `main_target_type`, `hit_targets_count`, `hit_targets_list_id`, `miss_targets_count`, `miss_targets_list_id`, `src_position_id`, `dst_position_id` FROM `spell_cast_go` ORDER BY `unixtime`"))
     {
         do
         {
@@ -1086,8 +1087,10 @@ void ReplayMgr::LoadSpellCastGo()
             uint32 hitTargetsListId = fields[9].GetUInt32();
             uint32 missTargetsCount = fields[10].GetUInt32();
             uint32 missTargetsListId = fields[11].GetUInt32();
+            uint32 srcPositionId = fields[12].GetUInt32();
+            uint32 dstPositionId = fields[13].GetUInt32();
 
-            std::shared_ptr<SniffedEvent_SpellCastGo> newEvent = std::make_shared<SniffedEvent_SpellCastGo>(spellId, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType), hitTargetsCount, hitTargetsListId, missTargetsCount, missTargetsListId);
+            std::shared_ptr<SniffedEvent_SpellCastGo> newEvent = std::make_shared<SniffedEvent_SpellCastGo>(spellId, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType), hitTargetsCount, hitTargetsListId, missTargetsCount, missTargetsListId, srcPositionId, dstPositionId);
             m_eventsMap.insert(std::make_pair(unixtime, newEvent));
 
         } while (result->NextRow());
@@ -1109,6 +1112,25 @@ void ReplayMgr::LoadSpellCastGoTargets()
             std::string targetType = fields[3].GetCppString();
             
             m_spellCastGoTargets[listId].push_back(KnownObject(targetGuid, targetId, TypeID(GetKnownObjectTypeId(targetType))));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void ReplayMgr::LoadSpellCastGoPositions()
+{
+    if (auto result = SniffDatabase.Query("SELECT `id`, `position_x`, `position_y`, `position_z` FROM `spell_cast_go_position` ORDER BY `id`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 listId = fields[0].GetUInt32();
+            float x = fields[1].GetFloat();
+            float y = fields[2].GetFloat();
+            float z = fields[3].GetFloat();
+            m_spellCastGoPositions.insert({ listId , G3D::Vector3(x, y, z) });
 
         } while (result->NextRow());
         delete result;
@@ -1228,10 +1250,20 @@ void SniffedEvent_SpellCastGo::Execute() const
         data << (uint8)0; // miss targets count
 
     SpellCastTargets targets;
+
     if (Unit* pUnitTarget = pTarget->ToUnit())
         targets.setUnitTarget(pUnitTarget);
     else if (GameObject* pGoTarget = pTarget->ToGameObject())
         targets.setGOTarget(pGoTarget);
+
+    if (m_srcPositionId)
+        if (G3D::Vector3* pPosition = sReplayMgr.GetSpellPosition(m_srcPositionId))
+            targets.setSource(pPosition->x, pPosition->y, pPosition->z);
+
+    if (m_dstPositionId)
+        if (G3D::Vector3* pPosition = sReplayMgr.GetSpellPosition(m_dstPositionId))
+            targets.setDestination(pPosition->x, pPosition->y, pPosition->z);
+
     data << targets;
 
     if (castFlags & CAST_FLAG_AMMO)                         // projectile info
