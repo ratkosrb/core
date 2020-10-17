@@ -199,11 +199,8 @@ void ReplayBotAI::UpdateAI(uint32 const diff)
             }  
         }
 
-        if (m_template->health > 100)
-            me->SetHealth(m_template->health);
-        else
-            me->SetHealthPercent(m_template->health);
-        me->SetPower(POWER_MANA, m_template->mana);
+        me->SetMaxHealth(m_template->health);
+        me->SetMaxPower(POWER_MANA, m_template->mana);
 
         // Fix zone in who window
         uint32 newzone, newarea;

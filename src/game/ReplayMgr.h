@@ -199,13 +199,17 @@ class ReplayMgr
         template <class T>
         void LoadUnitTargetChange(char const* tableName, uint32 typeId);
         template <class T>
-        void LoadCreatureUpdate(char const* fieldName);
+        void LoadCreatureValuesUpdate(char const* fieldName);
         template <class T>
-        void LoadCreatureUpdate_float(char const* fieldName);
+        void LoadCreatureValuesUpdate_float(char const* fieldName);
         template <class T>
-        void LoadPlayerUpdate(char const* fieldName);
+        void LoadPlayerValuesUpdate(char const* fieldName);
         template <class T>
-        void LoadPlayerUpdate_float(char const* fieldName);
+        void LoadPlayerValuesUpdate_float(char const* fieldName);
+        template <class T>
+        void LoadCreatureSpeedUpdate(char const* fieldName);
+        template <class T>
+        void LoadPlayerSpeedUpdate(char const* fieldName);
         void LoadGameObjectCreate1();
         void LoadGameObjectCreate2();
         void LoadGameObjectCustomAnim();

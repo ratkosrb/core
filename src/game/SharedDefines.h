@@ -1835,6 +1835,10 @@ struct Position
     float y = 0.0f;
     float z = 0.0f;
     float o = 0.0f;
+    bool operator!=(Position const& other) const
+    {
+        return !(x == other.x && y == other.y && z == other.z && o == other.o);
+    }
 };
 
 struct WorldLocation
@@ -1848,6 +1852,7 @@ struct WorldLocation
         : mapId(_mapid), x(_x), y(_y), z(_z), o(_o) {}
     WorldLocation(WorldLocation const& loc)
         : mapId(loc.mapId), x(loc.x), y(loc.y), z(loc.z), o(loc.o) {}
+    Position ToPosition() const { return Position(x, y, z, o); }
 };
 
 #endif

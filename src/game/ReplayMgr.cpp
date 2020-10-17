@@ -430,6 +430,7 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
 {
     // Creatures
     {
+        std::map<uint32, Position> creaturePositions;
         for (const auto itr : m_creatures)
         {
             if (itr.second->GetVisibility() != VISIBILITY_OFF)
@@ -437,6 +438,8 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
 
             if (auto data = itr.second->GetCreatureData())
             {
+                creaturePositions[itr.first] = data->position.ToPosition();
+
                 if (!itr.second->IsAlive() && data->current_health > 0)
                     itr.second->Respawn();
                 else
@@ -462,6 +465,11 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
                     itr.second->SetUInt32Value(UNIT_FIELD_FLAGS, data->unit_flags);
                 if (itr.second->GetUInt32Value(UNIT_NPC_FLAGS) != data->npc_flags)
                     itr.second->SetUInt32Value(UNIT_NPC_FLAGS, data->npc_flags);
+
+                if (itr.second->GetSpeedRate(MOVE_WALK) != data->speed_walk)
+                    itr.second->SetSpeedRateDirect(MOVE_WALK, data->speed_walk);
+                if (itr.second->GetSpeedRate(MOVE_RUN) != data->speed_run)
+                    itr.second->SetSpeedRateDirect(MOVE_RUN, data->speed_run);
             }
 
             if (auto addon = itr.second->GetCreatureAddon())
@@ -492,14 +500,31 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
             switch (itr.second->GetType())
             {
                 case SE_CREATURE_CREATE1:
+                {
+                    uint32 const guid = itr.second->GetSourceObject().m_guid;
+                    visibleCreatures.insert(guid);
+                    auto createEvent = std::static_pointer_cast<SniffedEvent_CreatureCreate1>(itr.second);
+                    creaturePositions[guid] = Position(createEvent->m_x, createEvent->m_y, createEvent->m_z, createEvent->m_o);
+                    break;
+                }
                 case SE_CREATURE_CREATE2:
                 {
-                    visibleCreatures.insert(itr.second->GetSourceObject().m_guid);
+                    uint32 const guid = itr.second->GetSourceObject().m_guid;
+                    visibleCreatures.insert(guid);
+                    auto createEvent = std::static_pointer_cast<SniffedEvent_CreatureCreate2>(itr.second);
+                    creaturePositions[guid] = Position(createEvent->m_x, createEvent->m_y, createEvent->m_z, createEvent->m_o);
                     break;
                 }
                 case SE_CREATURE_DESTROY:
                 {
                     visibleCreatures.erase(itr.second->GetSourceObject().m_guid);
+                    break;
+                }
+                case SE_CREATURE_MOVEMENT:
+                {
+                    uint32 const guid = itr.second->GetSourceObject().m_guid;
+                    auto moveEvent = std::static_pointer_cast<SniffedEvent_CreatureMovement>(itr.second);
+                    creaturePositions[guid] = Position(moveEvent->m_x, moveEvent->m_y, moveEvent->m_z, moveEvent->m_o);
                     break;
                 }
                 case SE_UNIT_UPDATE_ENTRY:
@@ -515,12 +540,27 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
                 case SE_UNIT_UPDATE_MAX_HEALTH:
                 case SE_UNIT_UPDATE_CURRENT_MANA:
                 case SE_UNIT_UPDATE_MAX_MANA:
+                case SE_UNIT_UPDATE_WALK_SPEED:
+                case SE_UNIT_UPDATE_RUN_SPEED:
+                case SE_UNIT_UPDATE_SWIM_SPEED:
                 case SE_UNIT_TARGET_CHANGE:
                 case SE_SPELL_CHANNEL_START:
                 case SE_SPELL_CHANNEL_UPDATE:
                 {
                     itr.second->Execute();
                     break;
+                }
+            }
+        }
+
+        for (const auto& itr : creaturePositions)
+        {
+            if (Creature* pCreature = GetCreature(itr.first))
+            {
+                if (pCreature->IsInWorld() && pCreature->GetPosition() != itr.second)
+                {
+                    pCreature->DisableSpline();
+                    pCreature->GetMap()->CreatureRelocation(pCreature, itr.second.x, itr.second.y, itr.second.z, itr.second.o);
                 }
             }
         }
@@ -580,8 +620,11 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
     // Players
     if (m_initialized)
     {
+        std::map<uint32, WorldLocation> playerPositions;
         for (const auto& itr : m_characterTemplates)
         {
+            playerPositions[itr.first] = itr.second.position;
+
             if (Player* pPlayer = GetPlayer(itr.first))
             {
                 pPlayer->SetObjectScale(pPlayer->GetNativeScale());
@@ -591,16 +634,14 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
                 pPlayer->SetUInt32Value(UNIT_NPC_EMOTESTATE, 0);
                 pPlayer->SetStandState(UNIT_STAND_STATE_STAND);
                 pPlayer->SetUInt32Value(UNIT_FIELD_FLAGS, 0);
-                if (itr.second.health > 100)
-                    pPlayer->SetHealth(itr.second.health);
-                else
-                    pPlayer->SetHealthPercent(itr.second.health);
-                pPlayer->SetPower(POWER_MANA, itr.second.mana);
+                pPlayer->SetMaxHealth(itr.second.health);
+                pPlayer->SetMaxPower(POWER_MANA, itr.second.mana);
                 pPlayer->ClearTarget();
                 pPlayer->SetChannelObjectGuid(ObjectGuid());
                 pPlayer->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
             }
         }
+
         for (const auto& itr : m_eventsMap)
         {
             if (itr.first > m_currentSniffTime)
@@ -624,12 +665,38 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
                 case SE_UNIT_UPDATE_MAX_HEALTH:
                 case SE_UNIT_UPDATE_CURRENT_MANA:
                 case SE_UNIT_UPDATE_MAX_MANA:
+                case SE_UNIT_UPDATE_WALK_SPEED:
+                case SE_UNIT_UPDATE_RUN_SPEED:
+                case SE_UNIT_UPDATE_SWIM_SPEED:
                 case SE_UNIT_TARGET_CHANGE:
                 case SE_SPELL_CHANNEL_START:
                 case SE_SPELL_CHANNEL_UPDATE:
                 {
                     itr.second->Execute();
                     break;
+                }
+            }
+        }
+
+        for (const auto& itr : m_characterMovements)
+        {
+            for (const auto itr2 : itr.second)
+            {
+                if (itr2.first > m_currentSniffTimeMs)
+                    break;
+
+                playerPositions[itr.first] = itr2.second.position;
+            }
+        }
+
+        for (const auto& itr : playerPositions)
+        {
+            if (Player* pPlayer = GetPlayer(itr.first))
+            {
+                if (pPlayer->GetMapId() != itr.second.mapId ||
+                    pPlayer->GetPosition() != itr.second.ToPosition())
+                {
+                    pPlayer->TeleportTo(itr.second);
                 }
             }
         }
@@ -755,25 +822,49 @@ std::string ReplayMgr::ListSniffedEventsForObject(KnownObject object)
     return eventsList.str();
 }
 
-bool ChatHandler::HandleNpcListEventsCommand(char* /*args*/)
+bool ChatHandler::HandleUnitListEventsCommand(char* /*args*/)
 {
-    Creature* pCreature = GetSelectedCreature();
-
-    if (!pCreature || !pCreature->HasStaticDBSpawnData())
+    Unit* pUnit = GetSelectedUnit();
+    if (!pUnit)
     {
-        PSendSysMessage(LANG_SELECT_CREATURE);
+        PSendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
         SetSentErrorMessage(true);
         return false;
     }
 
-    KnownObject objectGuid = KnownObject(pCreature->GetGUIDLow(), pCreature->GetEntry(), TYPEID_UNIT);
+    uint32 guid = 0;
+    uint32 entry = 0;
+    if (pUnit->IsCreature() && static_cast<Creature*>(pUnit)->HasStaticDBSpawnData())
+    {
+        guid = pUnit->GetGUIDLow();
+        entry = pUnit->GetEntry();
+    }
+    else if (Player* pPlayer = pUnit->ToPlayer())
+    {
+        if (auto pAI = pPlayer->AI())
+        {
+            if (auto pBotAI = dynamic_cast<ReplayBotAI*>(pAI))
+            {
+                guid = pBotAI->m_guid;
+            }
+        }
+    }
+
+    if (!guid)
+    {
+        PSendSysMessage("There are no events for that unit.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    KnownObject objectGuid = KnownObject(guid, entry, TypeID(pUnit->GetTypeId()));
     std::string eventsList = sReplayMgr.ListSniffedEventsForObject(objectGuid);
     if (eventsList.empty())
         SendSysMessage("No events for target.");
     else
     {
-        PSendSysMessage("Events for %s", pCreature->GetObjectGuid().GetString().c_str());
-        PSendSysMessage("%s", eventsList.c_str());
+        PSendSysMessage("Events for %s", pUnit->GetObjectGuid().GetString().c_str());
+        PSendSysMessage(eventsList.c_str());
     }
 
     return true;

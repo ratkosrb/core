@@ -38,6 +38,7 @@
 #include "Spell.h"
 #include "SpellAuras.h"
 #include "WaypointManager.h"
+#include "MovementPacketSender.h"
 
 void ReplayMgr::LoadSniffedEvents()
 {
@@ -55,32 +56,38 @@ void ReplayMgr::LoadSniffedEvents()
     LoadUnitTargetChange<SniffedEvent_UnitTargetChange>("character_target_change", TYPEID_PLAYER);
     LoadUnitTargetChange<SniffedEvent_UnitAttackStart>("character_attack_start", TYPEID_PLAYER);
     LoadUnitTargetChange<SniffedEvent_UnitAttackStop>("character_attack_stop", TYPEID_PLAYER);
-    LoadCreatureUpdate<SniffedEvent_UnitUpdate_entry>("entry");
-    LoadCreatureUpdate_float<SniffedEvent_UnitUpdate_scale>("scale");
-    LoadCreatureUpdate<SniffedEvent_UnitUpdate_display_id>("display_id");
-    LoadCreatureUpdate<SniffedEvent_UnitUpdate_mount>("mount");
-    LoadCreatureUpdate<SniffedEvent_UnitUpdate_faction>("faction");
-    LoadCreatureUpdate<SniffedEvent_UnitUpdate_emote_state>("emote_state");
-    LoadCreatureUpdate<SniffedEvent_UnitUpdate_stand_state>("stand_state");
-    LoadCreatureUpdate<SniffedEvent_UnitUpdate_npc_flags>("npc_flags");
-    LoadCreatureUpdate<SniffedEvent_UnitUpdate_unit_flags>("unit_flags");
-    LoadCreatureUpdate<SniffedEvent_UnitUpdate_max_health>("max_health");
-    LoadCreatureUpdate<SniffedEvent_UnitUpdate_current_health>("current_health");
-    LoadCreatureUpdate<SniffedEvent_UnitUpdate_max_mana>("max_mana");
-    LoadCreatureUpdate<SniffedEvent_UnitUpdate_current_mana>("current_mana");
-    LoadPlayerUpdate<SniffedEvent_UnitUpdate_entry>("entry");
-    LoadPlayerUpdate_float<SniffedEvent_UnitUpdate_scale>("scale");
-    LoadPlayerUpdate<SniffedEvent_UnitUpdate_display_id>("display_id");
-    LoadPlayerUpdate<SniffedEvent_UnitUpdate_mount>("mount");
-    LoadPlayerUpdate<SniffedEvent_UnitUpdate_faction>("faction");
-    LoadPlayerUpdate<SniffedEvent_UnitUpdate_emote_state>("emote_state");
-    LoadPlayerUpdate<SniffedEvent_UnitUpdate_stand_state>("stand_state");
-    LoadPlayerUpdate<SniffedEvent_UnitUpdate_npc_flags>("npc_flags");
-    LoadPlayerUpdate<SniffedEvent_UnitUpdate_unit_flags>("unit_flags");
-    LoadPlayerUpdate<SniffedEvent_UnitUpdate_max_health>("max_health");
-    LoadPlayerUpdate<SniffedEvent_UnitUpdate_current_health>("current_health");
-    LoadPlayerUpdate<SniffedEvent_UnitUpdate_max_mana>("max_mana");
-    LoadPlayerUpdate<SniffedEvent_UnitUpdate_current_mana>("current_mana");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_entry>("entry");
+    LoadCreatureValuesUpdate_float<SniffedEvent_UnitUpdate_scale>("scale");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_display_id>("display_id");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_mount>("mount");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_faction>("faction");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_emote_state>("emote_state");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_stand_state>("stand_state");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_npc_flags>("npc_flags");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_unit_flags>("unit_flags");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_max_health>("max_health");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_current_health>("current_health");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_max_mana>("max_mana");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_current_mana>("current_mana");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_entry>("entry");
+    LoadPlayerValuesUpdate_float<SniffedEvent_UnitUpdate_scale>("scale");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_display_id>("display_id");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_mount>("mount");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_faction>("faction");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_emote_state>("emote_state");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_stand_state>("stand_state");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_npc_flags>("npc_flags");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_unit_flags>("unit_flags");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_max_health>("max_health");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_current_health>("current_health");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_max_mana>("max_mana");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_current_mana>("current_mana");
+    LoadCreatureSpeedUpdate<SniffedEvent_UnitUpdate_speed_walk>("speed_walk");
+    LoadCreatureSpeedUpdate<SniffedEvent_UnitUpdate_speed_run>("speed_run");
+    LoadCreatureSpeedUpdate<SniffedEvent_UnitUpdate_speed_swim>("speed_swim");
+    LoadPlayerSpeedUpdate<SniffedEvent_UnitUpdate_speed_walk>("speed_walk");
+    LoadPlayerSpeedUpdate<SniffedEvent_UnitUpdate_speed_run>("speed_run");
+    LoadPlayerSpeedUpdate<SniffedEvent_UnitUpdate_speed_swim>("speed_swim");
     LoadGameObjectCreate1();
     LoadGameObjectCreate2();
     LoadGameObjectCustomAnim();
@@ -464,23 +471,23 @@ void SniffedEvent_UnitAttackStop::Execute() const
         pUnit->SendMeleeAttackStop(pVictim);
 }
 
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_max_mana>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_current_mana>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_max_health>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_current_health>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_unit_flags>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_npc_flags>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_stand_state>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_emote_state>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_faction>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_mount>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_display_id>(char const* fieldName);
-template void ReplayMgr::LoadCreatureUpdate<SniffedEvent_UnitUpdate_entry>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_max_mana>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_current_mana>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_max_health>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_current_health>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_unit_flags>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_npc_flags>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_stand_state>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_emote_state>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_faction>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_mount>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_display_id>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_entry>(char const* fieldName);
 
 template <class T>
-void ReplayMgr::LoadCreatureUpdate(char const* fieldName)
+void ReplayMgr::LoadCreatureValuesUpdate(char const* fieldName)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `creature_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `creature_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
     {
         do
         {
@@ -499,12 +506,12 @@ void ReplayMgr::LoadCreatureUpdate(char const* fieldName)
     }
 }
 
-template void ReplayMgr::LoadCreatureUpdate_float<SniffedEvent_UnitUpdate_scale>(char const* fieldName);
+template void ReplayMgr::LoadCreatureValuesUpdate_float<SniffedEvent_UnitUpdate_scale>(char const* fieldName);
 
 template <class T>
-void ReplayMgr::LoadCreatureUpdate_float(char const* fieldName)
+void ReplayMgr::LoadCreatureValuesUpdate_float(char const* fieldName)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `creature_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `creature_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
     {
         do
         {
@@ -523,23 +530,23 @@ void ReplayMgr::LoadCreatureUpdate_float(char const* fieldName)
     }
 }
 
-template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_max_mana>(char const* fieldName);
-template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_current_mana>(char const* fieldName);
-template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_max_health>(char const* fieldName);
-template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_current_health>(char const* fieldName);
-template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_unit_flags>(char const* fieldName);
-template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_npc_flags>(char const* fieldName);
-template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_stand_state>(char const* fieldName);
-template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_emote_state>(char const* fieldName);
-template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_faction>(char const* fieldName);
-template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_mount>(char const* fieldName);
-template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_display_id>(char const* fieldName);
-template void ReplayMgr::LoadPlayerUpdate<SniffedEvent_UnitUpdate_entry>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_max_mana>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_current_mana>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_max_health>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_current_health>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_unit_flags>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_npc_flags>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_stand_state>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_emote_state>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_faction>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_mount>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_display_id>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_entry>(char const* fieldName);
 
 template <class T>
-void ReplayMgr::LoadPlayerUpdate(char const* fieldName)
+void ReplayMgr::LoadPlayerValuesUpdate(char const* fieldName)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `character_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `character_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
     {
         do
         {
@@ -557,12 +564,12 @@ void ReplayMgr::LoadPlayerUpdate(char const* fieldName)
     }
 }
 
-template void ReplayMgr::LoadPlayerUpdate_float<SniffedEvent_UnitUpdate_scale>(char const* fieldName);
+template void ReplayMgr::LoadPlayerValuesUpdate_float<SniffedEvent_UnitUpdate_scale>(char const* fieldName);
 
 template <class T>
-void ReplayMgr::LoadPlayerUpdate_float(char const* fieldName)
+void ReplayMgr::LoadPlayerValuesUpdate_float(char const* fieldName)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `character_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `character_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
     {
         do
         {
@@ -739,6 +746,96 @@ void SniffedEvent_UnitUpdate_max_mana::Execute() const
     pUnit->SetMaxPower(POWER_MANA, m_value);
 }
 
+template void ReplayMgr::LoadCreatureSpeedUpdate<SniffedEvent_UnitUpdate_speed_walk>(char const* fieldName);
+template void ReplayMgr::LoadCreatureSpeedUpdate<SniffedEvent_UnitUpdate_speed_run>(char const* fieldName);
+template void ReplayMgr::LoadCreatureSpeedUpdate<SniffedEvent_UnitUpdate_speed_swim>(char const* fieldName);
+
+template <class T>
+void ReplayMgr::LoadCreatureSpeedUpdate(char const* fieldName)
+{
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `creature_speed_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();;
+            uint32 creatureId = GetCreatureEntryFromGuid(guid);
+            uint32 unixtime = fields[1].GetUInt32();
+            float value = fields[2].GetFloat();
+
+            std::shared_ptr<T> newEvent = std::make_shared<T>(guid, creatureId, TYPEID_UNIT, value);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+template void ReplayMgr::LoadPlayerSpeedUpdate<SniffedEvent_UnitUpdate_speed_walk>(char const* fieldName);
+template void ReplayMgr::LoadPlayerSpeedUpdate<SniffedEvent_UnitUpdate_speed_run>(char const* fieldName);
+template void ReplayMgr::LoadPlayerSpeedUpdate<SniffedEvent_UnitUpdate_speed_swim>(char const* fieldName);
+
+template <class T>
+void ReplayMgr::LoadPlayerSpeedUpdate(char const* fieldName)
+{
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `character_speed_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();;
+            uint32 unixtime = fields[1].GetUInt32();
+            float value = fields[2].GetFloat();
+
+            std::shared_ptr<T> newEvent = std::make_shared<T>(guid, 0, TYPEID_PLAYER, value);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_UnitUpdate_speed_walk::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_speed_walk: Cannot find source unit!");
+        return;
+    }
+    pUnit->SetSpeedRateDirect(MOVE_WALK, m_speed);
+    if (pUnit->IsInWorld() && pUnit->GetVisibility() != VISIBILITY_OFF)
+        MovementPacketSender::SendSpeedChangeToAll(pUnit, MOVE_WALK, m_speed);
+}
+
+void SniffedEvent_UnitUpdate_speed_run::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_speed_run: Cannot find source unit!");
+        return;
+    }
+    pUnit->SetSpeedRateDirect(MOVE_RUN, m_speed);
+    if (pUnit->IsInWorld() && pUnit->GetVisibility() != VISIBILITY_OFF)
+        MovementPacketSender::SendSpeedChangeToAll(pUnit, MOVE_RUN, m_speed);
+}
+
+void SniffedEvent_UnitUpdate_speed_swim::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_speed_swim: Cannot find source unit!");
+        return;
+    }
+    pUnit->SetSpeedRateDirect(MOVE_SWIM, m_speed);
+    if (pUnit->IsInWorld() && pUnit->GetVisibility() != VISIBILITY_OFF)
+        MovementPacketSender::SendSpeedChangeToAll(pUnit, MOVE_SWIM, m_speed);
+}
+
 void ReplayMgr::LoadGameObjectCreate1()
 {
     if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime`, `position_x`, `position_y`, `position_z`, `orientation` FROM `gameobject_create1_time` ORDER BY `unixtime`"))
@@ -913,7 +1010,7 @@ template void ReplayMgr::LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_stat
 template <class T>
 void ReplayMgr::LoadGameObjectUpdate(char const* fieldName)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `gameobject_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `gameobject_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
     {
         do
         {
@@ -996,7 +1093,7 @@ void SniffedEvent_SpellCastFailed::Execute() const
 
 void ReplayMgr::LoadSpellCastStart()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `cast_flags`, `target_guid`, `target_id`, `target_type` FROM `spell_cast_start` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `cast_time`, `cast_flags`, `target_guid`, `target_id`, `target_type` FROM `spell_cast_start` ORDER BY `unixtime`"))
     {
         do
         {
@@ -1007,15 +1104,16 @@ void ReplayMgr::LoadSpellCastStart()
             uint32 casterId = fields[2].GetUInt32();
             std::string casterType = fields[3].GetCppString();
             uint32 spellId = fields[4].GetUInt32();
-            uint32 castFlags = fields[5].GetUInt32();
-            uint32 targetGuid = fields[6].GetUInt32();
-            uint32 targetId = fields[7].GetUInt32();
-            std::string targetType = fields[8].GetCppString();
+            uint32 castTime = fields[5].GetUInt32();
+            uint32 castFlags = fields[6].GetUInt32();
+            uint32 targetGuid = fields[7].GetUInt32();
+            uint32 targetId = fields[8].GetUInt32();
+            std::string targetType = fields[9].GetCppString();
 
             if (casterType == "Pet")
                 continue;
 
-            std::shared_ptr<SniffedEvent_SpellCastStart> newEvent = std::make_shared<SniffedEvent_SpellCastStart>(spellId, castFlags, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType));
+            std::shared_ptr<SniffedEvent_SpellCastStart> newEvent = std::make_shared<SniffedEvent_SpellCastStart>(spellId, castTime, castFlags, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType));
             m_eventsMap.insert(std::make_pair(unixtime, newEvent));
 
         } while (result->NextRow());
@@ -1050,9 +1148,9 @@ void SniffedEvent_SpellCastStart::Execute() const
     data << pCaster->GetGUID();
     data << pCaster->GetGUID();
 #endif
-    data << uint32(m_spellId);                              // spellId
-    data << uint16(m_castFlags);                            // cast flags
-    data << uint32(1000);                                   // delay?
+    data << uint32(m_spellId);
+    data << uint16(m_castFlags);
+    data << uint32(m_castTime);
 
     SpellCastTargets targets;
     if (Unit* pUnitTarget = pTarget->ToUnit())
@@ -1126,11 +1224,11 @@ void ReplayMgr::LoadSpellCastGoPositions()
         {
             Field* fields = result->Fetch();
 
-            uint32 listId = fields[0].GetUInt32();
+            uint32 id = fields[0].GetUInt32();
             float x = fields[1].GetFloat();
             float y = fields[2].GetFloat();
             float z = fields[3].GetFloat();
-            m_spellCastGoPositions.insert({ listId , G3D::Vector3(x, y, z) });
+            m_spellCastGoPositions.insert({ id , G3D::Vector3(x, y, z) });
 
         } while (result->NextRow());
         delete result;

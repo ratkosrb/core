@@ -636,7 +636,6 @@ ChatCommand * ChatHandler::getCommandTable()
         { "whisper",        SEC_TICKETMASTER,   false, &ChatHandler::HandleNpcWhisperCommand,          "", nullptr },
         { "yell",           SEC_TICKETMASTER,   false, &ChatHandler::HandleNpcYellCommand,             "", nullptr },
         { "tame",           SEC_GAMEMASTER,     false, &ChatHandler::HandleNpcTameCommand,             "", nullptr },
-        { "listevents",     SEC_GAMEMASTER,     false, &ChatHandler::HandleNpcListEventsCommand,       "", nullptr },
         { "spawn",          SEC_MODERATOR,      false, nullptr,                                        "", creatureSpawnsCommandTable },
         { "set",            SEC_GAMEMASTER,     false, nullptr,                                        "", creatureSetCommandTable },
         { "group",          SEC_DEVELOPPER,     false, nullptr,                                        "", creatureGroupsCommandTable },
@@ -648,6 +647,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { "aiinfo",         SEC_MODERATOR,      false, &ChatHandler::HandleUnitAIInfoCommand,          "", nullptr },
         { "info",           SEC_MODERATOR,      false, &ChatHandler::HandleUnitInfoCommand,            "", nullptr },
         { "statinfo",       SEC_MODERATOR,      false, &ChatHandler::HandleUnitStatInfoCommand,        "", nullptr },
+        { "listevents",     SEC_MODERATOR,      false, &ChatHandler::HandleUnitListEventsCommand,      "", nullptr },
         { nullptr,          0,                  false, nullptr,                                        "", nullptr }
     };
 

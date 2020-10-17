@@ -688,7 +688,6 @@ class ChatHandler
         bool HandleNpcSetSpawnTimeCommand(char* args);
         bool HandleNpcSpawnSpawnTimeCommand(char* args);
         bool HandleNpcTameCommand(char* args);
-        bool HandleNpcListEventsCommand(char* args);
         bool HandleNpcTextEmoteCommand(char* args);
         bool HandleNpcUnFollowCommand(char* args);
         bool HandleNpcWhisperCommand(char* args);
@@ -698,6 +697,7 @@ class ChatHandler
         bool HandleUnitAIInfoCommand(char* args);
         bool HandleUnitInfoCommand(char* args);
         bool HandleUnitStatInfoCommand(char* args);
+        bool HandleUnitListEventsCommand(char* args);
 
         bool HandlePDumpLoadCommand(char* args);
         bool HandlePDumpWriteCommand(char* args);

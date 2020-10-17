@@ -110,6 +110,9 @@ enum SniffedEventType : uint8
     SE_UNIT_UPDATE_MAX_HEALTH,
     SE_UNIT_UPDATE_CURRENT_MANA,
     SE_UNIT_UPDATE_MAX_MANA,
+    SE_UNIT_UPDATE_WALK_SPEED,
+    SE_UNIT_UPDATE_RUN_SPEED,
+    SE_UNIT_UPDATE_SWIM_SPEED,
     SE_GAMEOBJECT_CREATE1,
     SE_GAMEOBJECT_CREATE2,
     SE_GAMEOBJECT_CUSTOM_ANIM,
@@ -184,6 +187,12 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "Unit Update Current Mana";
         case SE_UNIT_UPDATE_MAX_MANA:
             return "Unit Update Max Mana";
+        case SE_UNIT_UPDATE_WALK_SPEED:
+            return "Unit Update Walk Speed";
+        case SE_UNIT_UPDATE_RUN_SPEED:
+            return "Unit Update Run Speed";
+        case SE_UNIT_UPDATE_SWIM_SPEED:
+            return "Unit Update Swim Speed";
         case SE_GAMEOBJECT_CREATE1:
             return "GameObject Create 1";
         case SE_GAMEOBJECT_CREATE2:
@@ -697,6 +706,63 @@ struct SniffedEvent_UnitUpdate_max_mana : SniffedEvent
     }
 };
 
+struct SniffedEvent_UnitUpdate_speed_walk : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_speed_walk(uint32 guid, uint32 entry, uint32 type, float speed) :
+        m_guid(guid), m_entry(entry), m_type(type), m_speed(speed) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    float m_speed = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_WALK_SPEED;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_speed_run : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_speed_run(uint32 guid, uint32 entry, uint32 type, float speed) :
+        m_guid(guid), m_entry(entry), m_type(type), m_speed(speed) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    float m_speed = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_RUN_SPEED;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_speed_swim : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_speed_swim(uint32 guid, uint32 entry, uint32 type, float speed) :
+        m_guid(guid), m_entry(entry), m_type(type), m_speed(speed) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    float m_speed = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_SWIM_SPEED;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
 struct SniffedEvent_GameObjectCreate1 : SniffedEvent
 {
     SniffedEvent_GameObjectCreate1(uint32 guid, uint32 entry, float x, float y, float z, float o) :
@@ -845,9 +911,10 @@ struct SniffedEvent_SpellCastFailed : SniffedEvent
 
 struct SniffedEvent_SpellCastStart : SniffedEvent
 {
-    SniffedEvent_SpellCastStart(uint32 spellId, uint32 castFlags, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType) :
-        m_spellId(spellId), m_castFlags(castFlags), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType), m_targetGuid(targetGuid), m_targetId(targetId), m_targetType(targetType) {};
+    SniffedEvent_SpellCastStart(uint32 spellId, uint32 castTime, uint32 castFlags, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType) :
+        m_spellId(spellId), m_castTime(castTime), m_castFlags(castFlags), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType), m_targetGuid(targetGuid), m_targetId(targetId), m_targetType(targetType) {};
     uint32 m_spellId = 0;
+    uint32 m_castTime = 0;
     uint32 m_castFlags = 0;
     uint32 m_casterGuid = 0;
     uint32 m_casterId = 0;

@@ -1420,6 +1420,7 @@ class Unit : public WorldObject
 
         void SetWalk(bool enable, bool asDefault = true);
         void SetSpeedRate(UnitMoveType mtype, float rate);
+        void SetSpeedRateDirect(UnitMoveType mtype, float rate) { m_speed_rate[mtype] = rate; }
         void SetSpeedRateReal(UnitMoveType mtype, float rate);
         void UpdateSpeed(UnitMoveType mtype, bool forced, float ratio = 1.0f);
         float GetSpeed(UnitMoveType mtype) const;
