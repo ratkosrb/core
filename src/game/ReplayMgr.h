@@ -196,6 +196,7 @@ class ReplayMgr
         void LoadCreatureTextTemplate();
         void LoadCreatureText();
         void LoadCreatureEmote();
+        void LoadUnitAttackLog(char const* tableName, uint32 typeId);
         template <class T>
         void LoadUnitTargetChange(char const* tableName, uint32 typeId);
         template <class T>
@@ -206,10 +207,8 @@ class ReplayMgr
         void LoadPlayerValuesUpdate(char const* fieldName);
         template <class T>
         void LoadPlayerValuesUpdate_float(char const* fieldName);
-        template <class T>
-        void LoadCreatureSpeedUpdate(char const* fieldName);
-        template <class T>
-        void LoadPlayerSpeedUpdate(char const* fieldName);
+        void LoadCreatureSpeedUpdate(uint32 speedType);
+        void LoadPlayerSpeedUpdate(uint32 speedType);
         void LoadGameObjectCreate1();
         void LoadGameObjectCreate2();
         void LoadGameObjectCustomAnim();

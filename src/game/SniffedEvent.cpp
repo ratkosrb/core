@@ -50,6 +50,8 @@ void ReplayMgr::LoadSniffedEvents()
     LoadCreatureTextTemplate();
     LoadCreatureText();
     LoadCreatureEmote();
+    LoadUnitAttackLog("creature_attack_log", TYPEID_UNIT);
+    LoadUnitAttackLog("character_attack_log", TYPEID_PLAYER);
     LoadUnitTargetChange<SniffedEvent_UnitTargetChange>("creature_target_change", TYPEID_UNIT);
     LoadUnitTargetChange<SniffedEvent_UnitAttackStart>("creature_attack_start", TYPEID_UNIT);
     LoadUnitTargetChange<SniffedEvent_UnitAttackStop>("creature_attack_stop", TYPEID_UNIT);
@@ -82,12 +84,12 @@ void ReplayMgr::LoadSniffedEvents()
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_current_health>("current_health");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_max_mana>("max_mana");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_current_mana>("current_mana");
-    LoadCreatureSpeedUpdate<SniffedEvent_UnitUpdate_speed_walk>("speed_walk");
-    LoadCreatureSpeedUpdate<SniffedEvent_UnitUpdate_speed_run>("speed_run");
-    LoadCreatureSpeedUpdate<SniffedEvent_UnitUpdate_speed_swim>("speed_swim");
-    LoadPlayerSpeedUpdate<SniffedEvent_UnitUpdate_speed_walk>("speed_walk");
-    LoadPlayerSpeedUpdate<SniffedEvent_UnitUpdate_speed_run>("speed_run");
-    LoadPlayerSpeedUpdate<SniffedEvent_UnitUpdate_speed_swim>("speed_swim");
+    LoadCreatureSpeedUpdate(MOVE_WALK);
+    LoadCreatureSpeedUpdate(MOVE_RUN);
+    LoadCreatureSpeedUpdate(MOVE_SWIM);
+    LoadPlayerSpeedUpdate(MOVE_WALK);
+    LoadPlayerSpeedUpdate(MOVE_RUN);
+    LoadPlayerSpeedUpdate(MOVE_SWIM);
     LoadGameObjectCreate1();
     LoadGameObjectCreate2();
     LoadGameObjectCustomAnim();
@@ -402,6 +404,161 @@ void SniffedEvent_CreatureEmote::Execute() const
     pCreature->HandleEmote(m_emoteId);
 }
 
+enum SpellHitInfo
+{
+    CLASSIC_HITINFO_UNK0 = 0x00000001, // unused - debug flag, probably debugging visuals, no effect in non-ptr client
+    CLASSIC_HITINFO_AFFECTS_VICTIM = 0x00000002,
+    CLASSIC_HITINFO_OFFHAND = 0x00000004,
+    CLASSIC_HITINFO_UNK3 = 0x00000008, // unused (3.3.5a)
+    CLASSIC_HITINFO_MISS = 0x00000010,
+    CLASSIC_HITINFO_FULL_ABSORB = 0x00000020,
+    CLASSIC_HITINFO_PARTIAL_ABSORB = 0x00000040,
+    CLASSIC_HITINFO_FULL_RESIST = 0x00000080,
+    CLASSIC_HITINFO_PARTIAL_RESIST = 0x00000100,
+    CLASSIC_HITINFO_CRITICALHIT = 0x00000200,
+    CLASSIC_HITINFO_UNK10 = 0x00000400,
+    CLASSIC_HITINFO_UNK11 = 0x00000800,
+    CLASSIC_HITINFO_UNK12 = 0x00001000,
+    CLASSIC_HITINFO_BLOCK = 0x00002000,
+    CLASSIC_HITINFO_UNK14 = 0x00004000, // set only if meleespellid is present//  no world text when victim is hit for 0 dmg(HideWorldTextForNoDamage?)
+    CLASSIC_HITINFO_UNK15 = 0x00008000, // player victim?// something related to blod sprut visual (BloodSpurtInBack?)
+    CLASSIC_HITINFO_GLANCING = 0x00010000,
+    CLASSIC_HITINFO_CRUSHING = 0x00020000,
+    CLASSIC_HITINFO_NO_ANIMATION = 0x00040000, // set always for melee spells and when no hit animation should be displayed
+    CLASSIC_HITINFO_UNK19 = 0x00080000,
+    CLASSIC_HITINFO_UNK20 = 0x00100000,
+    CLASSIC_HITINFO_UNK21 = 0x00200000, // unused (3.3.5a)
+    CLASSIC_HITINFO_UNK22 = 0x00400000,
+    CLASSIC_HITINFO_RAGE_GAIN = 0x00800000,
+    CLASSIC_HITINFO_FAKE_DAMAGE = 0x01000000, // enables damage animation even if no damage done, set only if no damage
+    CLASSIC_HITINFO_UNK25 = 0x02000000,
+    CLASSIC_HITINFO_UNK26 = 0x04000000
+};
+
+uint32 ConvertClassicHitInfoFlagToVanilla(uint32 flag)
+{
+    switch (flag)
+    {
+        case CLASSIC_HITINFO_UNK0:
+            return HITINFO_UNK0;
+        case CLASSIC_HITINFO_AFFECTS_VICTIM:
+            return HITINFO_AFFECTS_VICTIM;
+        case CLASSIC_HITINFO_OFFHAND:
+            return HITINFO_LEFTSWING;
+        case CLASSIC_HITINFO_UNK3:
+            return HITINFO_UNK3;
+        case CLASSIC_HITINFO_MISS:
+            return HITINFO_MISS;
+        case CLASSIC_HITINFO_FULL_ABSORB:
+            return HITINFO_ABSORB;
+        case CLASSIC_HITINFO_PARTIAL_ABSORB:
+            return HITINFO_ABSORB;
+        case CLASSIC_HITINFO_FULL_RESIST:
+            return HITINFO_RESIST;
+        case CLASSIC_HITINFO_PARTIAL_RESIST:
+            return HITINFO_RESIST;
+        case CLASSIC_HITINFO_CRITICALHIT:
+            return HITINFO_CRITICALHIT;
+        case CLASSIC_HITINFO_GLANCING:
+            return HITINFO_GLANCING;
+        case CLASSIC_HITINFO_CRUSHING:
+            return HITINFO_CRUSHING;
+        case CLASSIC_HITINFO_NO_ANIMATION:
+            return HITINFO_NOACTION;
+    }
+
+    return 0;
+}
+
+inline uint32 ConvertClassicHitInfoFlagsToVanilla(uint32 flags)
+{
+    uint32 newFlags = 0;
+    for (uint32 i = 0; i < 32; i++)
+    {
+        uint32 flag = (uint32)pow(2, i);
+        if (flags & flag)
+        {
+            newFlags |= ConvertClassicHitInfoFlagToVanilla(flag);
+        }
+    }
+    return newFlags;
+}
+
+void ReplayMgr::LoadUnitAttackLog(char const* tableName, uint32 typeId)
+{
+    if (auto result = SniffDatabase.PQuery("SELECT `unixtime`, `victim_guid`, `victim_id`, `victim_type`, `guid`, `hit_info`, `damage`, `blocked_damage`, `victim_state`, `attacker_state`, `spell_id` FROM `%s` ORDER BY `unixtime`", tableName))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 unixtime = fields[0].GetUInt32();
+            uint32 victimGuid = fields[1].GetUInt32();
+            uint32 victimId = fields[2].GetUInt32();
+            std::string victimType = fields[3].GetCppString();
+            uint32 guid = fields[4].GetUInt32();
+            uint32 creatureId = typeId == TYPEID_UNIT ? GetCreatureEntryFromGuid(guid) : 0;
+            uint32 hitInfo = fields[5].GetUInt32();
+            uint32 damage = fields[6].GetUInt32();
+            int32 blockedDamage = fields[7].GetInt32();
+            uint32 victimState = fields[8].GetUInt32();
+            int32 attackerState = fields[9].GetInt32();
+            uint32 spellId = fields[10].GetUInt32();
+
+            std::shared_ptr<SniffedEvent_UnitAttackLog> newEvent = std::make_shared<SniffedEvent_UnitAttackLog>(guid, creatureId, typeId, victimGuid, victimId, GetKnownObjectTypeId(victimType), ConvertClassicHitInfoFlagsToVanilla(hitInfo), damage, blockedDamage, victimState, attackerState, spellId);
+            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_UnitAttackLog::Execute() const
+{
+    Unit* pAttacker = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pAttacker)
+    {
+        sLog.outError("SniffedEvent_UnitAttackLog: Cannot find attacker unit!");
+        return;
+    }
+
+    Unit* pVictim = ToUnit(sReplayMgr.GetStoredObject(GetTargetObject()));
+    if (!pVictim)
+    {
+        sLog.outError("SniffedEvent_UnitAttackLog: Cannot find victim unit!");
+        return;
+    }
+    
+    WorldPacket data(SMSG_ATTACKERSTATEUPDATE, (16 + 45));  // we guess size
+
+    data << uint32(m_hitInfo);
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
+    data << pAttacker->GetPackGUID();
+    data << pVictim->GetPackGUID();
+#else
+    data << pAttacker->GetGUID();
+    data << pVictim->GetGUID();
+#endif
+    data << uint32(m_damage); // Total damage
+
+    data << uint8(1); // Sub damage count
+    
+    // Sub damage description
+    for (uint8 i = 0; i < 1; i++)
+    {
+        data << uint32(SPELL_SCHOOL_NORMAL);
+        data << float(1);        // Float coefficient of sub damage
+        data << uint32(m_damage);
+        data << uint32(0); // absorb
+        data << int32(0); // resist
+    }
+    data << uint32(m_victimState);
+    data << uint32(m_attackerState);
+    data << uint32(m_spellId);
+    data << uint32(m_blockedDamage);
+    pAttacker->SendMessageToSet(&data, true);
+}
+
 template void ReplayMgr::LoadUnitTargetChange<SniffedEvent_UnitTargetChange>(char const* tableName, uint32 typeId);
 template void ReplayMgr::LoadUnitTargetChange<SniffedEvent_UnitAttackStart>(char const* tableName, uint32 typeId);
 template void ReplayMgr::LoadUnitTargetChange<SniffedEvent_UnitAttackStop>(char const* tableName, uint32 typeId);
@@ -420,7 +577,7 @@ void ReplayMgr::LoadUnitTargetChange(char const* tableName, uint32 typeId)
             uint32 victimId = fields[2].GetUInt32();
             std::string victimType = fields[3].GetCppString();
             uint32 guid = fields[4].GetUInt32();
-            uint32 creatureId = GetCreatureEntryFromGuid(guid);
+            uint32 creatureId = typeId == TYPEID_UNIT ? GetCreatureEntryFromGuid(guid) : 0;
 
             std::shared_ptr<T> newEvent = std::make_shared<T>(guid, creatureId, typeId, victimGuid, victimId, GetKnownObjectTypeId(victimType));
             m_eventsMap.insert(std::make_pair(unixtime, newEvent));
@@ -746,14 +903,9 @@ void SniffedEvent_UnitUpdate_max_mana::Execute() const
     pUnit->SetMaxPower(POWER_MANA, m_value);
 }
 
-template void ReplayMgr::LoadCreatureSpeedUpdate<SniffedEvent_UnitUpdate_speed_walk>(char const* fieldName);
-template void ReplayMgr::LoadCreatureSpeedUpdate<SniffedEvent_UnitUpdate_speed_run>(char const* fieldName);
-template void ReplayMgr::LoadCreatureSpeedUpdate<SniffedEvent_UnitUpdate_speed_swim>(char const* fieldName);
-
-template <class T>
-void ReplayMgr::LoadCreatureSpeedUpdate(char const* fieldName)
+void ReplayMgr::LoadCreatureSpeedUpdate(uint32 speedType)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `creature_speed_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `speed_rate` FROM `creature_speed_update` WHERE `speed_type`=%u ORDER BY `unixtime`", speedType))
     {
         do
         {
@@ -762,9 +914,9 @@ void ReplayMgr::LoadCreatureSpeedUpdate(char const* fieldName)
             uint32 guid = fields[0].GetUInt32();;
             uint32 creatureId = GetCreatureEntryFromGuid(guid);
             uint32 unixtime = fields[1].GetUInt32();
-            float value = fields[2].GetFloat();
+            float speedRate = fields[2].GetFloat();
 
-            std::shared_ptr<T> newEvent = std::make_shared<T>(guid, creatureId, TYPEID_UNIT, value);
+            std::shared_ptr<SniffedEvent_UnitUpdate_speed> newEvent = std::make_shared<SniffedEvent_UnitUpdate_speed>(guid, creatureId, TYPEID_UNIT, speedType, speedRate);
             m_eventsMap.insert(std::make_pair(unixtime, newEvent));
 
         } while (result->NextRow());
@@ -772,14 +924,9 @@ void ReplayMgr::LoadCreatureSpeedUpdate(char const* fieldName)
     }
 }
 
-template void ReplayMgr::LoadPlayerSpeedUpdate<SniffedEvent_UnitUpdate_speed_walk>(char const* fieldName);
-template void ReplayMgr::LoadPlayerSpeedUpdate<SniffedEvent_UnitUpdate_speed_run>(char const* fieldName);
-template void ReplayMgr::LoadPlayerSpeedUpdate<SniffedEvent_UnitUpdate_speed_swim>(char const* fieldName);
-
-template <class T>
-void ReplayMgr::LoadPlayerSpeedUpdate(char const* fieldName)
+void ReplayMgr::LoadPlayerSpeedUpdate(uint32 speedType)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `character_speed_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `speed_rate` FROM `character_speed_update` WHERE `speed_type`=%u ORDER BY `unixtime`", speedType))
     {
         do
         {
@@ -787,9 +934,9 @@ void ReplayMgr::LoadPlayerSpeedUpdate(char const* fieldName)
 
             uint32 guid = fields[0].GetUInt32();;
             uint32 unixtime = fields[1].GetUInt32();
-            float value = fields[2].GetFloat();
+            float speedRate = fields[2].GetFloat();
 
-            std::shared_ptr<T> newEvent = std::make_shared<T>(guid, 0, TYPEID_PLAYER, value);
+            std::shared_ptr<SniffedEvent_UnitUpdate_speed> newEvent = std::make_shared<SniffedEvent_UnitUpdate_speed>(guid, 0, TYPEID_PLAYER, speedType, speedRate);
             m_eventsMap.insert(std::make_pair(unixtime, newEvent));
 
         } while (result->NextRow());
@@ -797,43 +944,17 @@ void ReplayMgr::LoadPlayerSpeedUpdate(char const* fieldName)
     }
 }
 
-void SniffedEvent_UnitUpdate_speed_walk::Execute() const
+void SniffedEvent_UnitUpdate_speed::Execute() const
 {
     Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
     if (!pUnit)
     {
-        sLog.outError("SniffedEvent_UnitUpdate_speed_walk: Cannot find source unit!");
+        sLog.outError("SniffedEvent_UnitUpdate_speed: Cannot find source unit!");
         return;
     }
-    pUnit->SetSpeedRateDirect(MOVE_WALK, m_speed);
+    pUnit->SetSpeedRateDirect(UnitMoveType(m_speedType), m_speedRate);
     if (pUnit->IsInWorld() && pUnit->GetVisibility() != VISIBILITY_OFF)
-        MovementPacketSender::SendSpeedChangeToAll(pUnit, MOVE_WALK, m_speed);
-}
-
-void SniffedEvent_UnitUpdate_speed_run::Execute() const
-{
-    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
-    if (!pUnit)
-    {
-        sLog.outError("SniffedEvent_UnitUpdate_speed_run: Cannot find source unit!");
-        return;
-    }
-    pUnit->SetSpeedRateDirect(MOVE_RUN, m_speed);
-    if (pUnit->IsInWorld() && pUnit->GetVisibility() != VISIBILITY_OFF)
-        MovementPacketSender::SendSpeedChangeToAll(pUnit, MOVE_RUN, m_speed);
-}
-
-void SniffedEvent_UnitUpdate_speed_swim::Execute() const
-{
-    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
-    if (!pUnit)
-    {
-        sLog.outError("SniffedEvent_UnitUpdate_speed_swim: Cannot find source unit!");
-        return;
-    }
-    pUnit->SetSpeedRateDirect(MOVE_SWIM, m_speed);
-    if (pUnit->IsInWorld() && pUnit->GetVisibility() != VISIBILITY_OFF)
-        MovementPacketSender::SendSpeedChangeToAll(pUnit, MOVE_SWIM, m_speed);
+        MovementPacketSender::SendSpeedChangeToAll(pUnit, UnitMoveType(m_speedType), m_speedRate);
 }
 
 void ReplayMgr::LoadGameObjectCreate1()

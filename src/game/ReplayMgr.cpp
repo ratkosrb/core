@@ -540,9 +540,7 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
                 case SE_UNIT_UPDATE_MAX_HEALTH:
                 case SE_UNIT_UPDATE_CURRENT_MANA:
                 case SE_UNIT_UPDATE_MAX_MANA:
-                case SE_UNIT_UPDATE_WALK_SPEED:
-                case SE_UNIT_UPDATE_RUN_SPEED:
-                case SE_UNIT_UPDATE_SWIM_SPEED:
+                case SE_UNIT_UPDATE_SPEED:
                 case SE_UNIT_TARGET_CHANGE:
                 case SE_SPELL_CHANNEL_START:
                 case SE_SPELL_CHANNEL_UPDATE:
@@ -665,9 +663,7 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
                 case SE_UNIT_UPDATE_MAX_HEALTH:
                 case SE_UNIT_UPDATE_CURRENT_MANA:
                 case SE_UNIT_UPDATE_MAX_MANA:
-                case SE_UNIT_UPDATE_WALK_SPEED:
-                case SE_UNIT_UPDATE_RUN_SPEED:
-                case SE_UNIT_UPDATE_SWIM_SPEED:
+                case SE_UNIT_UPDATE_SPEED:
                 case SE_UNIT_TARGET_CHANGE:
                 case SE_SPELL_CHANNEL_START:
                 case SE_SPELL_CHANNEL_UPDATE:
