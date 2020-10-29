@@ -346,13 +346,12 @@ struct SniffedEvent_CreatureFacing : SniffedEvent
 
 struct SniffedEvent_CreatureText : SniffedEvent
 {
-    SniffedEvent_CreatureText(uint32 guid, uint32 entry, std::string text, uint32 chatType, std::string comment) : 
-        m_guid(guid), m_entry(entry), m_chatType(chatType), m_text(text), m_comment(comment) {};
+    SniffedEvent_CreatureText(uint32 guid, uint32 entry, std::string text, uint32 chatType) : 
+        m_guid(guid), m_entry(entry), m_chatType(chatType), m_text(text) {};
     uint32 m_guid = 0;
     uint32 m_entry = 0;
     uint32 m_chatType = 0;
     std::string m_text;
-    std::string m_comment;
     void Execute() const final;
     SniffedEventType GetType() const final
     {

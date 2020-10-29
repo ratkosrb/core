@@ -71,7 +71,6 @@ struct CreatureText
     uint32 groupId = 0;
     std::string text;
     uint32 chatType = 0;
-    std::string comment;
 };
 
 enum NPCFlags_Classic : uint32
@@ -356,7 +355,7 @@ class ReplayMgr
         std::map<uint32 /*guid*/, CharacterTemplateEntry> m_characterTemplates;
         std::map<uint32 /*guid*/, CharacterMovementMap> m_characterMovements;
         std::vector<CreatureText> m_creatureTextTemplates;
-        std::multimap<uint32, std::shared_ptr<SniffedEvent>> m_eventsMap;
+        std::multimap<uint64, std::shared_ptr<SniffedEvent>> m_eventsMap;
 };
 
 #define sReplayMgr MaNGOS::Singleton<ReplayMgr>::Instance()

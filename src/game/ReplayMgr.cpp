@@ -401,25 +401,23 @@ void ReplayMgr::Update(uint32 const diff)
     if (!m_enabled)
         return;
 
-    uint32 oldSniffTime = m_currentSniffTime;
+    uint64 oldSniffTimeMs = m_currentSniffTimeMs;
     m_currentSniffTimeMs += diff;
     m_currentSniffTime = m_currentSniffTimeMs / 1000;
 
-    if (oldSniffTime == m_currentSniffTime)
-        return;
 
     for (const auto& itr : m_eventsMap)
     {
-        if (itr.first <= oldSniffTime)
+        if (itr.first <= oldSniffTimeMs)
             continue;
 
-        if (itr.first > m_currentSniffTime)
+        if (itr.first > m_currentSniffTimeMs)
             return;
 
         itr.second->Execute();
     }
 
-    if (m_currentSniffTime > m_eventsMap.rbegin()->first)
+    if (m_currentSniffTimeMs > m_eventsMap.rbegin()->first)
     {
         sLog.outInfo("[ReplayMgr] Sniff replay is over.");
         m_enabled = false;
@@ -491,7 +489,7 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
         std::set<uint32> visibleCreatures;
         for (const auto& itr : m_eventsMap)
         {
-            if (itr.first > m_currentSniffTime)
+            if (itr.first > m_currentSniffTimeMs)
                 break;
 
             if (itr.second->GetSourceObject().m_type != TYPEID_UNIT)
@@ -586,7 +584,7 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
         std::set<uint32> visibleGameObjects;
         for (const auto& itr : m_eventsMap)
         {
-            if (itr.first > m_currentSniffTime)
+            if (itr.first > m_currentSniffTimeMs)
                 break;
 
             switch (itr.second->GetType())
@@ -642,7 +640,7 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
 
         for (const auto& itr : m_eventsMap)
         {
-            if (itr.first > m_currentSniffTime)
+            if (itr.first > m_currentSniffTimeMs)
                 break;
 
             if (itr.second->GetSourceObject().m_type != TYPEID_PLAYER)
@@ -731,7 +729,7 @@ void ReplayMgr::StartPlaying()
 
         if (!m_startTimeSniff)
         {
-            uint32 earliestEventTime = m_eventsMap.begin()->first;
+            uint32 earliestEventTime = m_eventsMap.begin()->first / IN_MILLISECONDS;
             SetPlayTime(earliestEventTime);
         }
         
@@ -860,7 +858,7 @@ bool ChatHandler::HandleUnitListEventsCommand(char* /*args*/)
     else
     {
         PSendSysMessage("Events for %s", pUnit->GetObjectGuid().GetString().c_str());
-        PSendSysMessage(eventsList.c_str());
+        SendSysMessage(eventsList.c_str());
     }
 
     return true;

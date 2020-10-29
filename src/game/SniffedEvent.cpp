@@ -122,7 +122,7 @@ void ReplayMgr::LoadSniffedEvents()
 
 void ReplayMgr::LoadCreatureCreate1()
 {
-    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime`, `position_x`, `position_y`, `position_z`, `orientation` FROM `creature_create1_time` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtimems`, `position_x`, `position_y`, `position_z`, `orientation` FROM `creature_create1_time` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -130,14 +130,14 @@ void ReplayMgr::LoadCreatureCreate1()
 
             uint32 guid = fields[0].GetUInt32();
             uint32 creatureId = GetCreatureEntryFromGuid(guid);
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
             float position_x = fields[2].GetFloat();
             float position_y = fields[3].GetFloat();
             float position_z = fields[4].GetFloat();
             float orientation = fields[5].GetFloat();
 
             std::shared_ptr<SniffedEvent_CreatureCreate1> newEvent = std::make_shared<SniffedEvent_CreatureCreate1>(guid, creatureId, position_x, position_y, position_z, orientation);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -158,7 +158,7 @@ void SniffedEvent_CreatureCreate1::Execute() const
 
 void ReplayMgr::LoadCreatureCreate2()
 {
-    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime`, `position_x`, `position_y`, `position_z`, `orientation` FROM `creature_create2_time` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtimems`, `position_x`, `position_y`, `position_z`, `orientation` FROM `creature_create2_time` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -166,14 +166,14 @@ void ReplayMgr::LoadCreatureCreate2()
 
             uint32 guid = fields[0].GetUInt32();
             uint32 creatureId = GetCreatureEntryFromGuid(guid);
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
             float position_x = fields[2].GetFloat();
             float position_y = fields[3].GetFloat();
             float position_z = fields[4].GetFloat();
             float orientation = fields[5].GetFloat();
 
             std::shared_ptr<SniffedEvent_CreatureCreate2> newEvent = std::make_shared<SniffedEvent_CreatureCreate2>(guid, creatureId, position_x, position_y, position_z, orientation);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -194,7 +194,7 @@ void SniffedEvent_CreatureCreate2::Execute() const
 
 void ReplayMgr::LoadCreatureDestroy()
 {
-    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime` FROM `creature_destroy_time` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtimems` FROM `creature_destroy_time` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -202,10 +202,10 @@ void ReplayMgr::LoadCreatureDestroy()
 
             uint32 guid = fields[0].GetUInt32();
             uint32 creatureId = GetCreatureEntryFromGuid(guid);
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
 
             std::shared_ptr<SniffedEvent_CreatureDestroy> newEvent = std::make_shared<SniffedEvent_CreatureDestroy>(guid, creatureId);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -242,12 +242,12 @@ void ReplayMgr::LoadCreatureMovement(char const* tableName)
             float endY = fields[7].GetFloat();
             float endZ = fields[8].GetFloat();
             float orientation = fields[9].GetFloat();
-            uint32 unixtime = fields[10].GetUInt32();
+            uint64 unixtime = fields[10].GetUInt32();
 
             if (spline_count == 0 && orientation != 100)
             {
                 std::shared_ptr<SniffedEvent_CreatureFacing> newEvent = std::make_shared<SniffedEvent_CreatureFacing>(guid, creatureId, orientation);
-                m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+                m_eventsMap.insert(std::make_pair(unixtime * IN_MILLISECONDS, newEvent));
             }
             else
             {
@@ -255,7 +255,7 @@ void ReplayMgr::LoadCreatureMovement(char const* tableName)
                 float y = spline_count ? endY : startY;
                 float z = spline_count ? endZ : startZ;
                 std::shared_ptr<SniffedEvent_CreatureMovement> newEvent = std::make_shared<SniffedEvent_CreatureMovement>(guid, creatureId, moveTime, x, y, z, orientation);
-                m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+                m_eventsMap.insert(std::make_pair(unixtime * IN_MILLISECONDS, newEvent));
             }
         } while (result->NextRow());
         delete result;
@@ -297,7 +297,7 @@ enum ChatMessageType
 
 void ReplayMgr::LoadCreatureTextTemplate()
 {
-    if (auto result = SniffDatabase.Query("SELECT `CreatureID`, `GroupID`, `Text`, `Type`, `Comment` FROM `creature_text_template`"))
+    if (auto result = SniffDatabase.Query("SELECT `creature_id`, `group_id`, `text`, `chat_type` FROM `creature_text_template`"))
     {
         do
         {
@@ -308,7 +308,6 @@ void ReplayMgr::LoadCreatureTextTemplate()
             textEntry.groupId = fields[1].GetUInt32();
             textEntry.text = fields[2].GetCppString();
             textEntry.chatType = fields[3].GetUInt32();
-            textEntry.comment = fields[4].GetCppString();
 
             m_creatureTextTemplates.emplace_back(std::move(textEntry));
         } while (result->NextRow());
@@ -318,13 +317,13 @@ void ReplayMgr::LoadCreatureTextTemplate()
 
 void ReplayMgr::LoadCreatureText()
 {
-    if (auto result = SniffDatabase.Query("SELECT `UnixTime`, `CreatureGuid`, `CreatureID`, `GroupID` FROM `creature_text` ORDER BY `UnixTime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `guid`, `creature_id`, `group_id` FROM `creature_text` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 creatureGuid = fields[1].GetUInt32();
             uint32 creatureId = fields[2].GetUInt32();
             uint32 groupId = fields[3].GetUInt32();
@@ -332,10 +331,9 @@ void ReplayMgr::LoadCreatureText()
             CreatureText const* textEntry = GetCreatureTextTemplate(creatureId, groupId);
             std::string text = textEntry ? textEntry->text : "<error>";
             uint32 chatType = textEntry ? textEntry->chatType : 0;
-            std::string comment = textEntry ? textEntry->comment : "<error>";
 
-            std::shared_ptr<SniffedEvent_CreatureText> newEvent = std::make_shared<SniffedEvent_CreatureText>(creatureGuid, creatureId, text, chatType, comment);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            std::shared_ptr<SniffedEvent_CreatureText> newEvent = std::make_shared<SniffedEvent_CreatureText>(creatureGuid, creatureId, text, chatType);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -373,19 +371,19 @@ void SniffedEvent_CreatureText::Execute() const
 
 void ReplayMgr::LoadCreatureEmote()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `emote_id`, `guid` FROM `creature_emote` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `emote_id`, `guid` FROM `creature_emote` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 emoteId = fields[1].GetUInt32();
             uint32 guid = fields[2].GetUInt32();
             uint32 creatureId = GetCreatureEntryFromGuid(guid);
 
             std::shared_ptr<SniffedEvent_CreatureEmote> newEvent = std::make_shared<SniffedEvent_CreatureEmote>(guid, creatureId, emoteId);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -486,13 +484,13 @@ inline uint32 ConvertClassicHitInfoFlagsToVanilla(uint32 flags)
 
 void ReplayMgr::LoadUnitAttackLog(char const* tableName, uint32 typeId)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `unixtime`, `victim_guid`, `victim_id`, `victim_type`, `guid`, `hit_info`, `damage`, `blocked_damage`, `victim_state`, `attacker_state`, `spell_id` FROM `%s` ORDER BY `unixtime`", tableName))
+    if (auto result = SniffDatabase.PQuery("SELECT `unixtimems`, `victim_guid`, `victim_id`, `victim_type`, `guid`, `hit_info`, `damage`, `blocked_damage`, `victim_state`, `attacker_state`, `spell_id` FROM `%s` ORDER BY `unixtimems`", tableName))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 victimGuid = fields[1].GetUInt32();
             uint32 victimId = fields[2].GetUInt32();
             std::string victimType = fields[3].GetCppString();
@@ -506,7 +504,7 @@ void ReplayMgr::LoadUnitAttackLog(char const* tableName, uint32 typeId)
             uint32 spellId = fields[10].GetUInt32();
 
             std::shared_ptr<SniffedEvent_UnitAttackLog> newEvent = std::make_shared<SniffedEvent_UnitAttackLog>(guid, creatureId, typeId, victimGuid, victimId, GetKnownObjectTypeId(victimType), ConvertClassicHitInfoFlagsToVanilla(hitInfo), damage, blockedDamage, victimState, attackerState, spellId);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -566,13 +564,13 @@ template void ReplayMgr::LoadUnitTargetChange<SniffedEvent_UnitAttackStop>(char 
 template <class T>
 void ReplayMgr::LoadUnitTargetChange(char const* tableName, uint32 typeId)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `unixtime`, `victim_guid`, `victim_id`, `victim_type`, `guid` FROM `%s` ORDER BY `unixtime`", tableName))
+    if (auto result = SniffDatabase.PQuery("SELECT `unixtimems`, `victim_guid`, `victim_id`, `victim_type`, `guid` FROM `%s` ORDER BY `unixtimems`", tableName))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 victimGuid = fields[1].GetUInt32();
             uint32 victimId = fields[2].GetUInt32();
             std::string victimType = fields[3].GetCppString();
@@ -580,7 +578,7 @@ void ReplayMgr::LoadUnitTargetChange(char const* tableName, uint32 typeId)
             uint32 creatureId = typeId == TYPEID_UNIT ? GetCreatureEntryFromGuid(guid) : 0;
 
             std::shared_ptr<T> newEvent = std::make_shared<T>(guid, creatureId, typeId, victimGuid, victimId, GetKnownObjectTypeId(victimType));
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -644,7 +642,7 @@ template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_entry>
 template <class T>
 void ReplayMgr::LoadCreatureValuesUpdate(char const* fieldName)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `creature_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `%s` FROM `creature_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtimems`", fieldName, fieldName))
     {
         do
         {
@@ -652,11 +650,11 @@ void ReplayMgr::LoadCreatureValuesUpdate(char const* fieldName)
 
             uint32 guid = fields[0].GetUInt32();;
             uint32 creatureId = GetCreatureEntryFromGuid(guid);
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
             uint32 value = fields[2].GetUInt32();
 
             std::shared_ptr<T> newEvent = std::make_shared<T>(guid, creatureId, TYPEID_UNIT, value);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -668,7 +666,7 @@ template void ReplayMgr::LoadCreatureValuesUpdate_float<SniffedEvent_UnitUpdate_
 template <class T>
 void ReplayMgr::LoadCreatureValuesUpdate_float(char const* fieldName)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `creature_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `%s` FROM `creature_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtimems`", fieldName, fieldName))
     {
         do
         {
@@ -676,11 +674,11 @@ void ReplayMgr::LoadCreatureValuesUpdate_float(char const* fieldName)
 
             uint32 guid = fields[0].GetUInt32();;
             uint32 creatureId = GetCreatureEntryFromGuid(guid);
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
             float value = fields[2].GetFloat();
 
             std::shared_ptr<T> newEvent = std::make_shared<T>(guid, creatureId, TYPEID_UNIT, value);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -703,18 +701,18 @@ template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_entry>(c
 template <class T>
 void ReplayMgr::LoadPlayerValuesUpdate(char const* fieldName)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `character_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `%s` FROM `character_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtimems`", fieldName, fieldName))
     {
         do
         {
             Field* fields = result->Fetch();
 
             uint32 guid = fields[0].GetUInt32();;
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
             uint32 value = fields[2].GetUInt32();
 
             std::shared_ptr<T> newEvent = std::make_shared<T>(guid, 0, TYPEID_PLAYER, value);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -726,18 +724,18 @@ template void ReplayMgr::LoadPlayerValuesUpdate_float<SniffedEvent_UnitUpdate_sc
 template <class T>
 void ReplayMgr::LoadPlayerValuesUpdate_float(char const* fieldName)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `character_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `%s` FROM `character_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtimems`", fieldName, fieldName))
     {
         do
         {
             Field* fields = result->Fetch();
 
             uint32 guid = fields[0].GetUInt32();;
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
             float value = fields[2].GetFloat();
 
             std::shared_ptr<T> newEvent = std::make_shared<T>(guid, 0, TYPEID_PLAYER, value);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -905,7 +903,7 @@ void SniffedEvent_UnitUpdate_max_mana::Execute() const
 
 void ReplayMgr::LoadCreatureSpeedUpdate(uint32 speedType)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `speed_rate` FROM `creature_speed_update` WHERE `speed_type`=%u ORDER BY `unixtime`", speedType))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `speed_rate` FROM `creature_speed_update` WHERE `speed_type`=%u ORDER BY `unixtimems`", speedType))
     {
         do
         {
@@ -913,11 +911,11 @@ void ReplayMgr::LoadCreatureSpeedUpdate(uint32 speedType)
 
             uint32 guid = fields[0].GetUInt32();;
             uint32 creatureId = GetCreatureEntryFromGuid(guid);
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
             float speedRate = fields[2].GetFloat();
 
             std::shared_ptr<SniffedEvent_UnitUpdate_speed> newEvent = std::make_shared<SniffedEvent_UnitUpdate_speed>(guid, creatureId, TYPEID_UNIT, speedType, speedRate);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -926,18 +924,18 @@ void ReplayMgr::LoadCreatureSpeedUpdate(uint32 speedType)
 
 void ReplayMgr::LoadPlayerSpeedUpdate(uint32 speedType)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `speed_rate` FROM `character_speed_update` WHERE `speed_type`=%u ORDER BY `unixtime`", speedType))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `speed_rate` FROM `character_speed_update` WHERE `speed_type`=%u ORDER BY `unixtimems`", speedType))
     {
         do
         {
             Field* fields = result->Fetch();
 
             uint32 guid = fields[0].GetUInt32();;
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
             float speedRate = fields[2].GetFloat();
 
             std::shared_ptr<SniffedEvent_UnitUpdate_speed> newEvent = std::make_shared<SniffedEvent_UnitUpdate_speed>(guid, 0, TYPEID_PLAYER, speedType, speedRate);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -959,7 +957,7 @@ void SniffedEvent_UnitUpdate_speed::Execute() const
 
 void ReplayMgr::LoadGameObjectCreate1()
 {
-    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime`, `position_x`, `position_y`, `position_z`, `orientation` FROM `gameobject_create1_time` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtimems`, `position_x`, `position_y`, `position_z`, `orientation` FROM `gameobject_create1_time` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -967,14 +965,14 @@ void ReplayMgr::LoadGameObjectCreate1()
 
             uint32 guid = fields[0].GetUInt32();
             uint32 entry = GetGameObjectEntryFromGuid(guid);
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
             float position_x = fields[2].GetFloat();
             float position_y = fields[3].GetFloat();
             float position_z = fields[4].GetFloat();
             float orientation = fields[5].GetFloat();
 
             std::shared_ptr<SniffedEvent_GameObjectCreate1> newEvent = std::make_shared<SniffedEvent_GameObjectCreate1>(guid, entry, position_x, position_y, position_z, orientation);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -995,7 +993,7 @@ void SniffedEvent_GameObjectCreate1::Execute() const
 
 void ReplayMgr::LoadGameObjectCreate2()
 {
-    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime`, `position_x`, `position_y`, `position_z`, `orientation` FROM `gameobject_create2_time` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtimems`, `position_x`, `position_y`, `position_z`, `orientation` FROM `gameobject_create2_time` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -1003,14 +1001,14 @@ void ReplayMgr::LoadGameObjectCreate2()
 
             uint32 guid = fields[0].GetUInt32();
             uint32 entry = GetGameObjectEntryFromGuid(guid);
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
             float position_x = fields[2].GetFloat();
             float position_y = fields[3].GetFloat();
             float position_z = fields[4].GetFloat();
             float orientation = fields[5].GetFloat();
 
             std::shared_ptr<SniffedEvent_GameObjectCreate2> newEvent = std::make_shared<SniffedEvent_GameObjectCreate2>(guid, entry, position_x, position_y, position_z, orientation);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1031,7 +1029,7 @@ void SniffedEvent_GameObjectCreate2::Execute() const
 
 void ReplayMgr::LoadGameObjectCustomAnim()
 {
-    if (auto result = SniffDatabase.Query("SELECT `guid`, `anim_id`, `unixtime` FROM `gameobject_custom_anim` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `anim_id`, `unixtimems` FROM `gameobject_custom_anim` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -1041,10 +1039,10 @@ void ReplayMgr::LoadGameObjectCustomAnim()
             uint32 entry = GetGameObjectEntryFromGuid(guid);
             uint32 animId = fields[1].GetUInt32();
 
-            uint32 unixtime = fields[2].GetUInt32();
+            uint64 unixtimems = fields[2].GetUInt64();
 
             std::shared_ptr<SniffedEvent_GameObjectCustomAnim> newEvent = std::make_shared<SniffedEvent_GameObjectCustomAnim>(guid, entry, animId);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1064,7 +1062,7 @@ void SniffedEvent_GameObjectCustomAnim::Execute() const
 
 void ReplayMgr::LoadGameObjectDespawnAnim()
 {
-    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime` FROM `gameobject_despawn_anim` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtimems` FROM `gameobject_despawn_anim` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -1072,10 +1070,10 @@ void ReplayMgr::LoadGameObjectDespawnAnim()
 
             uint32 guid = fields[0].GetUInt32();
             uint32 entry = GetGameObjectEntryFromGuid(guid);
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
 
             std::shared_ptr<SniffedEvent_GameObjectDespawnAnim> newEvent = std::make_shared<SniffedEvent_GameObjectDespawnAnim>(guid, entry);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1095,7 +1093,7 @@ void SniffedEvent_GameObjectDespawnAnim::Execute() const
 
 void ReplayMgr::LoadGameObjectDestroy()
 {
-    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtime` FROM `gameobject_destroy_time` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtimems` FROM `gameobject_destroy_time` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -1103,10 +1101,10 @@ void ReplayMgr::LoadGameObjectDestroy()
 
             uint32 guid = fields[0].GetUInt32();
             uint32 entry = GetGameObjectEntryFromGuid(guid);
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
 
             std::shared_ptr<SniffedEvent_GameObjectDestroy> newEvent = std::make_shared<SniffedEvent_GameObjectDestroy>(guid, entry);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1131,7 +1129,7 @@ template void ReplayMgr::LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_stat
 template <class T>
 void ReplayMgr::LoadGameObjectUpdate(char const* fieldName)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtime`, `%s` FROM `gameobject_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtime`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `%s` FROM `gameobject_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtimems`", fieldName, fieldName))
     {
         do
         {
@@ -1139,11 +1137,11 @@ void ReplayMgr::LoadGameObjectUpdate(char const* fieldName)
 
             uint32 guid = fields[0].GetUInt32();;
             uint32 entry = GetGameObjectEntryFromGuid(guid);
-            uint32 unixtime = fields[1].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
             uint32 value = fields[2].GetUInt32();
 
             std::shared_ptr<T> newEvent = std::make_shared<T>(guid, entry, value);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1174,13 +1172,13 @@ void SniffedEvent_GameObjectUpdate_state::Execute() const
 
 void ReplayMgr::LoadSpellCastFailed()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `spell_id` FROM `spell_cast_failed` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `caster_guid`, `caster_id`, `caster_type`, `spell_id` FROM `spell_cast_failed` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 casterGuid = fields[1].GetUInt32();
             uint32 casterId = fields[2].GetUInt32();
             std::string casterType = fields[3].GetCppString();
@@ -1190,7 +1188,7 @@ void ReplayMgr::LoadSpellCastFailed()
                 continue;
 
             std::shared_ptr<SniffedEvent_SpellCastFailed> newEvent = std::make_shared<SniffedEvent_SpellCastFailed>(spellId, casterGuid, casterId, GetKnownObjectTypeId(casterType));
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1214,13 +1212,13 @@ void SniffedEvent_SpellCastFailed::Execute() const
 
 void ReplayMgr::LoadSpellCastStart()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `cast_time`, `cast_flags`, `target_guid`, `target_id`, `target_type` FROM `spell_cast_start` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `cast_time`, `cast_flags`, `target_guid`, `target_id`, `target_type` FROM `spell_cast_start` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 casterGuid = fields[1].GetUInt32();
             uint32 casterId = fields[2].GetUInt32();
             std::string casterType = fields[3].GetCppString();
@@ -1235,7 +1233,7 @@ void ReplayMgr::LoadSpellCastStart()
                 continue;
 
             std::shared_ptr<SniffedEvent_SpellCastStart> newEvent = std::make_shared<SniffedEvent_SpellCastStart>(spellId, castTime, castFlags, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType));
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1288,13 +1286,13 @@ void SniffedEvent_SpellCastStart::Execute() const
 
 void ReplayMgr::LoadSpellCastGo()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `main_target_guid`, `main_target_id`, `main_target_type`, `hit_targets_count`, `hit_targets_list_id`, `miss_targets_count`, `miss_targets_list_id`, `src_position_id`, `dst_position_id` FROM `spell_cast_go` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `main_target_guid`, `main_target_id`, `main_target_type`, `hit_targets_count`, `hit_targets_list_id`, `miss_targets_count`, `miss_targets_list_id`, `src_position_id`, `dst_position_id` FROM `spell_cast_go` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 casterGuid = fields[1].GetUInt32();
             uint32 casterId = fields[2].GetUInt32();
             std::string casterType = fields[3].GetCppString();
@@ -1310,7 +1308,7 @@ void ReplayMgr::LoadSpellCastGo()
             uint32 dstPositionId = fields[13].GetUInt32();
 
             std::shared_ptr<SniffedEvent_SpellCastGo> newEvent = std::make_shared<SniffedEvent_SpellCastGo>(spellId, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType), hitTargetsCount, hitTargetsListId, missTargetsCount, missTargetsListId, srcPositionId, dstPositionId);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1493,13 +1491,13 @@ void SniffedEvent_SpellCastGo::Execute() const
 
 void ReplayMgr::LoadSpellChannelStart()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `duration` FROM `spell_channel_start` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `duration` FROM `spell_channel_start` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 casterGuid = fields[1].GetUInt32();
             uint32 casterId = fields[2].GetUInt32();
             std::string casterType = fields[3].GetCppString();
@@ -1510,7 +1508,7 @@ void ReplayMgr::LoadSpellChannelStart()
                 continue;
 
             std::shared_ptr<SniffedEvent_SpellChannelStart> newEvent = std::make_shared<SniffedEvent_SpellChannelStart>(spellId, duration, casterGuid, casterId, GetKnownObjectTypeId(casterType));
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1536,13 +1534,13 @@ void SniffedEvent_SpellChannelStart::Execute() const
 
 void ReplayMgr::LoadSpellChannelUpdate()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `caster_guid`, `caster_id`, `caster_type`, `duration` FROM `spell_channel_update` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `caster_guid`, `caster_id`, `caster_type`, `duration` FROM `spell_channel_update` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 casterGuid = fields[1].GetUInt32();
             uint32 casterId = fields[2].GetUInt32();
             std::string casterType = fields[3].GetCppString();
@@ -1552,7 +1550,7 @@ void ReplayMgr::LoadSpellChannelUpdate()
                 continue;
 
             std::shared_ptr<SniffedEvent_SpellChannelUpdate> newEvent = std::make_shared<SniffedEvent_SpellChannelUpdate>(duration, casterGuid, casterId, GetKnownObjectTypeId(casterType));
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1581,17 +1579,17 @@ void SniffedEvent_SpellChannelUpdate::Execute() const
 
 void ReplayMgr::LoadPlayMusic()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `music` FROM `play_music` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `music` FROM `play_music` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 musicId = fields[1].GetUInt32();
 
             std::shared_ptr<SniffedEvent_PlayMusic> newEvent = std::make_shared<SniffedEvent_PlayMusic>(musicId);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1612,20 +1610,20 @@ void SniffedEvent_PlayMusic::Execute() const
 
 void ReplayMgr::LoadPlaySound()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `sound`, `source_guid`, `source_id`, `source_type` FROM `play_sound` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `sound`, `source_guid`, `source_id`, `source_type` FROM `play_sound` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 soundId = fields[1].GetUInt32();
             uint32 sourceGuid = fields[2].GetUInt32();
             uint32 sourceId = fields[3].GetUInt32();
             std::string sourceType = fields[4].GetCppString();
 
             std::shared_ptr<SniffedEvent_PlaySound> newEvent = std::make_shared<SniffedEvent_PlaySound>(soundId, sourceGuid, sourceId, GetKnownObjectTypeId(sourceType));
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1658,20 +1656,20 @@ void SniffedEvent_PlaySound::Execute() const
 
 void ReplayMgr::LoadPlaySpellVisualKit()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `kit_id`, `caster_guid`, `caster_id`, `caster_type` FROM `play_spell_visual_kit` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `kit_id`, `caster_guid`, `caster_id`, `caster_type` FROM `play_spell_visual_kit` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 kitId = fields[1].GetUInt32();
             uint32 sourceGuid = fields[2].GetUInt32();
             uint32 sourceId = fields[3].GetUInt32();
             std::string sourceType = fields[4].GetCppString();
 
             std::shared_ptr<SniffedEvent_PlaySpellVisualKit> newEvent = std::make_shared<SniffedEvent_PlaySpellVisualKit>(kitId, sourceGuid, sourceId, GetKnownObjectTypeId(sourceType));
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1692,17 +1690,17 @@ void SniffedEvent_PlaySpellVisualKit::Execute() const
 
 void ReplayMgr::LoadWorldText()
 {
-    if (auto result = SniffDatabase.Query("SELECT `UnixTime`, `Text` FROM `world_text` ORDER BY `UnixTime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `text` FROM `world_text` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             std::string text = fields[1].GetCppString();
 
             std::shared_ptr<SniffedEvent_WorldText> newEvent = std::make_shared<SniffedEvent_WorldText>(text);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
         delete result;
@@ -1716,20 +1714,20 @@ void SniffedEvent_WorldText::Execute() const
 
 void ReplayMgr::LoadQuestAcceptTimes()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `object_guid`, `object_id`, `object_type`, `quest_id` FROM `quest_client_accept` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `object_guid`, `object_id`, `object_type`, `quest_id` FROM `quest_client_accept` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 objectGuid = fields[1].GetUInt32();
             uint32 objectId = fields[2].GetUInt32();
             std::string objectType = fields[3].GetCppString();
             uint32 questId = fields[4].GetUInt32();
 
             std::shared_ptr<SniffedEvent_QuestAccept> newEvent = std::make_shared<SniffedEvent_QuestAccept>(questId, objectGuid, objectId, objectType);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
     }
@@ -1749,20 +1747,20 @@ void SniffedEvent_QuestAccept::Execute() const
 
 void ReplayMgr::LoadQuestCompleteTimes()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `object_guid`, `object_id`, `object_type`, `quest_id` FROM `quest_client_complete` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `object_guid`, `object_id`, `object_type`, `quest_id` FROM `quest_client_complete` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 objectGuid = fields[1].GetUInt32();
             uint32 objectId = fields[2].GetUInt32();
             std::string objectType = fields[3].GetCppString();
             uint32 questId = fields[4].GetUInt32();
 
             std::shared_ptr<SniffedEvent_QuestComplete> newEvent = std::make_shared<SniffedEvent_QuestComplete>(questId, objectGuid, objectId, objectType);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
     }
@@ -1782,18 +1780,18 @@ void SniffedEvent_QuestComplete::Execute() const
 
 void ReplayMgr::LoadCreatureInteractTimes()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `guid` FROM `creature_client_interact` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `guid` FROM `creature_client_interact` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 guid = fields[1].GetUInt32();
             uint32 entry = GetCreatureEntryFromGuid(guid);
 
             std::shared_ptr<SniffedEvent_CreatureInteract> newEvent = std::make_shared<SniffedEvent_CreatureInteract>(guid, entry);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
     }
@@ -1813,18 +1811,18 @@ void SniffedEvent_CreatureInteract::Execute() const
 
 void ReplayMgr::LoadGameObjectUseTimes()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `guid` FROM `gameobject_client_use` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `guid` FROM `gameobject_client_use` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 guid = fields[1].GetUInt32();
             uint32 entry = GetGameObjectEntryFromGuid(guid);
 
             std::shared_ptr<SniffedEvent_GameObjectUse> newEvent = std::make_shared<SniffedEvent_GameObjectUse>(guid, entry);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
     }
@@ -1844,17 +1842,17 @@ void SniffedEvent_GameObjectUse::Execute() const
 
 void ReplayMgr::LoadItemUseTimes()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime`, `entry` FROM `item_client_use` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `entry` FROM `item_client_use` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
             uint32 entry = fields[1].GetUInt32();
 
             std::shared_ptr<SniffedEvent_ItemUse> newEvent = std::make_shared<SniffedEvent_ItemUse>(entry);
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
     }
@@ -1875,16 +1873,16 @@ void SniffedEvent_ItemUse::Execute() const
 
 void ReplayMgr::LoadReclaimCorpseTimes()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime` FROM `client_reclaim_corpse` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems` FROM `client_reclaim_corpse` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
 
             std::shared_ptr<SniffedEvent_ReclaimCorpse> newEvent = std::make_shared<SniffedEvent_ReclaimCorpse>();
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
     }
@@ -1903,16 +1901,16 @@ void SniffedEvent_ReclaimCorpse::Execute() const
 
 void ReplayMgr::LoadReleaseSpiritTimes()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtime` FROM `client_release_spirit` ORDER BY `unixtime`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems` FROM `client_release_spirit` ORDER BY `unixtimems`"))
     {
         do
         {
             Field* fields = result->Fetch();
 
-            uint32 unixtime = fields[0].GetUInt32();
+            uint64 unixtimems = fields[0].GetUInt64();
 
             std::shared_ptr<SniffedEvent_ReleaseSpirit> newEvent = std::make_shared<SniffedEvent_ReleaseSpirit>();
-            m_eventsMap.insert(std::make_pair(unixtime, newEvent));
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
     }
