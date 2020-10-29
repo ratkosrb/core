@@ -57,18 +57,6 @@ bool ChatHandler::HandleNpcSpawnInfoCommand(char* /*args*/)
     }
 
     PSendSysMessage("Spawn info for %s", target->GetObjectGuid().GetString().c_str());
-    std::string creatureIds;
-    for (uint32 i = 0; i < MAX_CREATURE_IDS_PER_SPAWN; i++)
-    {
-        if (!pData->creature_id[i])
-            break;
-
-        if (!creatureIds.empty())
-            creatureIds += ", ";
-
-        creatureIds += std::to_string(pData->creature_id[i]);
-    }
-    PSendSysMessage("Creature Ids: %s", creatureIds.c_str());
     PSendSysMessage(LANG_NPCINFO_POSITION, float(target->GetPositionX()), float(target->GetPositionY()), float(target->GetPositionZ()));
     PSendSysMessage("Orientation: %g", pData->position.o);
     PSendSysMessage("Display Id: %u", pData->display_id);
