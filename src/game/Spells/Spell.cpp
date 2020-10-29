@@ -5150,10 +5150,6 @@ void Spell::TakePower()
     Powers powerType = Powers(m_spellInfo->powerType);
 
     m_casterUnit->ModifyPower(powerType, -(int32)m_powerCost);
-
-    // Set the five second timer
-    if (powerType == POWER_MANA && m_powerCost > 0)
-        m_casterUnit->SetLastManaUse(m_spellInfo->Id);
 }
 
 void Spell::TakeReagents()
@@ -8617,60 +8613,17 @@ void Spell::ClearCastItem()
 
 bool Spell::HasGlobalCooldown() const
 {
-    return m_casterUnit ? m_casterUnit->GetGlobalCooldownMgr().HasGlobalCooldown(m_spellInfo) : false;
+    return false;
 }
 
 void Spell::TriggerGlobalCooldown()
 {
-    if (!m_casterUnit)
-        return;
 
-    if (Player* pPlayer = m_casterUnit->ToPlayer())
-        if (pPlayer->HasCheatOption(PLAYER_CHEAT_NO_COOLDOWN))
-            return;
-
-    int32 gcd = m_spellInfo->StartRecoveryTime;
-    if (!gcd)
-        return;
-
-    // global cooldown can't leave range 1..1.5 secs (if it it)
-    // exist some spells (mostly not player directly casted) that have < 1 sec and > 1.5 sec global cooldowns
-    // but its as test show not affected any spell mods.
-    if (gcd >= 1000 && gcd <= 1500)
-    {
-        // apply haste rating
-#if SUPPORTED_CLIENT_BUILD >= CLIENT_BUILD_1_12_1
-        gcd = int32(float(gcd) * m_casterUnit->GetFloatValue(UNIT_MOD_CAST_SPEED));
-#else
-        gcd = int32(float(gcd) * (1.0f + m_casterUnit->GetInt32Value(UNIT_MOD_CAST_SPEED)/100.0f));
-#endif
-
-        if (gcd < 1000)
-            gcd = 1000;
-        else if (gcd > 1500)
-            gcd = 1500;
-    }
-
-    // global cooldown only for player or controlled units
-    if (m_casterUnit->GetCharmInfo() || m_casterUnit->IsPlayer())
-        m_casterUnit->GetGlobalCooldownMgr().AddGlobalCooldown(m_spellInfo, gcd);
 }
 
 void Spell::CancelGlobalCooldown()
 {
-    if (!m_casterUnit)
-        return;
 
-    if (!m_spellInfo->StartRecoveryTime)
-        return;
-
-    // cancel global cooldown when interrupting current cast
-    if (m_casterUnit->GetCurrentSpell(CURRENT_GENERIC_SPELL) != this)
-        return;
-
-    // global cooldown have only player or controlled units
-    if (m_casterUnit->GetCharmInfo() || m_casterUnit->IsPlayer())
-        m_casterUnit->GetGlobalCooldownMgr().CancelGlobalCooldown(m_spellInfo);
 }
 
 void Spell::ResetEffectDamageAndHeal()

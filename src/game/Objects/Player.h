@@ -601,7 +601,6 @@ enum PlayerLoginQueryIndex
     PLAYER_LOGIN_QUERY_LOADACTIONS,
     PLAYER_LOGIN_QUERY_LOADSOCIALLIST,
     PLAYER_LOGIN_QUERY_LOADHOMEBIND,
-    PLAYER_LOGIN_QUERY_LOADSPELLCOOLDOWNS,
     PLAYER_LOGIN_QUERY_LOADGUILD,
     PLAYER_LOGIN_QUERY_LOADBGDATA,
     PLAYER_LOGIN_QUERY_LOADSKILLS,
@@ -1403,8 +1402,6 @@ class Player final: public Unit
         float m_auraBaseMod[BASEMOD_END][MOD_END];
         SpellModList m_spellMods[MAX_SPELLMOD];
         uint32 m_lastFromClientCastedSpellID;
-        void _LoadSpellCooldowns(QueryResult* result);
-        void _SaveSpellCooldowns();
 
         bool IsNeedCastPassiveLikeSpellAtLearn(SpellEntry const* spellInfo) const;
         void SendInitialSpells() const;
@@ -1481,18 +1478,15 @@ class Player final: public Unit
         float m_carryHealthRegen;
         ObjectGuid m_comboTargetGuid;
         int8 m_comboPoints;
-        uint32 m_weaponChangeTimer;
         bool m_canParry;
         bool m_canBlock;
         bool m_canDualWield;
         float m_ammoDPS;
         float m_personalXpRate;
-        uint32 m_foodEmoteTimer;
 
         void RegenerateAll();
         void Regenerate(Powers power);
         void RegenerateHealth();
-        void HandleFoodEmotes(uint32 diff);
 
         static float GetHealthBonusFromStamina(float stamina);
         static float GetManaBonusFromIntellect(float intellect);
@@ -1894,23 +1888,8 @@ class Player final: public Unit
         /***              ENVIRONMENTAL SYSTEM                 ***/
         /*********************************************************/
 
-    protected:
-        void SendMirrorTimer(MirrorTimerType Type, uint32 MaxValue, uint32 CurrentValue, int32 Regen);
-        void StopMirrorTimer(MirrorTimerType Type);
-        void HandleDrowning(uint32 time_diff);
-        int32 GetMaxTimer(MirrorTimerType timer);
-        int32 m_MirrorTimer[MAX_TIMERS];
-        uint8 m_MirrorTimerFlags;
-        uint8 m_MirrorTimerFlagsLast;
     public:
         uint32 EnvironmentalDamage(EnvironmentalDamageType type, uint32 damage);
-        void UpdateMirrorTimers();
-        void StopMirrorTimers()
-        {
-            StopMirrorTimer(FATIGUE_TIMER);
-            StopMirrorTimer(BREATH_TIMER);
-            StopMirrorTimer(FIRE_TIMER);
-        }
 
         /*********************************************************/
         /***                    REST SYSTEM                    ***/
@@ -1985,10 +1964,6 @@ class Player final: public Unit
 
     private:
         AutoAttackCheckResult m_swingErrorMsg;
-        int32 m_cannotBeDetectedTimer;
-
-        // Stealth detection system
-        void HandleStealthedUnitsDetection();
     public:
         bool IsTotalImmune() const;
         AutoAttackCheckResult GetLastSwingErrorMsg() const { return m_swingErrorMsg; }
@@ -2004,10 +1979,6 @@ class Player final: public Unit
         void SendExplorationExperience(uint32 Area, uint32 Experience) const;
         void SendFactionAtWar(uint32 reputationId, bool apply) const;
         AutoAttackCheckResult CanAutoAttackTarget(Unit const*) const override;
-
-        // Cannot be detected by creature (Should be tested in AI::MoveInLineOfSight)
-        void SetCannotBeDetectedTimer(uint32 milliseconds) { m_cannotBeDetectedTimer = milliseconds; };
-        bool CanBeDetected() const override { return m_cannotBeDetectedTimer <= 0; }
 
         // PlayerAI management
         PlayerAI* i_AI;
@@ -2057,18 +2028,12 @@ class Player final: public Unit
         /*********************************************************/
 
     private:
-        uint8 m_newStandState;
-        uint32 m_standStateTimer;
-        uint32 m_DetectInvTimer;
         uint32 m_ExtraFlags;
         ObjectGuid m_curSelectionGuid;
         ObjectGuid m_resurrectGuid;
         uint32 m_resurrectMap;
         float m_resurrectX, m_resurrectY, m_resurrectZ;
         uint32 m_resurrectHealth, m_resurrectMana;
-        uint32 m_drunkTimer;
-        uint16 m_drunk;
-        void HandleSobering();
         uint32 m_deathTimer;
         time_t m_deathExpireTime;
         ObjectGuid     m_selectedGobj; // For GM commands
@@ -2078,9 +2043,6 @@ class Player final: public Unit
         void SendDismountResult(UnitDismountResult result) const;
         void UpdateCorpseReclaimDelay();
     public:
-        void ScheduleStandStateChange(uint8 state);
-        void ClearScheduledStandState() { m_newStandState = MAX_UNIT_STAND_STATE; m_standStateTimer = 0; }
-        bool IsStandingUpForProc() const override;
         UnitMountResult Mount(uint32 mount, uint32 spellId = 0) override;
         UnitDismountResult Unmount(bool from_aura = false) override;
 
@@ -2140,10 +2102,6 @@ class Player final: public Unit
 
         void SetEscortingGuid(ObjectGuid const& guid) { m_escortingGuid = guid; }
         ObjectGuid const& GetEscortingGuid() const { return m_escortingGuid; }
-
-        void SetDrunkValue(uint16 newDrunkValue, uint32 itemid = 0);
-        uint16 GetDrunkValue() const { return m_drunk; }
-        static DrunkenState GetDrunkenstateByValue(uint16 value);
 
         uint32 GetDeathTimer() const { return m_deathTimer; }
         uint32 GetCorpseReclaimDelay(bool pvp) const;

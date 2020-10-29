@@ -2222,9 +2222,7 @@ void Aura::HandleAuraHover(bool apply, bool Real)
 
 void Aura::HandleWaterBreathing(bool /*apply*/, bool /*Real*/)
 {
-    // update timers in client
-    if (GetTarget()->GetTypeId() == TYPEID_PLAYER)
-        ((Player*)GetTarget())->UpdateMirrorTimers();
+
 }
 
 std::pair<unsigned int, float> GetShapeshiftDisplayInfo(ShapeshiftForm form, Unit* target){
@@ -5498,9 +5496,6 @@ void Aura::HandleSpiritOfRedemption(bool apply, bool Real)
     {
         if (target->GetTypeId() == TYPEID_PLAYER)
         {
-            // disable breath/etc timers
-            ((Player*)target)->StopMirrorTimers();
-
             // set stand state (expected in this form)
             if (!target->IsStandingUp())
                 target->SetStandState(UNIT_STAND_STATE_STAND);

@@ -3939,7 +3939,7 @@ bool ChatHandler::HandleModifyGenderCommand(char *args)
 
     // Set gender
     player->SetByteValue(UNIT_FIELD_BYTES_0, 2, gender);
-    player->SetUInt16Value(PLAYER_BYTES_3, 0, uint16(gender) | (player->GetDrunkValue() & 0xFFFE));
+    player->SetUInt16Value(PLAYER_BYTES_3, 0, uint16(gender));
 
     // Change display ID
     player->InitPlayerDisplayIds();
@@ -3956,26 +3956,6 @@ bool ChatHandler::HandleModifyGenderCommand(char *args)
 
 bool ChatHandler::HandleModifyDrunkCommand(char* args)
 {
-    if (!*args)
-        return false;
-
-    Player* target =  GetSelectedPlayer();
-
-    if (!target)
-    {
-        SendSysMessage(LANG_PLAYER_NOT_FOUND);
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    uint32 drunklevel = (uint32)atoi(args);
-    if (drunklevel > 100)
-        drunklevel = 100;
-
-    uint16 drunkMod = drunklevel * 0xFFFF / 100;
-
-    target->SetDrunkValue(drunkMod);
-
     return true;
 }
 

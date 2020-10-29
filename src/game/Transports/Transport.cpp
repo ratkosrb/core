@@ -444,7 +444,8 @@ void Transport::SendCreateUpdateToMap()
     if (!players.isEmpty())
     {
         for (const auto& player : players)
-            if (player.getSource()->GetTransport() != this)
+            if (player.getSource()->GetTransport() != this &&
+                !player.getSource()->GetSession()->GetBot())
             {
                 UpdateData data;
                 BuildCreateUpdateBlockForPlayer(&data, player.getSource());

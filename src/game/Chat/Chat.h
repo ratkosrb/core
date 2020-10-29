@@ -269,24 +269,6 @@ class ChatHandler
         bool HandleBotReloadCommand(char * args);
         bool HandleBotStopCommand(char * args);
         bool HandleBotStartCommand(char * args);
-        bool PartyBotAddRequirementCheck(Player const* pPlayer, Player const* pTarget);
-        bool HandlePartyBotAddCommand(char * args);
-        bool HandlePartyBotCloneCommand(char * args);
-        bool HandlePartyBotSetRoleCommand(char * args);
-        bool HandlePartyBotAttackStartCommand(char * args);
-        bool HandlePartyBotAttackStopCommand(char * args);
-        bool HandlePartyBotComeToMeCommand(char * args);
-        bool HandlePartyBotUseGObjectCommand(char * args);
-        bool HandlePartyBotPauseCommand(char * args);
-        bool HandlePartyBotUnpauseCommand(char * args);
-        bool HandlePartyBotRemoveCommand(char * args);
-        bool HandleBattleBotAddCommand(char* args, uint8 bg);
-        bool HandleBattleBotAddAlteracCommand(char* args);
-        bool HandleBattleBotAddArathiCommand(char* args);
-        bool HandleBattleBotAddWarsongCommand(char* args);
-        bool HandleBattleBotRemoveCommand(char* args);
-        bool HandleBattleBotShowPathCommand(char* args);
-        bool HandleBattleBotShowAllPathsCommand(char* args);
 
         // spell_disabled
         bool HandleReloadSpellDisabledCommand(char *args);

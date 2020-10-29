@@ -949,66 +949,12 @@ void Creature::RegenerateAll(uint32 update_diff, bool skipCombatCheck)
 
 void Creature::RegenerateMana()
 {
-    if (!IsRegeneratingMana())
-        return;
 
-    uint32 curValue = GetPower(POWER_MANA);
-    uint32 maxValue = GetMaxPower(POWER_MANA);
-
-    if (curValue >= maxValue)
-        return;
-
-    uint32 addvalue = 0;
-
-    // Combat and any controlled creature
-    if (IsInCombat() || GetCharmerOrOwnerGuid())
-    {
-        if (!IsUnderLastManaUseEffect())
-            addvalue = m_manaRegen;
-    }
-    else
-        addvalue = maxValue / 3;
-
-    ModifyPower(POWER_MANA, addvalue);
 }
 
 void Creature::RegenerateHealth()
 {
-    if (!IsRegeneratingHealth())
-        return;
 
-    uint32 curValue = GetHealth();
-    uint32 maxValue = GetMaxHealth();
-
-    if (curValue >= maxValue)
-        return;
-
-    uint32 addvalue = 0;
-
-    // Not only pet, but any controlled creature
-    if (GetCharmerOrOwnerGuid())
-    {
-        if (IsPolymorphed())
-        {
-            addvalue = maxValue / 10;
-        }
-        else
-        {
-            float HealthIncreaseRate = sWorld.getConfig(CONFIG_FLOAT_RATE_HEALTH);
-
-            addvalue = uint32(GetRegenHPPerSpirit() * HealthIncreaseRate);
-            addvalue *= 4; // The timer ticks every 4 seconds.
-        }
-    }
-    else
-    {
-        addvalue = maxValue / 3;
-    }
-
-    if (addvalue < 0)
-        addvalue = 0;
-
-    ModifyHealth(addvalue);
 }
 
 void Creature::DoFlee()

@@ -416,7 +416,7 @@ UpdateMask Player::updateVisualBits;
 Player::Player(WorldSession* session) : Unit(),
     m_mover(this), m_camera(this), m_reputationMgr(this),
     m_enableInstanceSwitch(true), m_currentTicketCounter(0), m_castingSpell(0),
-    m_honorMgr(this), m_bNextRelocationsIgnored(0), m_personalXpRate(-1.0f), m_standStateTimer(0), m_newStandState(MAX_UNIT_STAND_STATE), m_foodEmoteTimer(0)
+    m_honorMgr(this), m_bNextRelocationsIgnored(0), m_personalXpRate(-1.0f)
 {
     m_objectType |= TYPEMASK_PLAYER;
     m_objectTypeId = TYPEID_PLAYER;
@@ -450,7 +450,6 @@ Player::Player(WorldSession* session) : Unit(),
     for (float & s : m_SpellCritPercentage)
         s = 0.0f;
     m_regenTimer = 0;
-    m_weaponChangeTimer = 0;
 
     m_zoneUpdateId = 0;
     m_zoneUpdateTimer = 0;
@@ -497,15 +496,7 @@ Player::Player(WorldSession* session) : Unit(),
 
     m_lastLiquid = nullptr;
 
-    for (int & i : m_MirrorTimer)
-        i = DISABLED_MIRROR_TIMER;
-
-    m_MirrorTimerFlags = UNDERWATER_NONE;
-    m_MirrorTimerFlagsLast = UNDERWATER_NONE;
-
     m_isInWater = false;
-    m_drunkTimer = 0;
-    m_drunk = 0;
     m_restTime = 0;
     m_deathTimer = 0;
     m_deathExpireTime = 0;
@@ -565,8 +556,6 @@ Player::Player(WorldSession* session) : Unit(),
 
     watching_cinematic_entry = 0;
 
-    m_cannotBeDetectedTimer = 0;
-
     // Phasing
     worldMask = WORLD_DEFAULT_CHAR;
     i_AI = nullptr;
@@ -582,7 +571,6 @@ Player::Player(WorldSession* session) : Unit(),
     m_petSpell = 0;
     m_areaCheckTimer = 0;
     m_skippedUpdateTime = 0;
-    m_DetectInvTimer = 1 * IN_MILLISECONDS;
 
     // GM variables
     m_gmInvisibilityLevel = session->GetSecurity();
@@ -958,32 +946,6 @@ void Player::SatisfyItemRequirements(ItemPrototype const* pItem)
             LearnSpell(proficiencySpellId, false, false);
 }
 
-void Player::SendMirrorTimer(MirrorTimerType Type, uint32 MaxValue, uint32 CurrentValue, int32 Regen)
-{
-    if (int(MaxValue) == DISABLED_MIRROR_TIMER)
-    {
-        if (int(CurrentValue) != DISABLED_MIRROR_TIMER)
-            StopMirrorTimer(Type);
-        return;
-    }
-    WorldPacket data(SMSG_START_MIRROR_TIMER, (21));
-    data << (uint32)Type;
-    data << CurrentValue;
-    data << MaxValue;
-    data << Regen;
-    data << (uint8)0;
-    data << (uint32)0;                                      // spell id
-    GetSession()->SendPacket(&data);
-}
-
-void Player::StopMirrorTimer(MirrorTimerType Type)
-{
-    m_MirrorTimer[Type] = DISABLED_MIRROR_TIMER;
-    WorldPacket data(SMSG_STOP_MIRROR_TIMER, 4);
-    data << (uint32)Type;
-    GetSession()->SendPacket(&data);
-}
-
 uint32 Player::EnvironmentalDamage(EnvironmentalDamageType type, uint32 damage)
 {
     if (!IsAlive() || IsGameMaster())
@@ -1021,195 +983,6 @@ uint32 Player::EnvironmentalDamage(EnvironmentalDamageType type, uint32 damage)
     return final_damage;
 }
 
-int32 Player::GetMaxTimer(MirrorTimerType timer)
-{
-    switch (timer)
-    {
-        case FATIGUE_TIMER:
-            if (GetSession()->GetSecurity() >= (AccountTypes)sWorld.getConfig(CONFIG_UINT32_TIMERBAR_FATIGUE_GMLEVEL))
-                return DISABLED_MIRROR_TIMER;
-            return sWorld.getConfig(CONFIG_UINT32_TIMERBAR_FATIGUE_MAX) * IN_MILLISECONDS;
-        case BREATH_TIMER:
-        {
-            if (!IsAlive() || HasAuraType(SPELL_AURA_WATER_BREATHING) ||
-                    GetSession()->GetSecurity() >= (AccountTypes)sWorld.getConfig(CONFIG_UINT32_TIMERBAR_BREATH_GMLEVEL))
-                return DISABLED_MIRROR_TIMER;
-            int32 UnderWaterTime = sWorld.getConfig(CONFIG_UINT32_TIMERBAR_BREATH_MAX) * IN_MILLISECONDS;
-            AuraList const& mModWaterBreathing = GetAurasByType(SPELL_AURA_MOD_WATER_BREATHING);
-            for (const auto i : mModWaterBreathing)
-                UnderWaterTime = uint32(UnderWaterTime * (100.0f + i->GetModifier()->m_amount) / 100.0f);
-            return UnderWaterTime;
-        }
-        case FIRE_TIMER:
-        {
-            if (!IsAlive() || GetSession()->GetSecurity() >= (AccountTypes)sWorld.getConfig(CONFIG_UINT32_TIMERBAR_FIRE_GMLEVEL))
-                return DISABLED_MIRROR_TIMER;
-            return sWorld.getConfig(CONFIG_UINT32_TIMERBAR_FIRE_MAX) * IN_MILLISECONDS;
-        }
-        default:
-            return 0;
-    }
-    return 0;
-}
-
-void Player::UpdateMirrorTimers()
-{
-    // Desync flags for update on next HandleDrowning
-    if (m_MirrorTimerFlags)
-        m_MirrorTimerFlagsLast = ~m_MirrorTimerFlags;
-}
-
-void Player::HandleDrowning(uint32 time_diff)
-{
-    if (!m_MirrorTimerFlags)
-        return;
-
-    // In water
-    if (m_MirrorTimerFlags & UNDERWATER_INWATER)
-    {
-        // Breath timer not activated - activate it
-        if (m_MirrorTimer[BREATH_TIMER] == DISABLED_MIRROR_TIMER)
-        {
-            m_MirrorTimer[BREATH_TIMER] = GetMaxTimer(BREATH_TIMER);
-            SendMirrorTimer(BREATH_TIMER, m_MirrorTimer[BREATH_TIMER], m_MirrorTimer[BREATH_TIMER], -1);
-        }
-        else
-        {
-            m_MirrorTimer[BREATH_TIMER] -= time_diff;
-            // Timer limit - need deal damage
-            if (m_MirrorTimer[BREATH_TIMER] < 0)
-            {
-                m_MirrorTimer[BREATH_TIMER] += 1 * IN_MILLISECONDS;
-                // Calculate and deal damage
-                // TODO: Check this formula
-                uint32 damage = GetMaxHealth() / 5 + urand(0, GetLevel() - 1);
-                EnvironmentalDamage(DAMAGE_DROWNING, damage);
-            }
-            else if (!(m_MirrorTimerFlagsLast & UNDERWATER_INWATER))      // Update time in client if need
-                SendMirrorTimer(BREATH_TIMER, GetMaxTimer(BREATH_TIMER), m_MirrorTimer[BREATH_TIMER], -1);
-        }
-    }
-    else if (m_MirrorTimer[BREATH_TIMER] != DISABLED_MIRROR_TIMER)        // Regen timer
-    {
-        int32 UnderWaterTime = GetMaxTimer(BREATH_TIMER);
-        // Need breath regen
-        m_MirrorTimer[BREATH_TIMER] += 10 * time_diff;
-        if (m_MirrorTimer[BREATH_TIMER] >= UnderWaterTime || !IsAlive())
-            StopMirrorTimer(BREATH_TIMER);
-        else if (m_MirrorTimerFlagsLast & UNDERWATER_INWATER)
-            SendMirrorTimer(BREATH_TIMER, UnderWaterTime, m_MirrorTimer[BREATH_TIMER], 10);
-    }
-
-
-    // In dark water
-    if (m_MirrorTimerFlags & UNDERWATER_INDARKWATER)
-    {
-        // Fatigue timer not activated - activate it
-        if (m_MirrorTimer[FATIGUE_TIMER] == DISABLED_MIRROR_TIMER)
-        {
-            m_MirrorTimer[FATIGUE_TIMER] = GetMaxTimer(FATIGUE_TIMER);
-            SendMirrorTimer(FATIGUE_TIMER, m_MirrorTimer[FATIGUE_TIMER], m_MirrorTimer[FATIGUE_TIMER], -1);
-        }
-        else
-        {
-            m_MirrorTimer[FATIGUE_TIMER] -= time_diff;
-            // Timer limit - need deal damage or teleport ghost to graveyard
-            if (m_MirrorTimer[FATIGUE_TIMER] < 0)
-            {
-                m_MirrorTimer[FATIGUE_TIMER] += 1 * IN_MILLISECONDS;
-                if (IsAlive())                                            // Calculate and deal damage
-                {
-                    uint32 damage = GetMaxHealth() / 5 + urand(0, GetLevel() - 1);
-                    EnvironmentalDamage(DAMAGE_EXHAUSTED, damage);
-                }
-                else if (HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))       // Teleport ghost to graveyard
-                    RepopAtGraveyard();
-            }
-            else if (!(m_MirrorTimerFlagsLast & UNDERWATER_INDARKWATER))
-                SendMirrorTimer(FATIGUE_TIMER, GetMaxTimer(FATIGUE_TIMER), m_MirrorTimer[FATIGUE_TIMER], -1);
-        }
-
-    }
-
-    else if (m_MirrorTimer[FATIGUE_TIMER] != DISABLED_MIRROR_TIMER)       // Regen timer
-    {
-        int32 DarkWaterTime = GetMaxTimer(FATIGUE_TIMER);
-        m_MirrorTimer[FATIGUE_TIMER] += 10 * time_diff;
-        if (m_MirrorTimer[FATIGUE_TIMER] >= DarkWaterTime || !IsAlive())
-            StopMirrorTimer(FATIGUE_TIMER);
-        else if (m_MirrorTimerFlagsLast & UNDERWATER_INDARKWATER)
-            SendMirrorTimer(FATIGUE_TIMER, DarkWaterTime, m_MirrorTimer[FATIGUE_TIMER], 10);
-    }
-
-    if (m_MirrorTimerFlags & UNDERWATER_INLAVA)
-    {
-        // Breath timer not activated - activate it
-        if (m_MirrorTimer[FIRE_TIMER] == DISABLED_MIRROR_TIMER)
-            m_MirrorTimer[FIRE_TIMER] = GetMaxTimer(FIRE_TIMER);
-        else
-        {
-            m_MirrorTimer[FIRE_TIMER] -= time_diff;
-            if (m_MirrorTimer[FIRE_TIMER] < 0)
-            {
-                m_MirrorTimer[FIRE_TIMER] += 1 * IN_MILLISECONDS;
-                // Calculate and deal damage
-                // TODO: Check this formula
-                uint32 damage = urand(500, 600);
-                if (m_MirrorTimerFlags & UNDERWATER_INLAVA)
-                    EnvironmentalDamage(DAMAGE_LAVA, damage);
-                else
-                    EnvironmentalDamage(DAMAGE_SLIME, damage);
-            }
-        }
-    }
-    else
-        m_MirrorTimer[FIRE_TIMER] = DISABLED_MIRROR_TIMER;
-
-    // Recheck timers flag
-    m_MirrorTimerFlags &= ~UNDERWATER_EXIST_TIMERS;
-    for (int i : m_MirrorTimer)
-        if (i != DISABLED_MIRROR_TIMER)
-        {
-            m_MirrorTimerFlags |= UNDERWATER_EXIST_TIMERS;
-            break;
-        }
-    m_MirrorTimerFlagsLast = m_MirrorTimerFlags;
-}
-
-///The player sobers by 256 every 10 seconds
-void Player::HandleSobering()
-{
-    m_drunkTimer = 0;
-
-    uint32 drunk = (m_drunk <= 256) ? 0 : (m_drunk - 256);
-    SetDrunkValue(drunk);
-}
-
-DrunkenState Player::GetDrunkenstateByValue(uint16 value)
-{
-    if (value >= 23000)
-        return DRUNKEN_SMASHED;
-    if (value >= 12800)
-        return DRUNKEN_DRUNK;
-    if (value & 0xFFFE)
-        return DRUNKEN_TIPSY;
-    return DRUNKEN_SOBER;
-}
-
-void Player::SetDrunkValue(uint16 newDrunkenValue, uint32 itemId)
-{
-    m_drunk = newDrunkenValue;
-    SetUInt16Value(PLAYER_BYTES_3, 0, uint16(GetGender()) | (m_drunk & 0xFFFE));
-
-    uint32 newDrunkenState = Player::GetDrunkenstateByValue(m_drunk);
-
-    // special drunk invisibility detection
-    if (newDrunkenState >= DRUNKEN_DRUNK)
-        m_detectInvisibilityMask |= (1 << 6);
-    else
-        m_detectInvisibilityMask &= ~(1 << 6);
-}
-
 AutoAttackCheckResult Player::CanAutoAttackTarget(Unit const* pVictim) const
 {
     if (!IsValidAttackTarget(pVictim))
@@ -1231,87 +1004,6 @@ void Player::Update(uint32 update_diff, uint32 p_time)
     SetCanDelayTeleport(false);
 
     time_t now = time(nullptr);
-
-    UpdatePvPFlagTimer(update_diff);
-
-    UpdatePvPContestedFlagTimer(update_diff);
-
-    // Delay delete duel
-    if (duel && duel->finished)
-    {
-        delete duel;
-        duel = nullptr;
-    }
-    UpdateDuelFlag(now);
-
-    CheckDuelDistance(now);
-
-    // Handle detect stealth units
-    if (m_DetectInvTimer > 0)
-    {
-        if (update_diff >= m_DetectInvTimer)
-        {
-            HandleStealthedUnitsDetection();
-            m_DetectInvTimer = 2000;
-        }
-        else
-            m_DetectInvTimer -= update_diff;
-    }
-
-    // Update items that have just a limited lifetime
-    if (now > m_Last_tick)
-        UpdateItemDuration(uint32(now - m_Last_tick));
-
-    if (!m_timedquests.empty())
-    {
-        QuestSet::iterator iter = m_timedquests.begin();
-        while (iter != m_timedquests.end())
-        {
-            QuestStatusData& q_status = mQuestStatus[*iter];
-            if (q_status.m_timer <= update_diff)
-            {
-                uint32 quest_id  = *iter;
-                ++iter;                                     // current iter will be removed in FailQuest
-                FailQuest(quest_id);
-            }
-            else
-            {
-                q_status.m_timer -= update_diff;
-                if (q_status.uState != QUEST_NEW) q_status.uState = QUEST_CHANGED;
-                ++iter;
-            }
-        }
-    }
-
-    if (HasUnitState(UNIT_STAT_MELEE_ATTACKING))
-    {
-        UpdateMeleeAttackingState();
-
-        Unit const* pVictim = GetVictim();
-        if (pVictim && !IsNonMeleeSpellCasted(false) && CanReachWithMeleeAutoAttack(pVictim))
-            TogglePlayerPvPFlagOnAttackVictim(pVictim);
-    }
-
-    if (HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_RESTING))
-    {
-        if (GetTimeInnEnter() > 0)                          // Freeze update
-        {
-            time_t time_inn = now - GetTimeInnEnter();
-            if (time_inn >= 10)                             // Freeze update
-            {
-                SetRestBonus(GetRestBonus() + ComputeRest(time_inn));
-                UpdateInnerTime(now);
-            }
-        }
-    }
-
-    if (m_weaponChangeTimer > 0)
-    {
-        if (update_diff >= m_weaponChangeTimer)
-            m_weaponChangeTimer = 0;
-        else
-            m_weaponChangeTimer -= update_diff;
-    }
 
     if (m_zoneUpdateTimer > 0)
     {
@@ -1335,15 +1027,11 @@ void Player::Update(uint32 update_diff, uint32 p_time)
             m_zoneUpdateTimer -= update_diff;
     }
 
-    if (m_cannotBeDetectedTimer > 0)
-        m_cannotBeDetectedTimer -= update_diff;
-
     if (!GetSession()->GetBot())
     {
         if (IsAlive())
         {
             m_regenTimer -= update_diff;
-            HandleFoodEmotes(update_diff);
             RegenerateAll();
         }
         else
@@ -1367,10 +1055,6 @@ void Player::Update(uint32 update_diff, uint32 p_time)
             m_nextSave -= update_diff;
     }
 
-    //Handle Water/drowning
-    if (!GetSession()->GetBot())
-        HandleDrowning(update_diff);
-
     // Played time
     if (now > m_Last_tick)
     {
@@ -1378,14 +1062,6 @@ void Player::Update(uint32 update_diff, uint32 p_time)
         m_Played_time[PLAYED_TIME_TOTAL] += elapsed;        // Total played time
         m_Played_time[PLAYED_TIME_LEVEL] += elapsed;        // Level played time
         m_Last_tick = now;
-    }
-
-    if (m_drunk)
-    {
-        m_drunkTimer += update_diff;
-
-        if (m_drunkTimer > 10 * IN_MILLISECONDS)
-            HandleSobering();
     }
 
     // World of Warcraft Client Patch 1.11.0 (2006-06-20)
@@ -1444,38 +1120,6 @@ void Player::Update(uint32 update_diff, uint32 p_time)
             else
                 m_areaCheckTimer -= p_time;
         }
-
-        if (m_standStateTimer)
-        {
-            if (m_standStateTimer <= p_time)
-            {
-                if (m_newStandState < MAX_UNIT_STAND_STATE)
-                {
-                    if (IsAlive())
-                        SetStandState(m_newStandState);
-                    m_newStandState = MAX_UNIT_STAND_STATE;
-                }
-                m_standStateTimer = 0;
-            }
-            else
-                m_standStateTimer -= p_time;
-        }
-
-        float x, y, z, o;
-        if (IsInWorld() && sWorld.getConfig(CONFIG_BOOL_ENABLE_MOVEMENT_INTERP) && movespline->Finalized() && GetCheatData()->ExtrapolateMovement(m_movementInfo, WorldTimer::getMSTime() - m_movementInfo.time,  x, y, z, o))
-        {
-            GetMap()->DoPlayerGridRelocation(this, x, y, z, o);
-            m_position.x = x;
-            m_position.y = y;
-            m_position.z = z;
-            m_position.o = o;
-        }
-
-        // Anticheat sanction
-        std::stringstream reason;
-        uint32 cheatAction = GetCheatData()->Update(p_time, reason);
-        if (cheatAction)
-            GetSession()->ProcessAnticheatAction("MovementAnticheat", reason.str().c_str(), cheatAction, sWorld.getConfig(CONFIG_UINT32_AC_MOVEMENT_BAN_DURATION));
     }
 }
 
@@ -1608,8 +1252,6 @@ void Player::SetDeathState(DeathState s)
     {
         ResetExtraAttacks(); // Plus de charges de retribution par exemple
 
-        // drunken state is cleared on death
-        SetDrunkValue(0);
         // lost combo points at any target (targeted combo points clear in Unit::SetDeathState)
         ClearComboPoints();
 
@@ -2337,41 +1979,6 @@ void Player::RewardRage(uint32 damage, bool attacker)
     ModifyPower(POWER_RAGE, uint32(addRage * 10));
 }
 
-void Player::HandleFoodEmotes(uint32 diff)
-{
-    // Handles the emotes for drinking and eating.
-    // According to sniffs there is a background timer going on that repeats independed from the time window where the aura applies.
-    // That's why we dont need to reset the timer on apply. In sniffs I have seen that the first call for the spell visual is totally random, then after
-    // 5 seconds over and over again which confirms my theory that we have a independed timer.
-    if (m_foodEmoteTimer <= diff)
-    {
-        AuraList const& lModRegenAuras = GetAurasByType(SPELL_AURA_MOD_REGEN);
-        AuraList const& lModPowerRegenAuras = GetAurasByType(SPELL_AURA_MOD_POWER_REGEN);
-
-        for (const auto pAura : lModRegenAuras)
-        {
-            if (pAura->GetSpellProto()->HasAura(SPELL_AURA_MOD_REGEN) && pAura->GetSpellProto()->AuraInterruptFlags & AURA_INTERRUPT_FLAG_NOT_SEATED)
-            {
-                SendPlaySpellVisual(SPELL_VISUAL_KIT_FOOD);
-                break;
-            }
-        }
-
-        for (const auto pAura : lModPowerRegenAuras)
-        {
-            if (pAura->GetSpellProto()->HasAura(SPELL_AURA_MOD_POWER_REGEN) && pAura->GetSpellProto()->AuraInterruptFlags & AURA_INTERRUPT_FLAG_NOT_SEATED)
-            {
-                SendPlaySpellVisual(SPELL_VISUAL_KIT_DRINK);
-                break;
-            }
-        }
-
-        m_foodEmoteTimer = 5000;
-    }
-    else
-        m_foodEmoteTimer -= diff;
-}
-
 void Player::RegenerateAll()
 {
     if (m_regenTimer > 0)
@@ -2403,15 +2010,9 @@ void Player::Regenerate(Powers power)
     {
         case POWER_MANA:
         {
-            bool recentCast = IsUnderLastManaUseEffect();
             float ManaIncreaseRate = sWorld.getConfig(CONFIG_FLOAT_RATE_POWER_MANA);
-            if (recentCast)
-            {
-                // Mangos Updates Mana in intervals of 2s, which is correct
-                addvalue = m_modManaRegenInterrupt * ManaIncreaseRate * 2.00f;
-            }
-            else
-                addvalue = m_modManaRegen * ManaIncreaseRate * 2.00f;
+            addvalue = m_modManaRegen * ManaIncreaseRate * 2.00f;
+                
         }
         break;
         case POWER_RAGE:                                    // Regenerate rage
@@ -3420,7 +3021,7 @@ void Player::SendInitialSpells() const
 
     uint16 spellCount = 0;
 
-    WorldPacket data(SMSG_INITIAL_SPELLS, (1 + 2 + 4 * m_spells.size() + 2 + m_spellCooldowns.size() * (2 + 2 + 2 + 4 + 4)));
+    WorldPacket data(SMSG_INITIAL_SPELLS, (1 + 2 + 4 * m_spells.size() + 2 + 0 * (2 + 2 + 2 + 4 + 4)));
     data << uint8(0);
 
     size_t countPos = data.wpos();
@@ -3442,49 +3043,8 @@ void Player::SendInitialSpells() const
 
     data.put<uint16>(countPos, spellCount);                 // write real count value
 
-    uint16 spellCooldowns = m_spellCooldowns.size();
+    uint16 spellCooldowns = 0;
     data << uint16(spellCooldowns);
-    for (const auto& spellCooldown : m_spellCooldowns)
-    {
-        SpellEntry const* sEntry = sSpellMgr.GetSpellEntry(spellCooldown.first);
-        if (!sEntry)
-            continue;
-
-        data << uint16(spellCooldown.first);
-
-        data << uint16(spellCooldown.second.itemid);        // cast item id
-
-        uint32 category = sEntry->Category;
-        if (spellCooldown.second.itemid && !category)
-        {
-            if (ItemPrototype const* proto = ObjectMgr::GetItemPrototype(spellCooldown.second.itemid))
-            {
-                for (const auto& itr : proto->Spells)
-                {
-                    if (itr.SpellId == spellCooldown.first)
-                    {
-                        category = itr.SpellCategory;
-                        break;
-                    }
-                }
-            }
-        }
-
-        data << uint16(category);                           // spell category
-
-        // send infinity cooldown in special format
-        if (spellCooldown.second.end >= infTime)
-        {
-            data << uint32(1);                              // cooldown
-            data << uint32(0x80000000);                     // category cooldown
-            continue;
-        }
-
-        time_t cooldown = spellCooldown.second.end > curTime ? (spellCooldown.second.end - curTime) * IN_MILLISECONDS : 0;
-        time_t categoryCD = spellCooldown.second.categoryEnd > curTime ? (spellCooldown.second.categoryEnd - curTime) * IN_MILLISECONDS : 0;
-        data << uint32(cooldown);
-        data << uint32(categoryCD);
-    }
 
     GetSession()->SendPacket(&data);
 
@@ -3953,113 +3513,7 @@ void Player::RemoveSpell(uint32 spell_id, bool disabled, bool learn_low_rank)
 
 void Player::ProhibitSpellSchool(SpellSchoolMask idSchoolMask, uint32 unTimeMs)
 {
-    // last check 1.12
-    WorldPacket data(SMSG_SPELL_COOLDOWN, 8 + m_spells.size() * 8);
-    data << GetObjectGuid();
-    time_t curTime = time(nullptr);
-    for (const auto& itr : m_spells)
-    {
-        if (itr.second.state == PLAYERSPELL_REMOVED)
-            continue;
-        uint32 unSpellId = itr.first;
-        SpellEntry const* spellInfo = sSpellMgr.GetSpellEntry(unSpellId);
-        MANGOS_ASSERT(spellInfo);
 
-        // Not send cooldown for this spells
-        if (spellInfo->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE)
-            continue;
-
-        if ((idSchoolMask & spellInfo->GetSpellSchoolMask()) && GetSpellCooldownDelay(unSpellId) < unTimeMs)
-        {
-            data << uint32(unSpellId);
-            data << uint32(unTimeMs);                       // in m.secs
-            AddSpellCooldown(unSpellId, 0, curTime + unTimeMs / IN_MILLISECONDS);
-        }
-    }
-    GetSession()->SendPacket(&data);
-    Unit::ProhibitSpellSchool(idSchoolMask, unTimeMs);
-}
-
-void Player::_LoadSpellCooldowns(QueryResult* result)
-{
-    // some cooldowns can be already set at aura loading...
-
-    //QueryResult* result = CharacterDatabase.PQuery("SELECT spell,item,time,cattime FROM character_spell_cooldown WHERE guid = '%u'",GetGUIDLow());
-
-    if (result)
-    {
-        time_t curTime = time(nullptr);
-
-        do
-        {
-            Field* fields = result->Fetch();
-
-            uint32 spell_id = fields[0].GetUInt32();
-            uint32 item_id  = fields[1].GetUInt32();
-            time_t db_time  = (time_t)fields[2].GetUInt64();
-            time_t db_cat_time = (time_t)fields[3].GetUInt64();
-
-            SpellEntry const* spell = sSpellMgr.GetSpellEntry(spell_id);
-
-            if (!spell)
-            {
-                sLog.outError("Player %u has unknown spell %u in `character_spell_cooldown`, skipping.", GetGUIDLow(), spell_id);
-                continue;
-            }
-
-            // skip outdated cooldown
-            if (db_time <= curTime)
-                continue;
-
-            uint32 category = spell->Category;
-            if (item_id && !category)
-            {
-                if (ItemPrototype const* proto = ObjectMgr::GetItemPrototype(item_id))
-                {
-                    for (const auto& itr : proto->Spells)
-                    {
-                        if (itr.SpellId == spell->Id)
-                        {
-                            category = itr.SpellCategory;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            AddSpellCooldown(spell_id, item_id, db_time, db_cat_time, category);
-
-            DEBUG_LOG("Player (GUID: %u) spell %u, item %u cooldown loaded (%u secs).", GetGUIDLow(), spell_id, item_id, uint32(db_time - curTime));
-        }
-        while (result->NextRow());
-    }
-}
-
-void Player::_SaveSpellCooldowns()
-{
-    static SqlStatementID deleteSpellCooldown ;
-    static SqlStatementID insertSpellCooldown ;
-
-    SqlStatement stmt = CharacterDatabase.CreateStatement(deleteSpellCooldown, "DELETE FROM character_spell_cooldown WHERE guid = ?");
-    stmt.PExecute(GetGUIDLow());
-
-    time_t curTime = time(nullptr);
-    time_t infTime = curTime + infinityCooldownDelayCheck;
-
-    // remove outdated and save active
-    for (SpellCooldowns::iterator itr = m_spellCooldowns.begin(); itr != m_spellCooldowns.end();)
-    {
-        if (itr->second.end <= curTime)
-            m_spellCooldowns.erase(itr++);
-        else if (itr->second.end <= infTime)                // not save locked cooldowns, it will be reset or set at reload
-        {
-            stmt = CharacterDatabase.CreateStatement(insertSpellCooldown, "INSERT INTO character_spell_cooldown (guid, spell, item, time, cattime) VALUES( ?, ?, ?, ?, ?)");
-            stmt.PExecute(GetGUIDLow(), itr->first, itr->second.itemid, uint64(itr->second.end), uint64(itr->second.categoryEnd));
-            ++itr;
-        }
-        else
-            ++itr;
-    }
 }
 
 void Player::UpdateResetTalentsMultiplier() const
@@ -4760,8 +4214,6 @@ void Player::BuildPlayerRepop()
     // to prevent cheating
     corpse->ResetGhostTime();
 
-    StopMirrorTimers();                                     //disable timers(bars)
-
     // set and clear other
     SetByteValue(UNIT_FIELD_BYTES_1, 3, UNIT_BYTE1_FLAG_ALWAYS_STAND);
 }
@@ -4836,8 +4288,6 @@ void Player::ResurrectPlayer(float restore_percent, bool applySickness)
 
 void Player::KillPlayer()
 {
-    StopMirrorTimers();                                     //disable timers(bars)
-
     SetDeathState(CORPSE);
     //SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_IN_PVP);
 
@@ -9881,9 +9331,6 @@ InventoryResult Player::CanEquipItem(uint8 slot, uint16& dest, Item* pItem, bool
                 if (GetSession()->isLogingOut())
                     return EQUIP_ERR_YOU_ARE_STUNNED;
 
-                if (IsInCombat() && pProto->Class == ITEM_CLASS_WEAPON && m_weaponChangeTimer != 0)
-                    return EQUIP_ERR_CANT_DO_RIGHT_NOW;         // maybe exist better err
-
                 // Check is possibly not in vanilla.
                 //if (IsNonMeleeSpellCasted(false, true, true))
                 //    return EQUIP_ERR_CANT_DO_RIGHT_NOW;
@@ -10506,38 +9953,6 @@ Item* Player::EquipItem(uint16 pos, Item* pItem, bool update)
                 AddItemsSetItem(this, pItem);
 
             _ApplyItemMods(pItem, slot, true);
-
-            // World of Warcraft Client Patch 1.7.0 (2005-09-13)
-            // - Switching weapons in combat triggers a 1 second global cooldown for
-            //   all abilities for rogues and a 1.5 second global cooldown for
-            //   everyone else.
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_6_1
-            // Weapons and also Totem/Relic/Sigil/etc
-            if (pProto && IsInCombat() && (pProto->Class == ITEM_CLASS_WEAPON || pProto->InventoryType == INVTYPE_RELIC) && m_weaponChangeTimer == 0)
-            {
-                uint32 cooldownSpell = SPELL_ID_WEAPON_SWITCH_COOLDOWN_1_5s;
-
-                // There doesn't appear to be a 1 sec combat swap cd spell before 1.9.
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
-                if (GetClass() == CLASS_ROGUE)
-                    cooldownSpell = SPELL_ID_WEAPON_SWITCH_COOLDOWN_1_0s;
-#endif
-
-                SpellEntry const* spellProto = sSpellMgr.GetSpellEntry(cooldownSpell);
-
-                if (!spellProto)
-                    sLog.outError("Weapon switch cooldown spell %u couldn't be found in Spell.dbc", cooldownSpell);
-                else
-                {
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
-                    m_weaponChangeTimer = spellProto->StartRecoveryTime;
-#else
-                    m_weaponChangeTimer = (GetClass() == CLASS_ROGUE) ? 1000 : spellProto->StartRecoveryTime;
-#endif
-                    SendSpellCooldown(cooldownSpell, 0, GetObjectGuid());
-                }
-            }
-#endif
         }
 
         if (IsInWorld() && update)
@@ -14716,9 +14131,7 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
     SetUInt32Value(PLAYER_BYTES, fields[9].GetUInt32());
     SetUInt32Value(PLAYER_BYTES_2, fields[10].GetUInt32());
 
-    m_drunk = fields[46].GetUInt16();
-
-    SetUInt16Value(PLAYER_BYTES_3, 0, (m_drunk & 0xFFFE) | gender);
+    SetUInt16Value(PLAYER_BYTES_3, 0, gender);
 
     SetUInt32Value(PLAYER_FLAGS, fields[11].GetUInt32());
 
@@ -14900,16 +14313,6 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
     // since last logout (in seconds)
     uint32 time_diff = uint32(now - logoutTime);
 
-    // set value, including drunk invisibility detection
-    // calculate sobering. after 15 minutes logged out, the player will be sober again
-    float soberFactor;
-    if (time_diff > 15 * MINUTE)
-        soberFactor = 0;
-    else
-        soberFactor = 1 - time_diff / (15.0f * MINUTE);
-    uint16 newDrunkenValue = uint16(soberFactor * m_drunk);
-    SetDrunkValue(newDrunkenValue);
-
     m_cinematic = fields[18].GetUInt32();
     m_Played_time[PLAYED_TIME_TOTAL] = fields[19].GetUInt32();
     m_Played_time[PLAYED_TIME_LEVEL] = fields[20].GetUInt32();
@@ -15061,8 +14464,6 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
 
     // has to be called after last Relocate() in Player::LoadFromDB
     SetFallInformation(0, GetPositionZ());
-
-    _LoadSpellCooldowns(holder->GetResult(PLAYER_LOGIN_QUERY_LOADSPELLCOOLDOWNS));
 
     // Spell code allow apply any auras to dead character in load time in aura/spell/item loading
     // Do now before stats re-calculation cleanup for ghost state unexpected auras
@@ -16348,7 +15749,6 @@ void Player::SaveToDB(bool online, bool force)
     _SaveInventory();
     _SaveQuestStatus();
     _SaveSpells();
-    _SaveSpellCooldowns();
     _SaveAuras();
     _SaveSkills();
     m_reputationMgr.SaveToDB();
@@ -17981,22 +17381,6 @@ void Player::SendDismountResult(UnitDismountResult result) const
     GetSession()->SendPacket(&data);
 }
 
-bool Player::IsStandingUpForProc() const
-{
-    if (m_newStandState < MAX_UNIT_STAND_STATE)
-        return m_newStandState == UNIT_STAND_STATE_STAND;
-
-    return Unit::IsStandingUpForProc();
-}
-
-void Player::ScheduleStandStateChange(uint8 state)
-{
-    if (!m_standStateTimer)
-       m_standStateTimer = 200;
-
-    m_newStandState = state;
-}
-
 void Player::InitDataForForm(bool reapplyMods)
 {
     ShapeshiftForm form = GetShapeshiftForm();
@@ -19192,7 +18576,7 @@ bool Player::HasQuestForGO(int32 GOId) const
 void Player::UpdateForQuestWorldObjects()
 {
     // Don't process updates if we're not in the world (map is nullptr)
-    if (!IsInWorld() || !FindMap())
+    if (!IsInWorld() || !FindMap() || GetSession()->GetBot())
         return;
 
     uint32 count = 0;
@@ -19890,8 +19274,6 @@ void Player::UpdateUnderwaterState()
 
     if (!res)
     {
-        m_MirrorTimerFlags &= ~(UNDERWATER_INWATER | UNDERWATER_INLAVA | UNDERWATER_INSLIME | UNDERWATER_INDARKWATER);
-
         if (m_lastLiquid && m_lastLiquid->SpellId)
             RemoveAurasDueToSpell(m_lastLiquid->SpellId);
         m_lastLiquid = nullptr;
@@ -19925,39 +19307,6 @@ void Player::UpdateUnderwaterState()
     {
         RemoveAurasDueToSpell(m_lastLiquid->SpellId);
         m_lastLiquid = nullptr;
-    }
-
-    // All liquids type - check under water position
-    if (liquid_status.type_flags & (MAP_LIQUID_TYPE_WATER | MAP_LIQUID_TYPE_OCEAN | MAP_LIQUID_TYPE_MAGMA | MAP_LIQUID_TYPE_SLIME))
-    {
-        if (res & LIQUID_MAP_UNDER_WATER)
-            m_MirrorTimerFlags |= UNDERWATER_INWATER;
-        else
-            m_MirrorTimerFlags &= ~UNDERWATER_INWATER;
-    }
-
-    // Allow travel in dark water on taxi or transport
-    if ((liquid_status.type_flags & MAP_LIQUID_TYPE_DARK_WATER) && !IsTaxiFlying() && !GetTransport())
-        m_MirrorTimerFlags |= UNDERWATER_INDARKWATER;
-    else
-        m_MirrorTimerFlags &= ~UNDERWATER_INDARKWATER;
-
-    // in lava check, anywhere in lava level
-    if (liquid_status.type_flags & MAP_LIQUID_TYPE_MAGMA)
-    {
-        if (res & (LIQUID_MAP_UNDER_WATER | LIQUID_MAP_IN_WATER | LIQUID_MAP_WATER_WALK))
-            m_MirrorTimerFlags |= UNDERWATER_INLAVA;
-        else
-            m_MirrorTimerFlags &= ~UNDERWATER_INLAVA;
-    }
-
-    // in slime check, anywhere in slime level
-    if (liquid_status.type_flags & MAP_LIQUID_TYPE_SLIME)
-    {
-        if (res & (LIQUID_MAP_UNDER_WATER | LIQUID_MAP_IN_WATER | LIQUID_MAP_WATER_WALK))
-            m_MirrorTimerFlags |= UNDERWATER_INSLIME;
-        else
-            m_MirrorTimerFlags &= ~UNDERWATER_INSLIME;
     }
 }
 
@@ -21288,75 +20637,7 @@ void Player::RewardHonor(Unit* uVictim, uint32 groupSize)
 
 void Player::RewardHonorOnDeath()
 {
-    // Honor System was added in 1.4.
-    if (sWorld.GetWowPatch() < WOW_PATCH_104 && sWorld.getConfig(CONFIG_BOOL_ACCURATE_PVP_TIMELINE))
-        return;
-
-    if (GetAura(2479, EFFECT_INDEX_0))             // Honorless Target
-        return;
-
-    // " you need to be alive and close by at the time of the kill to get your share of the Honor"
-    // First, get damage done per group, less than 1 minute before now
-    uint32 totalDamage = 0;
-    std::map<Group*, uint32> damagePerGroup;
-    std::map<Player*, uint32> damagePerAlonePlayer;
-    for (const auto& itr : m_damageTakenHistory)
-    {
-        totalDamage += itr.second;
-        if (Player* attacker = GetMap()->GetPlayer(itr.first))
-        {
-            if (Group* g = attacker->GetGroup())
-                damagePerGroup[g] += itr.second;
-            else if (attacker->IsAtGroupRewardDistance(this) && attacker->IsAlive() && attacker->GetTeam() != GetTeam())
-                damagePerAlonePlayer[attacker] += itr.second;
-        }
-    }
-
-    if (!totalDamage)
-    {
-        m_damageTakenHistory.clear();
-        return;
-    }
-
-    // Distribute honor ratio per group
-    for (const auto& itr : damagePerGroup)
-    {
-        Group* g = itr.first;
-        std::list<Player*> rewarded;
-        for (const auto& grItr : g->GetMemberSlots())
-            if (Player* pl = GetMap()->GetPlayer(grItr.guid))
-                if (pl->IsAtGroupRewardDistance(this) && pl->IsAlive() && pl->GetTeam() != GetTeam())
-                    rewarded.push_back(pl);
-
-        uint32 totalRewarded = rewarded.size();
-        float honorRate = itr.second;
-        honorRate *= MaNGOS::XP::xp_in_group_rate(totalRewarded, false);
-        honorRate /= totalDamage;
-        honorRate /= totalRewarded;
-
-        for (const auto& rewItr : rewarded)
-        {
-            if (!rewItr->IsHonorOrXPTarget(this))
-                continue;
-
-            uint32 rewPoints = uint32(HonorMgr::HonorableKillPoints(rewItr, this, 1) * honorRate);
-            if (rewPoints)
-                rewItr->GetHonorMgr().Add(rewPoints, HONORABLE, this);
-        }
-    }
-
-    // Distribute honor to single players
-    for (const auto& rewItr : damagePerAlonePlayer)
-    {
-        if (!rewItr.first->IsHonorOrXPTarget(this))
-            continue;
-
-        uint32 rewPoints = uint32(HonorMgr::HonorableKillPoints(rewItr.first, this, 1) * rewItr.second / float(totalDamage));
-        if (rewPoints)
-            rewItr.first->GetHonorMgr().Add(rewPoints, HONORABLE, this);
-    }
-
-    m_damageTakenHistory.clear();
+    
 }
 
 void Player::OnReceivedItem(Item* item)
@@ -21443,56 +20724,6 @@ void Player::TaxiStepFinished()
         m_taxi.ClearTaxiDestinations();        // not destinations, clear source node
     } 
 }
-
-
-// Do not need to lock m_visibleGUIDs because this function is single-threaded
-void Player::HandleStealthedUnitsDetection()
-{
-    if (!FindMap())
-        return;
-
-    std::list<Unit*> stealthedUnits;
-
-    MaNGOS::AnyStealthedCheck u_check(this);
-    MaNGOS::UnitListSearcher<MaNGOS::AnyStealthedCheck > searcher(stealthedUnits, u_check);
-    Cell::VisitAllObjects(this, searcher, sWorld.getConfig(CONFIG_FLOAT_MAX_PLAYERS_STEALTH_DETECT_RANGE));
-
-    WorldObject const* viewPoint = GetCamera().GetBody();
-    for (const auto stealthedUnit : stealthedUnits)
-    {
-        if (stealthedUnit == this)
-            continue;
-
-        bool hasDetected = stealthedUnit->IsVisibleForOrDetect(this, viewPoint, true);
-
-        if (hasDetected)
-        {
-            if (!IsInVisibleList_Unsafe(stealthedUnit))
-            {
-                if (Player* i_player = stealthedUnit->ToPlayer())
-                    if (i_player->m_broadcaster)
-                        i_player->m_broadcaster->AddListener(this);
-
-                m_visibleGUIDs.insert(stealthedUnit->GetObjectGuid());
-                stealthedUnit->SendCreateUpdateToPlayer(this);
-            }
-        }
-        else
-        {
-            if (IsInVisibleList_Unsafe(stealthedUnit))
-            {
-                stealthedUnit->DestroyForPlayer(this);
-
-                if (Player* i_player = stealthedUnit->ToPlayer())
-                    if (i_player->m_broadcaster)
-                        i_player->m_broadcaster->RemoveListener(this);
-
-                m_visibleGUIDs.erase(stealthedUnit->GetObjectGuid());
-            }
-        }
-    }
-}
-
 
 bool Player::IsInVisibleList(WorldObject const* u) const
 {

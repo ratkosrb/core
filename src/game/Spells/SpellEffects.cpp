@@ -658,23 +658,6 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                     }
                     return;
                 }
-                case 24531: // Refocus : "Instantly clears the cooldowns of Aimed Shot, Multishot, Volley, and Arcane Shot."
-                {
-                    if (!m_caster->IsPlayer())
-                        return;
-                    SpellCooldowns cm = ((Player*)m_caster)->GetSpellCooldownMap();
-                    for (SpellCooldowns::const_iterator itr = cm.begin(); itr != cm.end();)
-                    {
-                        SpellEntry const* spellInfo = sSpellMgr.GetSpellEntry(itr->first);
-
-                        if (spellInfo->IsFitToFamily<SPELLFAMILY_HUNTER, CF_HUNTER_ARCANE_SHOT, CF_HUNTER_MULTI_SHOT, CF_HUNTER_VOLLEY, CF_HUNTER_AIMED_SHOT>() &&
-                            spellInfo->Id != m_spellInfo->Id && spellInfo->GetRecoveryTime() > 0)
-                            ((Player*)m_caster)->RemoveSpellCooldown((itr++)->first, true);
-                        else
-                            ++itr;
-                    }
-                    return;
-                }
                 case 8344: // Universal Remote
                 {
                     if (!m_originalCaster)
@@ -983,23 +966,6 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                         default:
                             sLog.outError("EffectDummy: Non-handled case for spell 13567 for triggered aura %u", m_triggeredByAuraSpell->Id);
                             break;
-                    }
-                    return;
-                }
-                case 14185:                                 // Preparation Rogue
-                {
-                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
-                        return;
-
-                    //immediately finishes the cooldown on certain Rogue abilities
-                    SpellCooldowns cm = ((Player*)m_caster)->GetSpellCooldownMap();
-                    for (const auto& itr : cm)
-                    {
-                        SpellEntry const* spellInfo = sSpellMgr.GetSpellEntry(itr.first);
-
-                        if (spellInfo->SpellFamilyName == SPELLFAMILY_ROGUE &&
-                                spellInfo->Id != m_spellInfo->Id && spellInfo->GetRecoveryTime() > 0)
-                            ((Player*)m_caster)->RemoveSpellCooldown(itr.first, true);
                     }
                     return;
                 }
@@ -1612,33 +1578,6 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
             }
             break;
         }
-        case SPELLFAMILY_MAGE:
-        {
-            switch (m_spellInfo->Id)
-            {
-                case 12472:                                 // Cold Snap
-                {
-                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
-                        return;
-
-                    // immediately finishes the cooldown on Frost spells
-                    SpellCooldowns cm = ((Player*)m_caster)->GetSpellCooldownMap();
-                    for (SpellCooldowns::const_iterator itr = cm.begin(); itr != cm.end();)
-                    {
-                        SpellEntry const* spellInfo = sSpellMgr.GetSpellEntry(itr->first);
-
-                        if (spellInfo->SpellFamilyName == SPELLFAMILY_MAGE &&
-                                (spellInfo->GetSpellSchoolMask() & SPELL_SCHOOL_MASK_FROST) &&
-                                spellInfo->Id != m_spellInfo->Id && spellInfo->GetRecoveryTime() > 0)
-                            ((Player*)m_caster)->RemoveSpellCooldown((itr++)->first, true);
-                        else
-                            ++itr;
-                    }
-                    return;
-                }
-            }
-            break;
-        }
         case SPELLFAMILY_WARRIOR:
         {
             // Execute
@@ -1798,31 +1737,6 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                 }
             }
             break;
-        case SPELLFAMILY_HUNTER:
-        {
-            switch (m_spellInfo->Id)
-            {
-                case 23989:                                 // Readiness talent
-                {
-                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
-                        return;
-
-                    //immediately finishes the cooldown for hunter abilities
-                    SpellCooldowns cm = ((Player*)m_caster)->GetSpellCooldownMap();
-                    for (SpellCooldowns::const_iterator itr = cm.begin(); itr != cm.end();)
-                    {
-                        SpellEntry const* spellInfo = sSpellMgr.GetSpellEntry(itr->first);
-
-                        if (spellInfo->SpellFamilyName == SPELLFAMILY_HUNTER && spellInfo->Id != 23989 && spellInfo->GetRecoveryTime() > 0)
-                            ((Player*)m_caster)->RemoveSpellCooldown((itr++)->first, true);
-                        else
-                            ++itr;
-                    }
-                    return;
-                }
-            }
-            break;
-        }
         case SPELLFAMILY_PALADIN:
         {
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
@@ -5224,12 +5138,6 @@ void Spell::EffectSanctuary(SpellEffectIndex eff_idx)
     {
         unitTarget->RemoveSpellsCausingAura(SPELL_AURA_MOD_ROOT);
         unitTarget->InterruptAttacksOnMe(0.0f, guard_check);
-
-        if (Player* pPlayer = m_caster->ToPlayer())
-        {
-            if (no_guards)
-                pPlayer->SetCannotBeDetectedTimer(1000);
-        }
     }
 
     AddExecuteLogInfo(eff_idx, ExecuteLogInfo(unitTarget->GetObjectGuid()));
@@ -5726,17 +5634,7 @@ void Spell::EffectDisEnchant(SpellEffectIndex /*eff_idx*/)
 
 void Spell::EffectInebriate(SpellEffectIndex /*eff_idx*/)
 {
-    if (!unitTarget || unitTarget->GetTypeId() != TYPEID_PLAYER)
-        return;
 
-    Player* player = (Player*)unitTarget;
-    uint16 currentDrunk = player->GetDrunkValue();
-    uint16 drunkMod = damage * 256;
-    if (currentDrunk + drunkMod > 0xFFFF)
-        currentDrunk = 0xFFFF;
-    else
-        currentDrunk += drunkMod;
-    player->SetDrunkValue(currentDrunk, m_CastItem ? m_CastItem->GetEntry() : 0);
 }
 
 void Spell::EffectFeedPet(SpellEffectIndex eff_idx)

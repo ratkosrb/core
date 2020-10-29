@@ -87,35 +87,6 @@ ChatCommand * ChatHandler::getCommandTable()
         { "ranadd",     SEC_ADMINISTRATOR,      true,  &ChatHandler::HandleBotAddRandomCommand,        "", nullptr },
         { nullptr,      0,                      false, nullptr,                                        "", nullptr },
     };
-    static ChatCommand partyBotCommandTable[] =
-    {
-        { "add",        SEC_ADMINISTRATOR,      false, &ChatHandler::HandlePartyBotAddCommand,         "", nullptr },
-        { "clone",      SEC_ADMINISTRATOR,      false, &ChatHandler::HandlePartyBotCloneCommand,       "", nullptr },
-        { "setrole",    SEC_ADMINISTRATOR,      false, &ChatHandler::HandlePartyBotSetRoleCommand,     "", nullptr },
-        { "attackstart",SEC_ADMINISTRATOR,      false, &ChatHandler::HandlePartyBotAttackStartCommand, "", nullptr },
-        { "attackstop", SEC_ADMINISTRATOR,      false, &ChatHandler::HandlePartyBotAttackStopCommand,  "", nullptr },
-        { "cometome",   SEC_ADMINISTRATOR,      false, &ChatHandler::HandlePartyBotComeToMeCommand,    "", nullptr },
-        { "usegobject", SEC_ADMINISTRATOR,      false, &ChatHandler::HandlePartyBotUseGObjectCommand,  "", nullptr },
-        { "pause",      SEC_ADMINISTRATOR,      false, &ChatHandler::HandlePartyBotPauseCommand,       "", nullptr },
-        { "unpause",    SEC_ADMINISTRATOR,      false, &ChatHandler::HandlePartyBotUnpauseCommand,     "", nullptr },
-        { "remove",     SEC_ADMINISTRATOR,      false, &ChatHandler::HandlePartyBotRemoveCommand,      "", nullptr },
-        { nullptr,      0,                      false, nullptr,                                        "", nullptr },
-    };
-    static ChatCommand battleBotAddCommandTable[] =
-    {
-        { "alterac",    SEC_ADMINISTRATOR,      false, &ChatHandler::HandleBattleBotAddAlteracCommand, "", nullptr },
-        { "arathi",     SEC_ADMINISTRATOR,      false, &ChatHandler::HandleBattleBotAddArathiCommand,  "", nullptr },
-        { "warsong",    SEC_ADMINISTRATOR,      false, &ChatHandler::HandleBattleBotAddWarsongCommand, "", nullptr },
-        { nullptr,      0,                      false, nullptr,                                        "", nullptr },
-    };
-    static ChatCommand battleBotCommandTable[] =
-    {
-        { "add",          SEC_ADMINISTRATOR,    false, nullptr,            "Add a new bot", battleBotAddCommandTable },
-        { "remove",       SEC_ADMINISTRATOR,    false, &ChatHandler::HandleBattleBotRemoveCommand,       "", nullptr },
-        { "showpath",     SEC_ADMINISTRATOR,    false, &ChatHandler::HandleBattleBotShowPathCommand,     "", nullptr },
-        { "showallpaths", SEC_ADMINISTRATOR,    false, &ChatHandler::HandleBattleBotShowAllPathsCommand, "", nullptr },
-        { nullptr,        0,                    false, nullptr,                                          "", nullptr },
-    };
     static ChatCommand accountSetCommandTable[] =
     {
         { "addon",          SEC_CONSOLE,        true,  &ChatHandler::HandleAccountSetAddonCommand,     "", nullptr },
@@ -1140,8 +1111,6 @@ ChatCommand * ChatHandler::getCommandTable()
         { "service",        SEC_ADMINISTRATOR,  true, nullptr,                                         "", serviceCommandTable  },
         { "bot",            SEC_ADMINISTRATOR,  true, nullptr,                              "Manage bots", botCommandTable      },
         { "ahbot",          SEC_ADMINISTRATOR,  true, nullptr,                            "Manage AH bot", ahbotCommandTable    },
-        { "partybot",       SEC_ADMINISTRATOR,  false, nullptr,                       "Manage party bots", partyBotCommandTable },
-        { "battlebot",      SEC_ADMINISTRATOR,  false, nullptr,                      "Manage battle bots", battleBotCommandTable},
         { "world",          SEC_ADMINISTRATOR,  false, nullptr,                                        "", worldCommandTable    },
         { "possess",        SEC_GAMEMASTER,     false, &ChatHandler::HandlePossessCommand,             "", nullptr              },
         { "cinematic",      SEC_DEVELOPPER,     false, nullptr,                                        "", cinematicCommandTable},

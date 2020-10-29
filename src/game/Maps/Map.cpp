@@ -1584,6 +1584,9 @@ void Map::SendInitSelf(Player* player)
 {
     DETAIL_LOG("Creating player data for himself %u", player->GetGUIDLow());
 
+    if (player->GetSession()->GetBot())
+        return;
+
     UpdateData data;
 
     bool hasTransport = false;
@@ -1612,6 +1615,9 @@ void Map::SendInitSelf(Player* player)
 
 void Map::SendInitTransports(Player* player)
 {
+    if (player->GetSession()->GetBot())
+        return;
+
     // Hack to send out transports
     UpdateData transData;
     bool hasTransport = false;

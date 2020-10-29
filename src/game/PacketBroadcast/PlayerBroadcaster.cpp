@@ -30,6 +30,8 @@ void PlayerBroadcaster::AddListener(Player const* player)
     ASSERT(player);
     if (player->GetObjectGuid() == m_self)
         return;
+    if (player->GetSession()->GetBot())
+        return;
 
     ACE_Guard<ACE_Thread_Mutex> guard(m_listeners_lock);
     m_listeners[player->GetObjectGuid()] = player->m_broadcaster;

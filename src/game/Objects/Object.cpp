@@ -332,6 +332,9 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
 
 void Object::SendCreateUpdateToPlayer(Player* player)
 {
+    if (player->GetSession()->GetBot())
+        return;
+
     // send create update to player
     UpdateData upd;
 
@@ -2519,7 +2522,7 @@ struct WorldObjectChangeAccumulator
         for (const auto& iter : m)
         {
             Player* owner = iter.getSource()->GetOwner();
-            if (owner != &i_object && owner->IsInVisibleList_Unsafe(&i_object))
+            if (owner != &i_object && !owner->GetSession()->GetBot() && owner->IsInVisibleList_Unsafe(&i_object))
                 i_object.BuildUpdateDataForPlayer(owner, i_updateDatas);
         }
     }

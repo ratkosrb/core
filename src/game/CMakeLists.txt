@@ -187,10 +187,6 @@ set (game_SRCS
     PacketBroadcast/ChatCommands.cpp
     PacketBroadcast/MovementBroadcaster.cpp
     PacketBroadcast/PlayerBroadcaster.cpp
-    PlayerBots/PartyBotAI.cpp
-    PlayerBots/CombatBotBaseAI.cpp
-    PlayerBots/BattleBotAI.cpp
-    PlayerBots/BattleBotWaypoints.cpp
     PlayerBots/PlayerBotAI.cpp
     PlayerBots/PlayerBotMgr.cpp
     PlayerBots/ReplayBotAI.cpp
@@ -376,10 +372,6 @@ set (game_SRCS
     OutdoorPvP/OutdoorPvPSI.h
     PacketBroadcast/MovementBroadcaster.h
     PacketBroadcast/PlayerBroadcaster.h
-    PlayerBots/CombatBotBaseAI.h
-    PlayerBots/PartyBotAI.h
-    PlayerBots/BattleBotAI.h
-    PlayerBots/BattleBotWaypoints.h
     PlayerBots/PlayerBotAI.h
     PlayerBots/PlayerBotMgr.h
     PlayerBots/ReplayBotAI.h

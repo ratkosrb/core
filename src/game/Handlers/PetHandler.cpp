@@ -228,9 +228,6 @@ void WorldSession::HandlePetAction(WorldPacket& recv_data)
                 return;
             }
 
-            if (pCharmedUnit->GetGlobalCooldownMgr().HasGlobalCooldown(spellInfo))
-                return;
-
             for (uint32 i : spellInfo->EffectImplicitTargetA)
             {
                 if (i == TARGET_ENUM_UNITS_ENEMY_AOE_AT_SRC_LOC || i == TARGET_ENUM_UNITS_ENEMY_AOE_AT_DEST_LOC || i == TARGET_ENUM_UNITS_ENEMY_AOE_AT_DYNOBJ_LOC)
@@ -683,9 +680,6 @@ void WorldSession::HandlePetCastSpellOpcode(WorldPacket& recvPacket)
         sLog.outError("WORLD: unknown PET spell id %i", spellid);
         return;
     }
-
-    if (pet->GetGlobalCooldownMgr().HasGlobalCooldown(spellInfo))
-        return;
 
     // do not cast not learned spells
     if (!pet->HasSpell(spellid) || spellInfo->IsPassiveSpell())

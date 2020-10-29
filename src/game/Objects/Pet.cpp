@@ -1592,90 +1592,13 @@ void Pet::ProhibitSpellSchool(SpellSchoolMask idSchoolMask, uint32 unTimeMs)
 
 void Pet::_LoadSpellCooldowns()
 {
-    //QueryResult* result = CharacterDatabase.PQuery("SELECT spell,time FROM pet_spell_cooldown WHERE guid = '%u'",m_charmInfo->GetPetNumber());
 
-    if (m_pTmpCache)
-    {
-        time_t curTime = time(nullptr);
-        bool empty = true;
-
-        WorldPacket data(SMSG_SPELL_COOLDOWN, (8 + size_t(m_pTmpCache->spellCooldown.size()) * 8));
-        data << ObjectGuid(GetObjectGuid());
-        //[-ZERO] data << uint8(0x0);                                 // flags (0x1, 0x2)
-
-        for (const auto& it : m_pTmpCache->spellCooldown)
-        {
-            //Field* fields = result->Fetch();
-
-            uint32 spell_id = it.spell;//fields[0].GetUInt32();
-            time_t db_time  = (time_t)it.time;//fields[1].GetUInt64();
-            time_t db_cat_time = 0; // TODO ?
-            SpellEntry const* spell = sSpellMgr.GetSpellEntry(spell_id);
-
-            if (!spell)
-            {
-                sLog.outError("Pet %u have unknown spell %u in `pet_spell_cooldown`, skipping.", m_charmInfo->GetPetNumber(), spell_id);
-                continue;
-            }
-
-            // skip outdated cooldown
-            if (db_time <= curTime)
-                continue;
-
-            data << uint32(spell_id);
-            data << uint32(uint32(db_time - curTime)*IN_MILLISECONDS);
-
-            AddSpellCooldown(spell_id, 0, db_time, db_cat_time, spell->Category);
-            empty = false;
-
-            DEBUG_LOG("Pet (Number: %u) spell %u cooldown loaded (%u secs).", m_charmInfo->GetPetNumber(), spell_id, uint32(db_time - curTime));
-        }
-        //while (result->NextRow());
-
-        //delete result;
-
-        if (!empty)
-            if (Unit* owner = GetOwner())
-                if (owner->ToPlayer())
-                    owner->ToPlayer()->GetSession()->SendPacket(&data);
-    }
 }
 
 void Pet::_SaveSpellCooldowns()
 {
     if (m_pTmpCache)
         m_pTmpCache->spellCooldown.clear();
-
-    static SqlStatementID delSpellCD ;
-    static SqlStatementID insSpellCD ;
-
-    SqlStatement stmt = CharacterDatabase.CreateStatement(delSpellCD, "DELETE FROM pet_spell_cooldown WHERE guid = ?");
-    stmt.PExecute(m_charmInfo->GetPetNumber());
-
-    time_t curTime = time(nullptr);
-    time_t infTime = curTime + infinityCooldownDelayCheck;
-
-    // remove outdated and save active
-    for (SpellCooldowns::iterator itr = m_spellCooldowns.begin(); itr != m_spellCooldowns.end();)
-    {
-        if (itr->second.end <= curTime)
-            m_spellCooldowns.erase(itr++);
-        else if (itr->second.end <= infTime)                // not save locked cooldowns, it will be reset or set at reload
-        {
-            if (m_pTmpCache)
-            {
-                PetSpellCoodown cd;
-                cd.spell = itr->first;
-                cd.time  = itr->second.end;
-                m_pTmpCache->spellCooldown.push_back(cd);
-            }
-            stmt = CharacterDatabase.CreateStatement(insSpellCD, "INSERT INTO pet_spell_cooldown (guid, spell, time) VALUES( ?, ?, ?)");
-            stmt.PExecute(m_charmInfo->GetPetNumber(), itr->first, uint64(itr->second.end));
-            ++itr;
-        }
-        else
-            ++itr;
-    }
 }
 
 void Pet::_LoadSpells()
