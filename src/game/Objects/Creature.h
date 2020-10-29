@@ -249,7 +249,6 @@ struct CreatureData
 struct CreatureDataAddon
 {
     uint32 guidOrEntry;
-    uint32 path_id;
     uint32 mount;
     uint32 bytes1;
     uint32 stand_state;
