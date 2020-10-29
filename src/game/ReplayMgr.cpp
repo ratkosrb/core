@@ -424,196 +424,13 @@ void ReplayMgr::Update(uint32 const diff)
     }
 }
 
-void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
+void ReplaySetTimePlayerWorker::run()
 {
-    // Creatures
-    {
-        std::map<uint32, Position> creaturePositions;
-        for (const auto itr : m_creatures)
-        {
-            if (itr.second->GetVisibility() != VISIBILITY_OFF)
-                itr.second->SetVisibility(VISIBILITY_OFF);
+    sReplayMgr.UpdatePlayersForCurrentTime();
+}
 
-            if (auto data = itr.second->GetCreatureData())
-            {
-                creaturePositions[itr.first] = data->position.ToPosition();
-
-                if (!itr.second->IsAlive() && data->current_health > 0)
-                    itr.second->Respawn();
-                else
-                {
-                    if (itr.second->GetMaxHealth() != data->max_health)
-                        itr.second->SetMaxHealth(data->max_health);
-                    if (itr.second->GetHealth() != data->current_health)
-                        itr.second->SetHealth(data->current_health);
-                } 
-
-                if (itr.second->GetMaxPower(POWER_MANA) != data->max_mana)
-                    itr.second->SetMaxPower(POWER_MANA, data->max_mana);
-                if (itr.second->GetPower(POWER_MANA) != data->current_mana)
-                    itr.second->SetPower(POWER_MANA, data->current_mana);
-
-                if (itr.second->GetUInt32Value(OBJECT_FIELD_ENTRY) != data->creature_id[0])
-                    itr.second->SetUInt32Value(OBJECT_FIELD_ENTRY, data->creature_id[0]);
-                if (itr.second->GetDisplayId() != data->display_id)
-                    itr.second->SetDisplayId(data->display_id);
-                if (itr.second->GetFactionTemplateId() != data->faction)
-                    itr.second->SetFactionTemplateId(data->faction);
-                if (itr.second->GetUInt32Value(UNIT_FIELD_FLAGS) != data->unit_flags)
-                    itr.second->SetUInt32Value(UNIT_FIELD_FLAGS, data->unit_flags);
-                if (itr.second->GetUInt32Value(UNIT_NPC_FLAGS) != data->npc_flags)
-                    itr.second->SetUInt32Value(UNIT_NPC_FLAGS, data->npc_flags);
-
-                if (itr.second->GetSpeedRate(MOVE_WALK) != data->speed_walk)
-                    itr.second->SetSpeedRateDirect(MOVE_WALK, data->speed_walk);
-                if (itr.second->GetSpeedRate(MOVE_RUN) != data->speed_run)
-                    itr.second->SetSpeedRateDirect(MOVE_RUN, data->speed_run);
-            }
-
-            if (auto addon = itr.second->GetCreatureAddon())
-            {
-                if (itr.second->GetSheath() != addon->sheath_state)
-                    itr.second->SetSheath(SheathState(addon->sheath_state));
-                if (itr.second->GetStandState() != addon->stand_state)
-                    itr.second->SetStandState(addon->stand_state);
-                if (itr.second->GetUInt32Value(UNIT_NPC_EMOTESTATE) != addon->emote)
-                    itr.second->SetUInt32Value(UNIT_NPC_EMOTESTATE, addon->emote);
-                if (itr.second->GetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID) != addon->mount)
-                    itr.second->SetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID, addon->mount);
-            }
-
-            itr.second->SetChannelObjectGuid(ObjectGuid());
-            itr.second->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
-        }
-
-        std::set<uint32> visibleCreatures;
-        for (const auto& itr : m_eventsMap)
-        {
-            if (itr.first > m_currentSniffTimeMs)
-                break;
-
-            if (itr.second->GetSourceObject().m_type != TYPEID_UNIT)
-                continue;
-
-            switch (itr.second->GetType())
-            {
-                case SE_CREATURE_CREATE1:
-                {
-                    uint32 const guid = itr.second->GetSourceObject().m_guid;
-                    visibleCreatures.insert(guid);
-                    auto createEvent = std::static_pointer_cast<SniffedEvent_CreatureCreate1>(itr.second);
-                    creaturePositions[guid] = Position(createEvent->m_x, createEvent->m_y, createEvent->m_z, createEvent->m_o);
-                    break;
-                }
-                case SE_CREATURE_CREATE2:
-                {
-                    uint32 const guid = itr.second->GetSourceObject().m_guid;
-                    visibleCreatures.insert(guid);
-                    auto createEvent = std::static_pointer_cast<SniffedEvent_CreatureCreate2>(itr.second);
-                    creaturePositions[guid] = Position(createEvent->m_x, createEvent->m_y, createEvent->m_z, createEvent->m_o);
-                    break;
-                }
-                case SE_CREATURE_DESTROY:
-                {
-                    visibleCreatures.erase(itr.second->GetSourceObject().m_guid);
-                    break;
-                }
-                case SE_CREATURE_MOVEMENT:
-                {
-                    uint32 const guid = itr.second->GetSourceObject().m_guid;
-                    auto moveEvent = std::static_pointer_cast<SniffedEvent_CreatureMovement>(itr.second);
-                    creaturePositions[guid] = Position(moveEvent->m_x, moveEvent->m_y, moveEvent->m_z, moveEvent->m_o);
-                    break;
-                }
-                case SE_UNIT_UPDATE_ENTRY:
-                case SE_UNIT_UPDATE_SCALE:
-                case SE_UNIT_UPDATE_DISPLAY_ID:
-                case SE_UNIT_UPDATE_MOUNT:
-                case SE_UNIT_UPDATE_FACTION:
-                case SE_UNIT_UPDATE_EMOTE_STATE:
-                case SE_UNIT_UPDATE_STAND_STATE:
-                case SE_UNIT_UPDATE_NPC_FLAGS:
-                case SE_UNIT_UPDATE_UNIT_FLAGS:
-                case SE_UNIT_UPDATE_CURRENT_HEALTH:
-                case SE_UNIT_UPDATE_MAX_HEALTH:
-                case SE_UNIT_UPDATE_CURRENT_MANA:
-                case SE_UNIT_UPDATE_MAX_MANA:
-                case SE_UNIT_UPDATE_SPEED:
-                case SE_UNIT_TARGET_CHANGE:
-                case SE_SPELL_CHANNEL_START:
-                case SE_SPELL_CHANNEL_UPDATE:
-                {
-                    itr.second->Execute();
-                    break;
-                }
-            }
-        }
-
-        for (const auto& itr : creaturePositions)
-        {
-            if (Creature* pCreature = GetCreature(itr.first))
-            {
-                if (pCreature->IsInWorld() && pCreature->GetPosition() != itr.second)
-                {
-                    pCreature->DisableSpline();
-                    pCreature->GetMap()->CreatureRelocation(pCreature, itr.second.x, itr.second.y, itr.second.z, itr.second.o);
-                }
-            }
-        }
-
-        for (const auto itr : visibleCreatures)
-            if (Creature* pCreature = GetCreature(itr))
-                pCreature->SetVisibility(VISIBILITY_ON);
-    }
-    // GameObjects
-    {
-        for (const auto itr : m_gameobjects)
-        {
-            if (itr.second->IsVisible())
-                itr.second->SetVisible(false);
-
-            if (auto data = itr.second->GetGOData())
-            {
-                if (itr.second->GetGoState() != data->go_state)
-                    itr.second->SetGoState(GOState(data->go_state));
-                if (itr.second->GetUInt32Value(GAMEOBJECT_FLAGS) != data->flags)
-                    itr.second->SetUInt32Value(GAMEOBJECT_FLAGS, data->flags);
-            }
-        }
-
-        std::set<uint32> visibleGameObjects;
-        for (const auto& itr : m_eventsMap)
-        {
-            if (itr.first > m_currentSniffTimeMs)
-                break;
-
-            switch (itr.second->GetType())
-            {
-                case SE_GAMEOBJECT_CREATE1:
-                case SE_GAMEOBJECT_CREATE2:
-                {
-                    visibleGameObjects.insert(itr.second->GetSourceObject().m_guid);
-                    break;
-                }
-                case SE_GAMEOBJECT_DESTROY:
-                {
-                    visibleGameObjects.erase(itr.second->GetSourceObject().m_guid);
-                    break;
-                }
-                case SE_GAMEOBJECT_UPDATE_FLAGS:
-                case SE_GAMEOBJECT_UPDATE_STATE:
-                {
-                    itr.second->Execute();
-                    break;
-                }
-            }
-        }
-
-        for (const auto itr : visibleGameObjects)
-            if (GameObject* pGo = GetGameObject(itr))
-                pGo->SetVisible(true);
-    }
-    // Players
+void ReplayMgr::UpdatePlayersForCurrentTime()
+{
     if (m_initialized)
     {
         std::map<uint32, WorldLocation> playerPositions;
@@ -697,6 +514,218 @@ void ReplayMgr::UpdateObjectVisiblityForCurrentTime()
     }
 }
 
+void ReplaySetTimeCreatureWorker::run()
+{
+    sReplayMgr.UpdateCreaturesForCurrentTime();
+}
+
+void ReplayMgr::UpdateCreaturesForCurrentTime()
+{
+    std::map<uint32, Position> creaturePositions;
+    for (const auto itr : m_creatures)
+    {
+        if (itr.second->GetVisibility() != VISIBILITY_OFF)
+            itr.second->SetVisibility(VISIBILITY_OFF);
+
+        if (auto data = itr.second->GetCreatureData())
+        {
+            creaturePositions[itr.first] = data->position.ToPosition();
+
+            if (!itr.second->IsAlive() && data->current_health > 0)
+                itr.second->Respawn();
+            else
+            {
+                if (itr.second->GetMaxHealth() != data->max_health)
+                    itr.second->SetMaxHealth(data->max_health);
+                if (itr.second->GetHealth() != data->current_health)
+                    itr.second->SetHealth(data->current_health);
+            } 
+
+            if (itr.second->GetMaxPower(POWER_MANA) != data->max_mana)
+                itr.second->SetMaxPower(POWER_MANA, data->max_mana);
+            if (itr.second->GetPower(POWER_MANA) != data->current_mana)
+                itr.second->SetPower(POWER_MANA, data->current_mana);
+
+            if (itr.second->GetUInt32Value(OBJECT_FIELD_ENTRY) != data->creature_id[0])
+                itr.second->SetUInt32Value(OBJECT_FIELD_ENTRY, data->creature_id[0]);
+            if (itr.second->GetDisplayId() != data->display_id)
+                itr.second->SetDisplayId(data->display_id);
+            if (itr.second->GetFactionTemplateId() != data->faction)
+                itr.second->SetFactionTemplateId(data->faction);
+            if (itr.second->GetUInt32Value(UNIT_FIELD_FLAGS) != data->unit_flags)
+                itr.second->SetUInt32Value(UNIT_FIELD_FLAGS, data->unit_flags);
+            if (itr.second->GetUInt32Value(UNIT_NPC_FLAGS) != data->npc_flags)
+                itr.second->SetUInt32Value(UNIT_NPC_FLAGS, data->npc_flags);
+
+            if (itr.second->GetSpeedRate(MOVE_WALK) != data->speed_walk)
+                itr.second->SetSpeedRateDirect(MOVE_WALK, data->speed_walk);
+            if (itr.second->GetSpeedRate(MOVE_RUN) != data->speed_run)
+                itr.second->SetSpeedRateDirect(MOVE_RUN, data->speed_run);
+        }
+
+        if (auto addon = itr.second->GetCreatureAddon())
+        {
+            if (itr.second->GetSheath() != addon->sheath_state)
+                itr.second->SetSheath(SheathState(addon->sheath_state));
+            if (itr.second->GetStandState() != addon->stand_state)
+                itr.second->SetStandState(addon->stand_state);
+            if (itr.second->GetUInt32Value(UNIT_NPC_EMOTESTATE) != addon->emote)
+                itr.second->SetUInt32Value(UNIT_NPC_EMOTESTATE, addon->emote);
+            if (itr.second->GetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID) != addon->mount)
+                itr.second->SetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID, addon->mount);
+        }
+
+        itr.second->SetChannelObjectGuid(ObjectGuid());
+        itr.second->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
+    }
+
+    std::set<uint32> visibleCreatures;
+    for (const auto& itr : m_eventsMap)
+    {
+        if (itr.first > m_currentSniffTimeMs)
+            break;
+
+        if (itr.second->GetSourceObject().m_type != TYPEID_UNIT)
+            continue;
+
+        switch (itr.second->GetType())
+        {
+            case SE_CREATURE_CREATE1:
+            {
+                uint32 const guid = itr.second->GetSourceObject().m_guid;
+                visibleCreatures.insert(guid);
+                auto createEvent = std::static_pointer_cast<SniffedEvent_CreatureCreate1>(itr.second);
+                creaturePositions[guid] = Position(createEvent->m_x, createEvent->m_y, createEvent->m_z, createEvent->m_o);
+                break;
+            }
+            case SE_CREATURE_CREATE2:
+            {
+                uint32 const guid = itr.second->GetSourceObject().m_guid;
+                visibleCreatures.insert(guid);
+                auto createEvent = std::static_pointer_cast<SniffedEvent_CreatureCreate2>(itr.second);
+                creaturePositions[guid] = Position(createEvent->m_x, createEvent->m_y, createEvent->m_z, createEvent->m_o);
+                break;
+            }
+            case SE_CREATURE_DESTROY:
+            {
+                visibleCreatures.erase(itr.second->GetSourceObject().m_guid);
+                break;
+            }
+            case SE_CREATURE_MOVEMENT:
+            {
+                uint32 const guid = itr.second->GetSourceObject().m_guid;
+                auto moveEvent = std::static_pointer_cast<SniffedEvent_CreatureMovement>(itr.second);
+                creaturePositions[guid] = Position(moveEvent->m_x, moveEvent->m_y, moveEvent->m_z, moveEvent->m_o);
+                break;
+            }
+            case SE_UNIT_UPDATE_ENTRY:
+            case SE_UNIT_UPDATE_SCALE:
+            case SE_UNIT_UPDATE_DISPLAY_ID:
+            case SE_UNIT_UPDATE_MOUNT:
+            case SE_UNIT_UPDATE_FACTION:
+            case SE_UNIT_UPDATE_EMOTE_STATE:
+            case SE_UNIT_UPDATE_STAND_STATE:
+            case SE_UNIT_UPDATE_NPC_FLAGS:
+            case SE_UNIT_UPDATE_UNIT_FLAGS:
+            case SE_UNIT_UPDATE_CURRENT_HEALTH:
+            case SE_UNIT_UPDATE_MAX_HEALTH:
+            case SE_UNIT_UPDATE_CURRENT_MANA:
+            case SE_UNIT_UPDATE_MAX_MANA:
+            case SE_UNIT_UPDATE_SPEED:
+            case SE_UNIT_TARGET_CHANGE:
+            case SE_SPELL_CHANNEL_START:
+            case SE_SPELL_CHANNEL_UPDATE:
+            {
+                itr.second->Execute();
+                break;
+            }
+        }
+    }
+
+    for (const auto& itr : creaturePositions)
+    {
+        if (Creature* pCreature = GetCreature(itr.first))
+        {
+            if (pCreature->IsInWorld() && pCreature->GetPosition() != itr.second)
+            {
+                pCreature->DisableSpline();
+                pCreature->GetMap()->CreatureRelocation(pCreature, itr.second.x, itr.second.y, itr.second.z, itr.second.o);
+            }
+        }
+    }
+
+    for (const auto itr : visibleCreatures)
+        if (Creature* pCreature = GetCreature(itr))
+            pCreature->SetVisibility(VISIBILITY_ON);
+}
+
+void ReplaySetTimeGameObjectWorker::run()
+{
+    sReplayMgr.UpdateGameObjectsForCurrentTime();
+}
+
+void ReplayMgr::UpdateGameObjectsForCurrentTime()
+{
+    for (const auto itr : m_gameobjects)
+    {
+        if (itr.second->IsVisible())
+            itr.second->SetVisible(false);
+
+        if (auto data = itr.second->GetGOData())
+        {
+            if (itr.second->GetGoState() != data->go_state)
+                itr.second->SetGoState(GOState(data->go_state));
+            if (itr.second->GetUInt32Value(GAMEOBJECT_FLAGS) != data->flags)
+                itr.second->SetUInt32Value(GAMEOBJECT_FLAGS, data->flags);
+        }
+    }
+
+    std::set<uint32> visibleGameObjects;
+    for (const auto& itr : m_eventsMap)
+    {
+        if (itr.first > m_currentSniffTimeMs)
+            break;
+
+        switch (itr.second->GetType())
+        {
+            case SE_GAMEOBJECT_CREATE1:
+            case SE_GAMEOBJECT_CREATE2:
+            {
+                visibleGameObjects.insert(itr.second->GetSourceObject().m_guid);
+                break;
+            }
+            case SE_GAMEOBJECT_DESTROY:
+            {
+                visibleGameObjects.erase(itr.second->GetSourceObject().m_guid);
+                break;
+            }
+            case SE_GAMEOBJECT_UPDATE_FLAGS:
+            case SE_GAMEOBJECT_UPDATE_STATE:
+            {
+                itr.second->Execute();
+                break;
+            }
+        }
+    }
+
+    for (const auto itr : visibleGameObjects)
+        if (GameObject* pGo = GetGameObject(itr))
+            pGo->SetVisible(true);
+}
+
+void ReplayMgr::UpdateObjectStateAndVisiblityForCurrentTime()
+{
+    std::unique_ptr<ACE_Based::Thread> pPlayerUpdater = std::make_unique<ACE_Based::Thread>(new ReplaySetTimePlayerWorker());
+    std::unique_ptr<ACE_Based::Thread> pCreatureUpdater = std::make_unique<ACE_Based::Thread>(new ReplaySetTimeCreatureWorker());
+    std::unique_ptr<ACE_Based::Thread> pGameObjectUpdater = std::make_unique<ACE_Based::Thread>(new ReplaySetTimeGameObjectWorker());
+    pPlayerUpdater->wait();
+    pCreatureUpdater->wait();
+    pGameObjectUpdater->wait();
+    pPlayerUpdater->destroy();
+    pCreatureUpdater->destroy();
+    pGameObjectUpdater->destroy();
+}
+
 void ReplayMgr::SetPlayTime(uint32 unixtime, bool updateObjectsState)
 {
     uint32 const currentTime = time(nullptr);
@@ -714,7 +743,7 @@ void ReplayMgr::SetPlayTime(uint32 unixtime, bool updateObjectsState)
     m_timeDifference = currentTime - m_startTimeSniff;
 
     if (updateObjectsState)
-        UpdateObjectVisiblityForCurrentTime();
+        UpdateObjectStateAndVisiblityForCurrentTime();
 }
 
 void ReplayMgr::StartPlaying()

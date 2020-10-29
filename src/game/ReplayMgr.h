@@ -170,6 +170,27 @@ inline uint32 ConvertClassicNpcFlagsToVanilla(uint32 flags)
 
 class ReplayBotAI;
 
+class ReplaySetTimePlayerWorker : public ACE_Based::Runnable
+{
+public:
+    ReplaySetTimePlayerWorker() = default;
+    virtual void run();
+};
+
+class ReplaySetTimeCreatureWorker : public ACE_Based::Runnable
+{
+public:
+    ReplaySetTimeCreatureWorker() = default;
+    virtual void run();
+};
+
+class ReplaySetTimeGameObjectWorker : public ACE_Based::Runnable
+{
+public:
+    ReplaySetTimeGameObjectWorker() = default;
+    virtual void run();
+};
+
 class ReplayMgr
 {
     public:
@@ -237,7 +258,10 @@ class ReplayMgr
         void Update(uint32 const diff);
         void SpawnCharacters();
         void SetPlayTime(uint32 unixtime, bool updateObjectsState = true);
-        void UpdateObjectVisiblityForCurrentTime();
+        void UpdatePlayersForCurrentTime();
+        void UpdateCreaturesForCurrentTime();
+        void UpdateGameObjectsForCurrentTime();
+        void UpdateObjectStateAndVisiblityForCurrentTime();
         void StartPlaying();
         void StopPlaying();
         bool IsPlaying() { return m_enabled; }
