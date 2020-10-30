@@ -7617,8 +7617,7 @@ void Player::SendUpdateWorldState(uint32 Field, uint32 Value) const
     GetSession()->SendPacket(&data);
 }
 
-// TODO: Determine what these values mean, if anything.
-static WorldStatePair def_world_states[] =
+std::map<uint32, uint32> g_defaultWorldStates =
 {
     { 0x07AE, 0x01 },
     { 0x0532, 0x01 },
@@ -7728,10 +7727,7 @@ static WorldStatePair def_world_states[] =
     { 0x0518, 0x00 },
     { 0x0517, 0x00 },
     { 0x0703, 0x00 },
-    { 0x0,    0x0 } // terminator
 };
-
-
 
 void Player::SendInitWorldStates(uint32 zoneid) const
 {
@@ -7739,7 +7735,7 @@ void Player::SendInitWorldStates(uint32 zoneid) const
 
     DEBUG_LOG("Sending SMSG_INIT_WORLD_STATES to Map:%u, Zone: %u", mapid, zoneid);
 
-    uint32 count = 1; // count of world states in packet, 1 extra for the terminator
+    uint32 count = 0;
 
     WorldPacket data(SMSG_INIT_WORLD_STATES, (4 + 4 + 2 + 6));
     data << uint32(mapid);                              // mapid
@@ -7747,23 +7743,11 @@ void Player::SendInitWorldStates(uint32 zoneid) const
     size_t count_pos = data.wpos();
     data << uint16(0);                                  // count of uint32 blocks, placeholder
 
-    for (WorldStatePair const* itr = def_world_states; itr->state; ++itr)
+    for (auto itr : g_defaultWorldStates)
     {
-        data << uint32(itr->state);
-        data << uint32(itr->value);
+        data << uint32(itr.first);
+        data << uint32(itr.second);
         ++count;
-    }
-
-    if (ZoneScript* zoneScript = GetZoneScript())
-        count += zoneScript->FillInitialWorldStates(data);
-    switch (zoneid)
-    {
-        case 2597:                                      // AV
-        case 3277:                                      // WS
-        case 3358:                                      // AB
-            if (BattleGround* bg = GetBattleGround())
-                bg->FillInitialWorldStates(data, count);
-            break;
     }
 
     data << uint32(0) << uint32(0);     // [-ZERO] Add terminator to prevent repeating audio bug.

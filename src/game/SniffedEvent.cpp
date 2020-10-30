@@ -42,6 +42,8 @@
 
 void ReplayMgr::LoadSniffedEvents()
 {
+    LoadWorldText();
+    LoadWorldStateUpdates();
     LoadCreatureCreate1();
     LoadCreatureCreate2();
     LoadCreatureDestroy();
@@ -107,7 +109,6 @@ void ReplayMgr::LoadSniffedEvents()
     LoadPlayMusic();
     LoadPlaySound();
     LoadPlaySpellVisualKit();
-    LoadWorldText();
     LoadQuestAcceptTimes();
     LoadQuestCompleteTimes();
     LoadCreatureInteractTimes();
@@ -118,6 +119,77 @@ void ReplayMgr::LoadSniffedEvents()
     
     sLog.outString(">> Loaded %u sniffed events", (uint32)m_eventsMap.size());
     sLog.outString();
+}
+
+void ReplayMgr::LoadWorldText()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `text` FROM `world_text` ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint64 unixtimems = fields[0].GetUInt64();
+            std::string text = fields[1].GetCppString();
+
+            std::shared_ptr<SniffedEvent_WorldText> newEvent = std::make_shared<SniffedEvent_WorldText>(text);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_WorldText::Execute() const
+{
+    sWorld.SendGlobalText(m_text.c_str(), nullptr);
+}
+
+void ReplayMgr::LoadWorldStateUpdates()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `variable`, `value` FROM `world_state_update` ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint64 unixtimems = fields[0].GetUInt64();
+            uint32 variable = fields[1].GetUInt32();
+            uint32 value = fields[2].GetUInt32();
+
+            std::shared_ptr<SniffedEvent_WorldStateUpdate> newEvent = std::make_shared<SniffedEvent_WorldStateUpdate>(variable, value, false);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+    }
+}
+
+extern std::map<uint32, uint32> g_defaultWorldStates;
+
+void SniffedEvent_WorldStateUpdate::Execute() const
+{
+    g_defaultWorldStates[m_variable] = m_value;
+
+    if (m_isInit)
+        return;
+
+    Player* pActivePlayer = sReplayMgr.GetActivePlayer();
+    if (!pActivePlayer)
+    {
+        sLog.outError("SniffedEvent_WorldStateUpdate: Cannot find active player!");
+        return;
+    }
+
+    for (const auto& itr : pActivePlayer->GetMap()->GetPlayers())
+    {
+        if (Player* pPlayer = itr.getSource())
+        {
+            if (!pPlayer->GetSession()->GetBot())
+            {
+                pPlayer->SendUpdateWorldState(m_variable, m_value);
+            }
+        }
+    };
 }
 
 void ReplayMgr::LoadCreatureCreate1()
@@ -1688,30 +1760,6 @@ void SniffedEvent_PlaySpellVisualKit::Execute() const
     pUnit->SendPlaySpellVisual(m_kitId);
 }
 
-void ReplayMgr::LoadWorldText()
-{
-    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `text` FROM `world_text` ORDER BY `unixtimems`"))
-    {
-        do
-        {
-            Field* fields = result->Fetch();
-
-            uint64 unixtimems = fields[0].GetUInt64();
-            std::string text = fields[1].GetCppString();
-
-            std::shared_ptr<SniffedEvent_WorldText> newEvent = std::make_shared<SniffedEvent_WorldText>(text);
-            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
-
-        } while (result->NextRow());
-        delete result;
-    }
-}
-
-void SniffedEvent_WorldText::Execute() const
-{
-    sWorld.SendGlobalText(m_text.c_str(), nullptr);
-}
-
 void ReplayMgr::LoadQuestAcceptTimes()
 {
     if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `object_guid`, `object_id`, `object_type`, `quest_id` FROM `quest_client_accept` ORDER BY `unixtimems`"))
@@ -1735,7 +1783,7 @@ void ReplayMgr::LoadQuestAcceptTimes()
 
 void SniffedEvent_QuestAccept::Execute() const
 {
-    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    Player* pPlayer = sReplayMgr.GetActivePlayer();
     if (!pPlayer)
     {
         sLog.outError("SniffedEvent_QuestAccept: Cannot find active player!");
@@ -1768,7 +1816,7 @@ void ReplayMgr::LoadQuestCompleteTimes()
 
 void SniffedEvent_QuestComplete::Execute() const
 {
-    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    Player* pPlayer = sReplayMgr.GetActivePlayer();
     if (!pPlayer)
     {
         sLog.outError("SniffedEvent_QuestComplete: Cannot find active player!");
@@ -1799,7 +1847,7 @@ void ReplayMgr::LoadCreatureInteractTimes()
 
 void SniffedEvent_CreatureInteract::Execute() const
 {
-    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    Player* pPlayer = sReplayMgr.GetActivePlayer();
     if (!pPlayer)
     {
         sLog.outError("SniffedEvent_CreatureInteract: Cannot find active player!");
@@ -1830,7 +1878,7 @@ void ReplayMgr::LoadGameObjectUseTimes()
 
 void SniffedEvent_GameObjectUse::Execute() const
 {
-    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    Player* pPlayer = sReplayMgr.GetActivePlayer();
     if (!pPlayer)
     {
         sLog.outError("SniffedEvent_GameObjectUse: Cannot find active player!");
@@ -1860,7 +1908,7 @@ void ReplayMgr::LoadItemUseTimes()
 
 void SniffedEvent_ItemUse::Execute() const
 {
-    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    Player* pPlayer = sReplayMgr.GetActivePlayer();
     if (!pPlayer)
     {
         sLog.outError("SniffedEvent_ItemUse: Cannot find active player!");
@@ -1890,7 +1938,7 @@ void ReplayMgr::LoadReclaimCorpseTimes()
 
 void SniffedEvent_ReclaimCorpse::Execute() const
 {
-    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    Player* pPlayer = sReplayMgr.GetActivePlayer();
     if (!pPlayer)
     {
         sLog.outError("SniffedEvent_ReclaimCorpse: Cannot find active player!");
@@ -1918,7 +1966,7 @@ void ReplayMgr::LoadReleaseSpiritTimes()
 
 void SniffedEvent_ReleaseSpirit::Execute() const
 {
-    WorldObject* pPlayer = sReplayMgr.GetActivePlayer();
+    Player* pPlayer = sReplayMgr.GetActivePlayer();
     if (!pPlayer)
     {
         sLog.outError("SniffedEvent_ReleaseSpirit: Cannot find active player!");

@@ -87,6 +87,8 @@ inline std::string FormatObjectName(KnownObject object)
 
 enum SniffedEventType : uint8
 {
+    SE_WORLD_TEXT,
+    SE_WORLD_STATE_UPDATE,
     SE_CREATURE_CREATE1,
     SE_CREATURE_CREATE2,
     SE_CREATURE_DESTROY,
@@ -140,6 +142,10 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
 {
     switch (eventType)
     {
+        case SE_WORLD_TEXT:
+            return "World Text";
+        case SE_WORLD_STATE_UPDATE:
+            return "World State Update";
         case SE_CREATURE_CREATE1:
             return "Creature Create 1";
         case SE_CREATURE_CREATE2:
@@ -244,6 +250,32 @@ struct SniffedEvent
     virtual SniffedEventType GetType() const = 0;
     virtual KnownObject GetSourceObject() const { return KnownObject(); };
     virtual KnownObject GetTargetObject() const { return KnownObject(); };
+};
+
+struct SniffedEvent_WorldText : SniffedEvent
+{
+    SniffedEvent_WorldText(std::string text) :
+        m_text(text) {};
+    std::string m_text;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_WORLD_TEXT;
+    }
+};
+
+struct SniffedEvent_WorldStateUpdate : SniffedEvent
+{
+    SniffedEvent_WorldStateUpdate(uint32 variable, uint32 value, bool isInit) :
+        m_variable(variable), m_value(value), m_isInit(isInit) {};
+    uint32 m_variable = 0;
+    uint32 m_value = 0;
+    bool m_isInit = false;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_WORLD_STATE_UPDATE;
+    }
 };
 
 struct SniffedEvent_CreatureCreate1 : SniffedEvent
@@ -1045,18 +1077,6 @@ struct SniffedEvent_PlaySpellVisualKit : SniffedEvent
     KnownObject GetSourceObject() const final
     {
         return KnownObject(m_casterGuid, m_casterId, TypeID(m_casterType));
-    }
-};
-
-struct SniffedEvent_WorldText : SniffedEvent
-{
-    SniffedEvent_WorldText(std::string text) :
-        m_text(text) {};
-    std::string m_text;
-    void Execute() const final;
-    SniffedEventType GetType() const final
-    {
-        return SE_PLAY_MUSIC;
     }
 };
 

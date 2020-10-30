@@ -202,12 +202,14 @@ class ReplayMgr
             LoadCharacterTemplates();
             LoadCharacterMovements();
             LoadActivePlayer();
+            LoadInitialWorldStates();
             LoadSniffedEvents();
         }
         void LoadSniffedEvents();
         void LoadCharacterTemplates();
         void LoadCharacterMovements();
         void LoadActivePlayer();
+        void LoadInitialWorldStates();
 
         void LoadCreatureCreate1();
         void LoadCreatureCreate2();
@@ -254,6 +256,7 @@ class ReplayMgr
         void LoadItemUseTimes();
         void LoadReclaimCorpseTimes();
         void LoadReleaseSpiritTimes();
+        void LoadWorldStateUpdates();
 
         void Update(uint32 const diff);
         void SpawnCharacters();
@@ -369,6 +372,8 @@ class ReplayMgr
         uint64 m_currentSniffTimeMs = 0;
         uint32 m_startTimeSniff = 0;
         uint32 m_timeDifference = 0;
+        uint32 m_initialWorldStateSendTime = 0;
+        std::map<uint32 /*state*/, uint32 /*value*/> m_initialWorldStates;
         std::map<uint32 /*guid*/, std::shared_ptr<WaypointPath>> m_creatureWaypoints;
         std::map<uint32 /*list_id*/, std::vector<KnownObject>> m_spellCastGoTargets;
         std::map<uint32 /*position_id*/, G3D::Vector3> m_spellCastGoPositions;

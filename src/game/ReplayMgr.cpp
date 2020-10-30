@@ -297,6 +297,8 @@ void ReplayMgr::LoadActivePlayer()
 
     BarGoLink bar(result->GetRowCount());
 
+    std::set<uint32> activePlayers;
+
     do
     {
         Field* fields = result->Fetch();
@@ -305,9 +307,61 @@ void ReplayMgr::LoadActivePlayer()
         uint32 guid = fields[0].GetUInt32();
         uint32 unixtime = fields[1].GetUInt32();
 
+        activePlayers.insert(guid);
         m_activePlayers.insert({ unixtime, guid });
 
     } while (result->NextRow());
+    sLog.outString(">> Loaded %u active players", (uint32)activePlayers.size());
+}
+
+extern std::map<uint32, uint32> g_defaultWorldStates;
+
+void ReplayMgr::LoadInitialWorldStates()
+{
+    uint32 count = 0;
+
+    //                                                               0             1           2
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `unixtimems`, `variable`, `value` FROM `world_state_init` ORDER BY `unixtimems`"));
+
+    if (!result)
+    {
+        BarGoLink bar(1);
+        bar.step();
+
+        sLog.outString();
+        sLog.outErrorDb(">> No initial world state data.");
+        return;
+    }
+
+    BarGoLink bar(result->GetRowCount());
+
+    do
+    {
+        Field* fields = result->Fetch();
+        bar.step();
+
+        uint64 unixtimems = fields[0].GetUInt64();
+        uint32 unixtime = uint32(unixtimems / IN_MILLISECONDS);
+        uint32 variable = fields[1].GetUInt32();
+        uint32 value = fields[2].GetUInt32();
+
+        if (m_initialWorldStateSendTime == 0)
+            m_initialWorldStateSendTime = unixtime;
+
+        if (m_initialWorldStateSendTime == unixtime)
+        {
+            count++;
+            m_initialWorldStates[variable] = value;
+            g_defaultWorldStates[variable] = value;
+        }
+        else
+        {
+            std::shared_ptr<SniffedEvent_WorldStateUpdate> newEvent = std::make_shared<SniffedEvent_WorldStateUpdate>(variable, value, true);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+        }
+
+    } while (result->NextRow());
+    sLog.outString(">> Loaded %u initial world states", count);
 }
 
 void ReplayMgr::SpawnCharacters()
@@ -715,6 +769,25 @@ void ReplayMgr::UpdateGameObjectsForCurrentTime()
 
 void ReplayMgr::UpdateObjectStateAndVisiblityForCurrentTime()
 {
+    // Initial world states
+    if (m_initialWorldStateSendTime)
+    {
+        g_defaultWorldStates.clear();
+        for (const auto itr : m_initialWorldStates)
+            g_defaultWorldStates[itr.first] = itr.second;
+    }
+    for (const auto& itr : m_eventsMap)
+    {
+        if (itr.first > m_currentSniffTimeMs)
+            break;
+
+        if (itr.second->GetType() == SE_WORLD_STATE_UPDATE)
+        {
+            auto updateEvent = std::static_pointer_cast<SniffedEvent_WorldStateUpdate>(itr.second);
+            g_defaultWorldStates[updateEvent->m_variable] = updateEvent->m_value;
+        }
+    }
+
     std::unique_ptr<ACE_Based::Thread> pPlayerUpdater = std::make_unique<ACE_Based::Thread>(new ReplaySetTimePlayerWorker());
     std::unique_ptr<ACE_Based::Thread> pCreatureUpdater = std::make_unique<ACE_Based::Thread>(new ReplaySetTimeCreatureWorker());
     std::unique_ptr<ACE_Based::Thread> pGameObjectUpdater = std::make_unique<ACE_Based::Thread>(new ReplaySetTimeGameObjectWorker());
