@@ -60,7 +60,6 @@
 #include "MoveSpline.h"
 #include "packet_builder.h"
 #include "Chat.h"
-#include "Anticheat.h"
 #include "CreatureLinkingMgr.h"
 #include "InstanceStatistics.h"
 #include "MovementPacketSender.h"
@@ -5972,7 +5971,6 @@ void Unit::CheckPendingMovementChanges()
         // Not resendable change.
         if (oldestChangeToAck.movementChangeType == INVALID || oldestChangeToAck.movementChangeType == TELEPORT || oldestChangeToAck.movementChangeType == KNOCK_BACK)
         {
-            pController->GetCheatData()->OnFailedToAckChange();
             PopPendingMovementChange();
             return;
         }
@@ -5989,7 +5987,6 @@ void Unit::CheckPendingMovementChanges()
         if (oldestChangeToAck.resent)
         {
             // Change was resent but still no reply. Enforce the flags.
-            pController->GetCheatData()->OnFailedToAckChange();
             ResolvePendingMovementChange(oldestChangeToAck);
             PopPendingMovementChange();
             SendHeartBeat(true);
@@ -8884,9 +8881,6 @@ void Unit::KnockBack(float angle, float horizontalSpeed, float verticalSpeed)
         float vsin = sin(angle);
         float vcos = cos(angle);
         MovementPacketSender::SendKnockBackToController(this, vcos, vsin, horizontalSpeed, -verticalSpeed); // !! notice the - sign in front of speedZ !!
-
-        if (Player* pPlayer = ToPlayer())
-            GetPlayerMovingMe()->GetCheatData()->OnKnockBack(pPlayer, horizontalSpeed, verticalSpeed, vcos, vsin);
     }
 }
 
@@ -9224,7 +9218,6 @@ void Unit::GetRandomAttackPoint(Unit const* attacker, float &x, float &y, float 
 
     // Moving player: try to extrapolate movement a bit
     if (IsPlayer() && IsMoving())
-        if (!ToPlayer()->GetCheatData()->ExtrapolateMovement(m_movementInfo, 200, initialPosX, initialPosY, initialPosZ, o))
             GetPosition(initialPosX, initialPosY, initialPosZ);
 
     float attackerTargetDistance = sqrt(pow(initialPosX - attacker->GetPositionX(), 2) +

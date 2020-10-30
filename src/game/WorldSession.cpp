@@ -42,7 +42,6 @@
 #include "SocialMgr.h"
 #include "PlayerBotMgr.h"
 #include "PlayerBotAI.h"
-#include "Anticheat.h"
 #include "Language.h"
 #include "Auth/Sha1.h"
 #include "ChannelMgr.h"
@@ -79,7 +78,7 @@ WorldSession::WorldSession(uint32 id, WorldSocket *sock, AccountTypes sec, time_
     m_ah_list_recvd(false), _scheduleBanLevel(0),
     _accountFlags(0), m_idleTime(WorldTimer::getMSTime()), _player(nullptr), m_Socket(sock), _security(sec), _accountId(id), _logoutTime(0), m_inQueue(false),
     m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false), m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)),
-    m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)), m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED), m_warden(nullptr), m_cheatData(nullptr),
+    m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)), m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED),
     m_bot(nullptr), m_lastReceivedPacketTime(0), _clientOS(CLIENT_OS_UNKNOWN), _gameBuild(0),
     _charactersCount(10), _characterMaxLevel(0), _clientHashComputeStep(HASH_NOT_COMPUTED), 
     m_lastPubChannelMsgTime(0), m_moveRejectTime(0), m_masterPlayer(nullptr)
@@ -116,9 +115,6 @@ WorldSession::~WorldSession()
     SetDumpPacket(nullptr);
     SetReadPacket(nullptr);
     SetDumpRecvPackets(nullptr);
-
-    delete m_warden;
-    delete m_cheatData;
 }
 
 void WorldSession::SizeError(WorldPacket const& packet, uint32 size) const
@@ -306,9 +302,6 @@ bool WorldSession::Update(PacketFilter& updater)
 
     if (sWorld.getConfig(CONFIG_UINT32_PERFLOG_SLOW_UNIQUE_SESSION_UPDATE) && sessionUpdateTime > sWorld.getConfig(CONFIG_UINT32_PERFLOG_SLOW_UNIQUE_SESSION_UPDATE))
         sLog.out(LOG_PERFORMANCE, "Slow session update: %ums. Account %u on IP %s", sessionUpdateTime, GetAccountId(), GetRemoteAddress().c_str());
-
-    if (m_Socket && !m_Socket->IsClosed() && m_warden)
-        m_warden->Update();
 
     //check if we are safe to proceed with logout
     //logout procedure should happen only in World::UpdateSessions() method!!!
@@ -544,19 +537,19 @@ void WorldSession::ProcessPackets(PacketFilter& updater)
             {
                 DETAIL_LOG("Disconnecting session [account id %u / address %s] for badly formatted packet.",
                            GetAccountId(), GetRemoteAddress().c_str());
-                ProcessAnticheatAction("Anticrash", "ByteBufferException", CHEAT_ACTION_KICK);
+                KickPlayer();
             }
         }
         catch (std::runtime_error &e)
         {
             sLog.outInfo("CATCH Exception 'ASSERT' for account %u / IP %s", GetAccountId(), GetRemoteAddress().c_str());
             sLog.outInfo(e.what());
-            ProcessAnticheatAction("Anticrash", "ASSERT failed", CHEAT_ACTION_KICK);
+            KickPlayer();
         }
         catch (...)
         {
             sLog.outInfo("CATCH Unknown exception. Account %u / IP %s", GetAccountId(), GetRemoteAddress().c_str());
-            ProcessAnticheatAction("Anticrash", "Exception raised", CHEAT_ACTION_KICK);
+            KickPlayer();
         }
 
         delete packet;
@@ -1073,98 +1066,6 @@ void WorldSession::SetDumpRecvPackets(char const* file)
         fprintf(_pcktRecvDump, "#Begin packet dump on %s [account %s]\n", GetPlayerName(), GetUsername().c_str());
 }
 
-void WorldSession::InitWarden(BigNumber* k)
-{
-    m_warden = sAnticheatMgr->CreateWardenFor(this, k);
-}
-
-void WorldSession::InitCheatData(Player* pPlayer)
-{
-    if (m_cheatData)
-        m_cheatData->InitNewPlayer(pPlayer);
-    else
-        m_cheatData = sAnticheatMgr->CreateAnticheatFor(pPlayer);
-}
-
-MovementAnticheat* WorldSession::GetCheatData()
-{
-    return m_cheatData ? m_cheatData : (m_cheatData = sAnticheatMgr->CreateAnticheatFor(GetPlayer()));
-}
-
-void WorldSession::ProcessAnticheatAction(char const* detector, char const* reason, uint32 cheatAction, uint32 banSeconds)
-{
-    char const* action = "";
-    if (cheatAction & CHEAT_ACTION_MUTE_PUB_CHANS)
-    {
-        action = "Muted from public channels.";
-        if (GetSecurity() == SEC_PLAYER)
-        {
-            LoginDatabase.PExecute("UPDATE account SET flags = flags | 0x%x WHERE id = %u", ACCOUNT_FLAG_MUTED_FROM_PUBLIC_CHANNELS, GetAccountId());
-            SetAccountFlags(GetAccountFlags() | ACCOUNT_FLAG_MUTED_FROM_PUBLIC_CHANNELS);
-        }
-    }
-    if (cheatAction & CHEAT_ACTION_BAN_IP_ACCOUNT)
-    {
-        action = "Account+IP banned.";
-        if (GetSecurity() == SEC_PLAYER)
-        {
-            std::string _reason = std::string("CHEAT") + ": " + reason;
-            sWorld.BanAccount(BAN_ACCOUNT, GetUsername(), banSeconds, _reason, detector);
-            std::stringstream banIpReason;
-            banIpReason << "Cf account " << GetUsername();
-            sWorld.BanAccount(BAN_IP, GetRemoteAddress(), banSeconds, banIpReason.str(), detector);
-        }
-    }
-    else if (cheatAction & CHEAT_ACTION_BAN_ACCOUNT)
-    {
-        action = "Banned.";
-        std::string _reason = std::string("CHEAT") + ": " + reason;
-        if (GetSecurity() == SEC_PLAYER)
-            sWorld.BanAccount(BAN_ACCOUNT, GetUsername(), banSeconds, _reason, detector);
-    }
-    else if (cheatAction & CHEAT_ACTION_KICK)
-    {
-        action = "Kicked.";
-        if (GetSecurity() == SEC_PLAYER)
-            KickPlayer();
-    }
-    else if (cheatAction & CHEAT_ACTION_REPORT_GMS)
-        action = "Announced to GMs.";
-    else if (!(cheatAction & CHEAT_ACTION_LOG))
-        return;
-
-    std::string playerDesc;
-    if (_player)
-        playerDesc = _player->GetShortDescription();
-    else
-    {
-        std::stringstream oss;
-        oss << "<None> [" << GetUsername() << ":" << GetAccountId() << "@" << GetRemoteAddress().c_str() << "]";
-        playerDesc = oss.str();
-    }
-
-    if ((cheatAction & CHEAT_ACTION_GLOBAL_ANNOUNNCE) &&
-        (cheatAction >= CHEAT_ACTION_KICK))
-    {
-        std::stringstream oss;
-        oss << "|r[|c1f40af20Announce by |cffff0000" << detector << "|r]: Player " << _player->GetName() << ", Cheat: " << reason << ", Penalty: " << action;
-        sWorld.SendGlobalText(oss.str().c_str(), this);
-    }
-
-    if (cheatAction & CHEAT_ACTION_REPORT_GMS)
-    {
-        std::stringstream oss;
-        oss << "Player " << playerDesc << ", Cheat: " << reason;
-
-        if (cheatAction >= CHEAT_ACTION_KICK)
-            oss << ", Penalty: " << action;
-
-        sWorld.SendGMText(LANG_GM_ANNOUNCE_COLOR, detector, oss.str().c_str());
-    }
-    
-    sLog.outAnticheat(detector, playerDesc.c_str(), reason, action);
-}
-
 bool WorldSession::AllowPacket(uint16 opcode)
 {
     // Do not count packets that are often spamed by the client when loading a zone for example.
@@ -1214,18 +1115,10 @@ bool WorldSession::AllowPacket(uint16 opcode)
 
     // Check if the permitted threshold has been exceeded
     std::stringstream reason;
-    if (_floodPacketsCount[FLOOD_VERY_SLOW_OPCODES] > 2)
-        reason << _floodPacketsCount[FLOOD_VERY_SLOW_OPCODES] << " very slow packets";
-    if (_floodPacketsCount[FLOOD_SLOW_OPCODES] > 8)
-        reason << _floodPacketsCount[FLOOD_SLOW_OPCODES] << " slow packets";
-    if (_floodPacketsCount[FLOOD_TOTAL_PACKETS] > 300)
-        reason << _floodPacketsCount[FLOOD_TOTAL_PACKETS] << " packets";
-    if (!reason.str().empty())
-    {
-        reason << " (" << LookupOpcodeName(opcode) << ")";
-        ProcessAnticheatAction("AntiFlood", reason.str().c_str(), sWorld.getConfig(CONFIG_UINT32_ANTIFLOOD_SANCTION));
+    if (_floodPacketsCount[FLOOD_VERY_SLOW_OPCODES] > 2 ||
+        _floodPacketsCount[FLOOD_SLOW_OPCODES] > 8 ||
+        _floodPacketsCount[FLOOD_TOTAL_PACKETS] > 300)
         return false;
-    }
 
     return true;
 }

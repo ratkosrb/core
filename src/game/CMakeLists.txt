@@ -70,7 +70,6 @@ set (game_SRCS
     AI/ScriptedInstance.cpp
     AI/ScriptedPetAI.cpp
     AI/TotemAI.cpp
-    Anticheat/Anticheat.cpp
     AuctionHouse/AuctionHouseBotMgr.cpp
     AuctionHouse/AuctionHouseMgr.cpp
     Battlegrounds/BattleGround.cpp
@@ -271,7 +270,6 @@ set (game_SRCS
     AI/ScriptedInstance.h
     AI/ScriptedPetAI.h
     AI/TotemAI.h
-    Anticheat/Anticheat.h
     AuctionHouse/AuctionHouseBotMgr.h
     AuctionHouse/AuctionHouseMgr.h
     Battlegrounds/BattleGround.h
@@ -418,27 +416,10 @@ if(WIN32)
   endif()
 endif()
 
-if(USE_ANTICHEAT)
-  list(APPEND game_SRCS
-      Anticheat/MovementAnticheat/MovementAnticheat.cpp
-      Anticheat/MovementAnticheat/MovementAnticheat.h
-      Anticheat/WardenAnticheat/Warden.cpp
-      Anticheat/WardenAnticheat/Warden.h
-      Anticheat/WardenAnticheat/WardenMac.cpp
-      Anticheat/WardenAnticheat/WardenMac.h
-      Anticheat/WardenAnticheat/WardenWin.cpp
-      Anticheat/WardenAnticheat/WardenWin.h
-      Anticheat/WardenAnticheat/WardenMgr.cpp
-      Anticheat/WardenAnticheat/WardenMgr.h
-      Anticheat/WardenAnticheat/WardenKeyGen.h
-  )
-endif()
-
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/AI
-  ${CMAKE_CURRENT_SOURCE_DIR}/Anticheat
   ${CMAKE_CURRENT_SOURCE_DIR}/AuctionHouse
   ${CMAKE_CURRENT_SOURCE_DIR}/Battlegrounds
   ${CMAKE_CURRENT_SOURCE_DIR}/Chat
@@ -516,10 +497,6 @@ source_group("Tool"
 
 source_group("References"
   REGULAR_EXPRESSION Reference|RefManager|ThreatManager
-)
-
-source_group("Anticheat"
-  REGULAR_EXPRESSION Anticheat
 )
 
 if(PCH)

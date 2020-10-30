@@ -10,7 +10,6 @@
 #include "Chat.h"
 #include "Player.h"
 #include "PlayerBotAI.h"
-#include "Anticheat.h"
 #include "Language.h"
 
 INSTANTIATE_SINGLETON_1(PlayerBotMgr);

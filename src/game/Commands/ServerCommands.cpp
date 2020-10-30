@@ -30,7 +30,6 @@
 #include "revision.h"
 #include "Util.h"
 #include "Weather.h"
-#include "Anticheat.h"
 #include "GameEventMgr.h"
 #include "BattleGroundMgr.h"
 #include "CreatureEventAIMgr.h"
@@ -130,101 +129,6 @@ bool ChatHandler::HandleSaveAllCommand(char* /*args*/)
 {
     sObjectAccessor.SaveAllPlayers();
     SendSysMessage(LANG_PLAYERS_SAVED);
-    return true;
-}
-
-bool ChatHandler::HandleAntiSpamAdd(char* args)
-{
-    if (!*args || !sAnticheatMgr->GetAntispam())
-        return false;
-
-    char* wordStr = ExtractQuotedArg(&args);
-    if (!wordStr)
-    {
-        PSendSysMessage("[AntiSpam]: No word given.");
-        return false;
-    }
-    std::string word = wordStr;
-
-    uint32 ban = 0;
-    if (!ExtractUInt32(&args, ban))
-    {
-        PSendSysMessage("[AntiSpam]: No ban value given.");
-        return false;
-    }
-
-    LoginDatabase.PExecute("INSERT INTO `antispam_blacklist` (`word`, `ban`) VALUES('%s', %u);", word.c_str(), ban);
-    PSendSysMessage("[AntiSpam]: Word %s with ban value %u added to antispam_blacklist table.", word.c_str(), ban);
-
-    return true;
-}
-
-bool ChatHandler::HandleAntiSpamRemove(char* args)
-{
-    if (!*args || !sAnticheatMgr->GetAntispam())
-        return false;
-
-    char* wordStr = ExtractQuotedArg(&args);
-    if (!wordStr)
-    {
-        PSendSysMessage("[AntiSpam]: No word given.");
-        return false;
-    }
-    std::string word = wordStr;
-
-    LoginDatabase.PExecute("DELETE FROM `antispam_blacklist` WHERE `word`='%s';", word.c_str());
-
-    PSendSysMessage("[AntiSpam]: Word %s has been removed from antispam_blacklist table.", word.c_str());
-
-    return true;
-}
-
-bool ChatHandler::HandleAntiSpamReplace(char* args)
-{
-    if (!*args || !sAnticheatMgr->GetAntispam())
-        return false;
-
-    char* fromStr = ExtractQuotedArg(&args);
-    if (!fromStr)
-    {
-        PSendSysMessage("[AntiSpam]: No from given.");
-        return false;
-    }
-
-    std::string from = fromStr;
-
-    char* toStr = ExtractQuotedArg(&args);
-    if (!toStr)
-    {
-        PSendSysMessage("[AntiSpam]: No to given.");
-        return false;
-    }
-
-    std::string to = toStr;
-
-    LoginDatabase.PExecute("INSERT INTO `antispam_replacement` (`from`, `to`) VALUES('%s', '%s');", from.c_str(), to.c_str());
-    PSendSysMessage("[AntiSpam]: Added replace letter %s to %s added to antispam_replacement table.", from.c_str(), to.c_str());
-
-    return true;
-}
-
-bool ChatHandler::HandleAntiSpamRemoveReplace(char* args)
-{
-    if (!*args || !sAnticheatMgr->GetAntispam())
-        return false;
-
-    char* fromStr = ExtractQuotedArg(&args);
-    if (!fromStr)
-    {
-        PSendSysMessage("[AntiSpam]: No from given.");
-        return false;
-    }
-
-    std::string from = fromStr;
-
-    LoginDatabase.PExecute("DELETE FROM `antispam_replacement` WHERE `from`='%s';", from.c_str());
-    PSendSysMessage("[AntiSpam]: From word %s is removed from antispam_replacement table.", from.c_str());
-
     return true;
 }
 
@@ -1922,12 +1826,5 @@ bool ChatHandler::HandleReloadConditionsCommand(char* /*args*/)
     sLog.outString("Re-Loading `conditions`... ");
     sObjectMgr.LoadConditions();
     SendSysMessage("DB table `conditions` reloaded.");
-    return true;
-}
-
-bool ChatHandler::HandleReloadAnticheatCommand(char*)
-{
-    sAnticheatMgr->LoadAnticheatData();
-    SendSysMessage(">> Anticheat data reloaded");
     return true;
 }

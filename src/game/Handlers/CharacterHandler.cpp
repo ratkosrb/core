@@ -41,7 +41,6 @@
 #include "Util.h"
 #include "Language.h"
 #include "Chat.h"
-#include "Anticheat.h"
 #include "MasterPlayer.h"
 #include "PlayerBroadcaster.h"
 
@@ -242,9 +241,6 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
     {
         data << (uint8)CHAR_CREATE_FAILED;
         SendPacket(&data);
-        std::stringstream oss;
-        oss << "Attempt to create character of invalid Class (" << int(class_) << ") or Race (" << int(race_) << ")";
-        ProcessAnticheatAction("PassiveAnticheat", oss.str().c_str(), CHEAT_ACTION_LOG);
         return;
     }
 
@@ -252,9 +248,6 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
     {
         data << (uint8)CHAR_CREATE_DISABLED;
         SendPacket(&data);
-        std::stringstream oss;
-        oss << "Attempt to create character of non-playable Race (" << int(race_) << ")";
-        ProcessAnticheatAction("PassiveAnticheat", oss.str().c_str(), CHEAT_ACTION_LOG);
         return;
     }
 
@@ -262,7 +255,6 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
     {
         data << (uint8)CHAR_CREATE_FAILED;
         SendPacket(&data);
-        ProcessAnticheatAction("PassiveAnticheat", "Attempt to create character with invalid appearance attributes", CHEAT_ACTION_LOG);
         return;
     }
 
@@ -270,8 +262,7 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
     if (!normalizePlayerName(name))
     {
         data << (uint8)CHAR_NAME_NO_NAME;
-        SendPacket(&data);
-        ProcessAnticheatAction("PassiveAnticheat", "Attempt to create character with invalid name", CHEAT_ACTION_LOG);
+        SendPacket(&data);;
         return;
     }
 
@@ -771,11 +762,6 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
     if (sWorld.getConfig(CONFIG_BOOL_SEND_LOOT_ROLL_UPON_RECONNECT) && alreadyOnline)
         if (Group* pGroup = pCurrChar->GetGroup())
             pGroup->SendLootStartRollsForPlayer(pCurrChar);
-
-    // Update warden speeds
-    //if (GetWarden())
-        //for (int i = 0; i < MAX_MOVE_TYPE; ++i)
-            //GetWarden()->SendSpeedChange(UnitMoveType(i), pCurrChar->GetSpeed(UnitMoveType(i)));
 
     ALL_SESSION_SCRIPTS(this, OnLogin(pCurrChar));
 }

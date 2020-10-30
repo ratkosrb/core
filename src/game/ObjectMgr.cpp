@@ -1952,8 +1952,8 @@ void ObjectMgr::LoadGameobjects(bool reload)
 
     //                                                               0       1     2      3             4             5             6
     std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`,"
-    //                      7            8            9            10           11      12         13              14       15        16
-                          "`rotation0`, `rotation1`, `rotation2`, `rotation3`, `temp`, `creator`, `animprogress`, `state`, `faction, `flags` FROM `gameobject`"));
+    //                      7            8            9            10           11      12         13              14       15         16
+                          "`rotation0`, `rotation1`, `rotation2`, `rotation3`, `temp`, `creator`, `animprogress`, `state`, `faction`, `flags` FROM `gameobject`"));
 
     if (!result)
     {

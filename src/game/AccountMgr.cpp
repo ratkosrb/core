@@ -32,8 +32,6 @@
 #include "WorldSession.h"
 #include "Chat.h"
 #include "MasterPlayer.h"
-#include "Anticheat.h"
-
 
 INSTANTIATE_SINGLETON_1(AccountMgr);
 
@@ -454,7 +452,6 @@ void AccountMgr::AddInstanceEnterTime(uint32 accountId, uint32 instanceId, time_
     it->second[instanceId] = enterTime;
 }
 
-// Anticheat
 void AccountPersistentData::WhisperedBy(MasterPlayer* whisperer)
 {
     WhispersMap::iterator it = m_whisperTargets.find(whisperer->GetGUIDLow());
@@ -470,11 +467,6 @@ uint32 AccountPersistentData::CountWhispersTo(MasterPlayer* from, MasterPlayer* 
     if (data.whispers_count == 1)
         data.score = GetWhisperScore(from, player);
     return data.whispers_count-1;
-}
-
-bool AccountPersistentData::CanWhisper(MasterPlayer* player) const
-{
-    return sAnticheatMgr->CanWhisper(*this, player);
 }
 
 uint32 AccountPersistentData::GetWhisperScore(MasterPlayer* from, MasterPlayer* target) const

@@ -25,7 +25,6 @@
 #include "World.h"
 #include "MoveSplineInit.h"
 #include "MoveSpline.h"
-#include "Anticheat.h"
 #include "Transport.h"
 #include "TemporarySummon.h"
 #include "GameObjectAI.h"
@@ -182,14 +181,6 @@ void TargetedMovementGeneratorMedium<T, D>::_setTargetLocation(T &owner)
         init.SetWalk(((D*)this)->EnableWalking());
     init.Launch();
     m_checkDistanceTimer.Reset(500);
-    // Fly-hack
-    if (Player* player = i_target->ToPlayer())
-    {
-        float allowed_dist = owner.GetCombatReach(false) + i_target->GetCombatReach(false) + 5.0f;
-        G3D::Vector3 dest = owner.movespline->FinalDestination();
-        if ((player->GetPositionZ() - allowed_dist - 5.0f) > dest.z)
-            player->GetCheatData()->OnUnreachable(&owner);
-    }
 }
 
 template<>
@@ -320,13 +311,6 @@ bool ChaseMovementGenerator<T>::Update(T &owner, uint32 const&  time_diff)
                 {
                     m_bRecalculateTravel = true;
                     owner.GetMotionMaster()->SetNeedAsyncUpdate();
-                }
-                else
-                {
-                    // Fly-hack
-                    if (Player* player = i_target->ToPlayer())
-                        if ((player->GetPositionZ() - allowed_dist - 5.0f) > dest.z)
-                            player->GetCheatData()->OnUnreachable(&owner);
                 }
             }
         }

@@ -54,7 +54,6 @@
 #include "ZoneScript.h"
 #include "MoveSplineInit.h"
 #include "MoveSpline.h"
-#include "Anticheat.h"
 #include "CreatureLinkingMgr.h"
 #include "TemporarySummon.h"
 #include "ScriptedEscortAI.h"
@@ -843,11 +842,6 @@ void Creature::Update(uint32 update_diff, uint32 diff)
             // No evade mode for pets.
             if (unreachableTarget && GetCharmerOrOwnerGuid().IsPlayer())
                 unreachableTarget = false;
-            if (unreachableTarget)
-                if (GetVictim())
-                    if (Player* victimPlayer = GetVictim()->ToPlayer())
-                        if (victimPlayer->GetCheatData() && victimPlayer->GetCheatData()->IsInKnockBack())
-                            unreachableTarget = false;
             if (unreachableTarget)
             {
                 m_TargetNotReachableTimer += update_diff;

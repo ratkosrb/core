@@ -19,7 +19,6 @@
 #include "Player.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
-#include "Anticheat.h"
 
 // Spline packets are for units controlled by the server. "Force speed change" (wrongly named opcodes) and "move set speed" packets are for units controlled by a player.
 OpcodesList const moveTypeToOpcode[MAX_MOVE_TYPE][3] =

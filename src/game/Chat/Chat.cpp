@@ -677,7 +677,6 @@ ChatCommand * ChatHandler::getCommandTable()
         { "all_scripts",    SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleReloadAllScriptsCommand,    "", nullptr },
         { "all_spell",      SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleReloadAllSpellCommand,      "", nullptr },
 
-        { "anticheat",      SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleReloadAnticheatCommand,     "", nullptr },
         { "config",         SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleReloadConfigCommand,        "", nullptr },
 
         { "areatrigger_involvedrelation", SEC_DEVELOPPER,    true,  &ChatHandler::HandleReloadQuestAreaTriggersCommand,       "", nullptr },
@@ -983,7 +982,6 @@ ChatCommand * ChatHandler::getCommandTable()
 
     static ChatCommand anticheatCommandTable[] =
     {
-        { "server",         SEC_GAMEMASTER,     true,  &ChatHandler::HandleAnticheatCommand,            "", nullptr },
         { "client",         SEC_GAMEMASTER,     true, nullptr,                                          "", anticheatClientCommandTable },
         { nullptr,          0,                  false, nullptr,                                         "", nullptr }
     };
@@ -1050,23 +1048,6 @@ ChatCommand * ChatHandler::getCommandTable()
     {
         { "del_characters",     SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleServiceDeleteCharacters,   "", nullptr },
         { nullptr,              0,                  false, nullptr,                                       "", nullptr }
-    };
-
-    static ChatCommand spamerCommandTable[] =
-    {
-        { "mute",               SEC_MODERATOR,      true,  &ChatHandler::HandleSpamerMute,                "", nullptr },
-        { "unmute",             SEC_TICKETMASTER,   true,  &ChatHandler::HandleSpamerUnmute,              "", nullptr },
-        { "list",               SEC_TICKETMASTER,   true,  &ChatHandler::HandleSpamerList,                "", nullptr },
-        { nullptr,              0,                  false, nullptr,                                       "", nullptr }
-    };
-
-    static ChatCommand AntiSpamCommandTable[] =
-    {
-        { "add",                SEC_TICKETMASTER,   true,  &ChatHandler::HandleAntiSpamAdd,                "", nullptr },
-        { "remove",             SEC_BASIC_ADMIN,    true,  &ChatHandler::HandleAntiSpamRemove,             "", nullptr },
-        { "replace",            SEC_TICKETMASTER,   true,  &ChatHandler::HandleAntiSpamReplace,            "", nullptr },
-        { "removereplace",      SEC_BASIC_ADMIN,    true,  &ChatHandler::HandleAntiSpamRemoveReplace,      "", nullptr },
-        { nullptr,              0,                  false, nullptr,                                        "", nullptr }
     };
 
     static ChatCommand goldCommandTable[] =
@@ -1199,8 +1180,6 @@ ChatCommand * ChatHandler::getCommandTable()
         { "pet",            SEC_GAMEMASTER,     true, nullptr,                                         "", petCommandTable},
         { "channel",        SEC_MODERATOR,      false, nullptr,                                        "", channelCommandTable},
         { "log",            SEC_GAMEMASTER,     true,  &ChatHandler::HandleViewLogCommand,             "", nullptr },
-        { "spamer",         SEC_MODERATOR,      true, nullptr,                                         "", spamerCommandTable },
-        { "antispam",       SEC_TICKETMASTER,   true, nullptr,                                         "", AntiSpamCommandTable },
         { "gold",           SEC_BASIC_ADMIN,    true, nullptr,                                         "", goldCommandTable },
         { nullptr,          0,                  false, nullptr,                                        "", nullptr }
     };

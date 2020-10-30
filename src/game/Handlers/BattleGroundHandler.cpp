@@ -34,7 +34,6 @@
 #include "Language.h"
 #include "ScriptMgr.h"
 #include "World.h"
-#include "Anticheat.h"
 
 void WorldSession::HandleBattlemasterHelloOpcode(WorldPacket& recv_data)
 {
@@ -117,43 +116,28 @@ void WorldSession::HandleBattlemasterJoinOpcode(WorldPacket& recv_data)
     BattleGroundTypeId bgTypeId = GetBattleGroundTypeIdByMapId(mapId);
 
     if (bgTypeId == BATTLEGROUND_TYPE_NONE)
-    {
-        ProcessAnticheatAction("PassiveAnticheat", "Attempt to queue for invalid BG type", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
         return;
-    }
     if (bgTypeId == BATTLEGROUND_AV && joinAsGroup)
-    {
-        ProcessAnticheatAction("PassiveAnticheat", "Attempt to queue for AV as group", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
         return;
-    }
 
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_6_1
     if (queuedAtBGPortal)
     {
         auto const& bgQueuePos = _player->GetBattleGroundEntryPoint();
         if (_player->GetMapId() != bgQueuePos.mapId || !_player->IsWithinDist3d(bgQueuePos, 50.0f))
-        {
-            ProcessAnticheatAction("PassiveAnticheat", "Attempt to queue for BG through out of range portal", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
             return;
-        }
     }
     else
     {
         if (!_player->GetNPCIfCanInteractWith(guid, UNIT_NPC_FLAG_BATTLEMASTER))
-        {
-            ProcessAnticheatAction("PassiveAnticheat", "Attempt to queue for BG through invalid creature", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
             return;
-        }
     }
 #else
     if (!_player->FindNearestInteractableNpcWithFlag(UNIT_NPC_FLAG_BATTLEMASTER))
     {
         auto const& bgQueuePos = _player->GetBattleGroundEntryPoint();
         if (_player->GetMapId() != bgQueuePos.mapId || !_player->IsWithinDist3d(bgQueuePos, 50.0f))
-        {
-            ProcessAnticheatAction("PassiveAnticheat", "Attempt to queue for BG through out of range portal", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
             return;
-        }
         else
             queuedAtBGPortal = true;
     }

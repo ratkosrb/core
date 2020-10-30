@@ -76,7 +76,6 @@
 #include "PlayerBotAI.h"
 #include "AccountMgr.h"
 #include "MoveSpline.h"
-#include "Anticheat.h"
 #include "MovementBroadcaster.h"
 #include "PlayerBroadcaster.h"
 #include "GameEventMgr.h"
@@ -566,7 +565,6 @@ Player::Player(WorldSession* session) : Unit(),
 
     // Anti undermap
     m_undermapPosValid = false;
-    session->InitCheatData(this);
     m_petEntry = 0;
     m_petSpell = 0;
     m_areaCheckTimer = 0;
@@ -1125,12 +1123,6 @@ void Player::Update(uint32 update_diff, uint32 p_time)
 
 void Player::OnDisconnected()
 {
-    // Anticheat sanction
-    std::stringstream reason;
-    uint32 cheatAction = GetCheatData()->Finalize(reason);
-    if (cheatAction)
-        GetSession()->ProcessAnticheatAction("MovementAnticheat", reason.str().c_str(), cheatAction, sWorld.getConfig(CONFIG_UINT32_AC_MOVEMENT_BAN_DURATION));
-
     if (IsInWorld() && FindMap())
     {
         if (!HasUnitState(UNIT_STAT_FLEEING | UNIT_STAT_CONFUSED | UNIT_STAT_TAXI_FLIGHT))
@@ -1915,7 +1907,6 @@ void Player::AddToWorld()
             m_items[i]->AddToWorld();
     }
     sPlayerBotMgr.OnPlayerInWorld(this);
-    GetCheatData()->InitSpeeds(this);
 }
 
 void Player::RemoveFromWorld()
@@ -5804,7 +5795,6 @@ void Player::CheckAreaExploreAndOutdoor()
             sLog.outError("PLAYER: Player %u discovered unknown area (x: %f y: %f map: %u", GetGUIDLow(), GetPositionX(), GetPositionY(), GetMapId());
         else if (p->AreaLevel > 0)
         {
-            GetCheatData()->OnExplore(p);
             uint32 area = p->Id;
             if (GetLevel() >= sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL))
                 SendExplorationExperience(area, 0);
@@ -7192,9 +7182,6 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type, Player* pVictim)
             if (GameObjectInfo const* goInfo = go->GetGOInfo())
                 if (goInfo->type == GAMEOBJECT_TYPE_CHEST && goInfo->chest.level > (GetLevel() + 10))
                 {
-                    std::stringstream oss;
-                    oss << "Level " << GetLevel() << " attempt to loot chest " << go->GetDBTableGUIDLow() << " (level " << goInfo->chest.level << ")";
-                    GetSession()->ProcessAnticheatAction("PassiveAnticheat", oss.str().c_str(), CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
                     SendLootRelease(guid);
                     return;
                 }
@@ -7259,7 +7246,6 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type, Player* pVictim)
                 {
                     sLog.outError("%s attempted to regenerate %s at map %u, zone %u, area %u - grouped? %s",
                         GetGuidStr().c_str(), item->GetGuidStr().c_str(), GetMap()->GetId(), GetZoneId(), GetAreaId(), GetGroup()? "yes" : "no");
-                    GetSession()->ProcessAnticheatAction("PassiveAnticheat", "Player::SendLoot: attempted to regenerate container loot", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
                     SendLootRelease(guid);
                     return;
                 }
@@ -8460,10 +8446,7 @@ InventoryResult Player::_CanStoreItem_InSpecificSlot(uint8 bag, uint8 slot, Item
 
     // Fix dupe exploit (move non empty bag)
     if (pSrcItem && pSrcItem->IsBag() && !((Bag*)pSrcItem)->IsEmpty())
-    {
-        GetSession()->ProcessAnticheatAction("PassiveAnticheat", "_CanStoreItem_InSpecificSlot: moving non empty bag", CHEAT_ACTION_LOG);
         return EQUIP_ERR_CAN_ONLY_DO_WITH_EMPTY_BAGS;
-    }
 
     uint32 need_space;
 
@@ -8543,10 +8526,7 @@ InventoryResult Player::_CanStoreItem_InBag(uint8 bag, ItemPosCountVec &dest, It
 
     // Fix dupe exploit (move non empty bag)
     if (pSrcItem && pSrcItem->IsBag() && !((Bag*)pSrcItem)->IsEmpty())
-    {
-        GetSession()->ProcessAnticheatAction("PassiveAnticheat", "_CanStoreItem_InBag: moving non empty bag", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
         return EQUIP_ERR_CAN_ONLY_DO_WITH_EMPTY_BAGS;
-    }
 
     // specialized bag mode or non-specilized
     if (non_specialized != (pBagProto->Class == ITEM_CLASS_CONTAINER && pBagProto->SubClass == ITEM_SUBCLASS_CONTAINER))
@@ -8604,10 +8584,8 @@ InventoryResult Player::_CanStoreItem_InInventorySlots(uint8 slot_begin, uint8 s
 {
     // Fix dupe exploit (move non empty bag)
     if (pSrcItem && pSrcItem->IsBag() && !((Bag*)pSrcItem)->IsEmpty())
-    {
-        GetSession()->ProcessAnticheatAction("PassiveAnticheat", "_CanStoreItem_InSpecificSlot: moving non empty bag", CHEAT_ACTION_LOG);
         return EQUIP_ERR_CAN_ONLY_DO_WITH_EMPTY_BAGS;
-    }
+
     for (uint32 j = slot_begin; j < slot_end; ++j)
     {
         // skip specific slot already processed in first called _CanStoreItem_InSpecificSlot
@@ -9091,10 +9069,7 @@ InventoryResult Player::CanStoreItems(Item** pItems, int count) const
 
         // Fix dupe exploit (move non empty bag)
         if (pItem->IsBag() && !((Bag*)pItem)->IsEmpty())
-        {
-            GetSession()->ProcessAnticheatAction("PassiveAnticheat", "Player::CanStoreItems: can't store non empty bag", CHEAT_ACTION_LOG);
             return EQUIP_ERR_CAN_ONLY_DO_WITH_EMPTY_BAGS;
-        }
 
         DEBUG_LOG("STORAGE: CanStoreItems %i. item = %u, count = %u", k + 1, pItem->GetEntry(), pItem->GetCount());
         ItemPrototype const* pProto = pItem->GetProto();
@@ -10168,8 +10143,6 @@ void Player::DestroyItem(uint8 bag, uint8 slot, bool update)
                 for (int i = 0; i < MAX_BAG_SIZE; ++i)
                     DestroyItem(slot, i, update);
             }
-            else if (!((Bag*)pItem)->IsEmpty())
-                GetSession()->ProcessAnticheatAction("PassiveAnticheat", "Player::DestroyItem: destroying non equipped bag with items inside!", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
         }
 
         if (pItem->HasFlag(ITEM_FIELD_FLAGS, ITEM_DYNFLAG_WRAPPED))
@@ -10551,7 +10524,6 @@ void Player::SplitItem(uint16 src, uint16 dst, uint32 count)
     // not let split all items (can be only at cheating)
     if (pSrcItem->GetCount() == count)
     {
-        GetSession()->ProcessAnticheatAction("PassiveAnticheat", "Attempt to split full item stack", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
         SendEquipError(EQUIP_ERR_COULDNT_SPLIT_ITEMS, pSrcItem, nullptr);
         return;
     }
@@ -10559,7 +10531,6 @@ void Player::SplitItem(uint16 src, uint16 dst, uint32 count)
     // not let split more existing items (can be only at cheating)
     if (pSrcItem->GetCount() < count)
     {
-        GetSession()->ProcessAnticheatAction("PassiveAnticheat", "Attempt to split more items than have", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
         SendEquipError(EQUIP_ERR_TRIED_TO_SPLIT_MORE_THAN_COUNT, pSrcItem, nullptr);
         return;
     }
@@ -10569,10 +10540,7 @@ void Player::SplitItem(uint16 src, uint16 dst, uint32 count)
     {
         //! If current item is in trade window (only possible with packet spoofing - silent return)
         if (tradeData->GetTradeSlotForItem(pSrcItem->GetObjectGuid()) != TRADE_SLOT_INVALID)
-        {
-            GetSession()->ProcessAnticheatAction("PassiveAnticheat", "Attempt to split item in trade", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
             return;
-        }
     }
 
     DEBUG_LOG("STORAGE: SplitItem bag = %u, slot = %u, item = %u, count = %u", dstbag, dstslot, pSrcItem->GetEntry(), count);
@@ -10685,7 +10653,6 @@ void Player::SwapItem(uint16 src, uint16 dst)
     // prevent put equipped/bank bag in self
     if (IsBagPos(src) && srcslot == dstbag)
     {
-        GetSession()->ProcessAnticheatAction("PassiveAnticheat", "SwapItem: put equipped/bank bag in self (srcslot == dstbag)", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
         SendEquipError(EQUIP_ERR_NONEMPTY_BAG_OVER_OTHER_BAG, pSrcItem, pDstItem);
         return;
     }
@@ -10693,7 +10660,6 @@ void Player::SwapItem(uint16 src, uint16 dst)
     // prevent put equipped/bank bag in self
     if (IsBagPos(dst) && dstslot == srcbag)
     {
-        GetSession()->ProcessAnticheatAction("PassiveAnticheat", "SwapItem: put equipped/bank bag in self (dstslot == srcbag)", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
         SendEquipError(EQUIP_ERR_NONEMPTY_BAG_OVER_OTHER_BAG, pDstItem, pSrcItem);
         return;
     }
@@ -14882,7 +14848,6 @@ void Player::_LoadInventory(QueryResult* result, uint32 timediff, bool& has_epic
                 std::stringstream oss;
                 oss << "Duplicate item (via AH) " << item_id << " GUID:" << item_lowguid << ", count: " << item->GetCount() << ", bag: " << bag_guid << ", slot: " << uint32(slot);
                 CharacterDatabase.PExecute("DELETE FROM character_inventory WHERE item = '%u'", item_lowguid);
-                GetSession()->ProcessAnticheatAction("PassiveAnticheat", oss.str().c_str(), CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
                 DETAIL_LOG(oss.str().c_str());
                 continue;
             }
@@ -14904,13 +14869,6 @@ void Player::_LoadInventory(QueryResult* result, uint32 timediff, bool& has_epic
                 continue;
             }
 
-            // Duplic guid check
-            if (itemGuids.find(item_lowguid) != itemGuids.end())
-            {
-                std::stringstream oss;
-                oss << "Duplicate item " << item_id << " GUID:" << item_lowguid << ", count: " << item->GetCount() << ", bag: " << bag_guid << ", slot: " << uint32(slot);
-                GetSession()->ProcessAnticheatAction("PassiveAnticheat", oss.str().c_str(), CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
-            }
             itemGuids.insert(item_lowguid);
 
             // not allow have in alive state item limited to another map/zone
@@ -14946,7 +14904,6 @@ void Player::_LoadInventory(QueryResult* result, uint32 timediff, bool& has_epic
                         item = StoreItem(dest, item, true);
                     else
                     {
-                        GetSession()->ProcessAnticheatAction("PassiveAnticheat", "Item Load failed: cannot store", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
                         success = false;
                     }
                 }
@@ -14957,7 +14914,6 @@ void Player::_LoadInventory(QueryResult* result, uint32 timediff, bool& has_epic
                         QuickEquipItem(dest, item);
                     else
                     {
-                        GetSession()->ProcessAnticheatAction("PassiveAnticheat", "Item Load failed: cannot QuickEquip", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
                         success = false;
                     }
                 }
@@ -14968,7 +14924,6 @@ void Player::_LoadInventory(QueryResult* result, uint32 timediff, bool& has_epic
                         item = BankItem(dest, item, true);
                     else
                     {
-                        GetSession()->ProcessAnticheatAction("PassiveAnticheat", "Item Load failed: cannot Bank", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
                         success = false;
                     }
                 }
@@ -14993,13 +14948,11 @@ void Player::_LoadInventory(QueryResult* result, uint32 timediff, bool& has_epic
                         item = StoreItem(dest, item, true);
                     else
                     {
-                        GetSession()->ProcessAnticheatAction("PassiveAnticheat", "Item Load failed: can't store inside bag", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
                         success = false;
                     }
                 }
                 else
                 {
-                    GetSession()->ProcessAnticheatAction("PassiveAnticheat", "Item Load failed: invalid bag pos", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
                     success = false;
                 }
             }
@@ -15020,9 +14973,6 @@ void Player::_LoadInventory(QueryResult* result, uint32 timediff, bool& has_epic
                 //sLog.outError("Player::_LoadInventory: Player %s has item (GUID: %u Entry: %u) can't be loaded to inventory (Bag GUID: %u Slot: %u) by some reason, will send by mail.", GetName(),item_lowguid, item_id, bag_guid, slot);
                 CharacterDatabase.PExecute("DELETE FROM character_inventory WHERE item = '%u'", item_lowguid);
                 problematicItems.push_back(item);
-                std::stringstream oss;
-                oss << "Broken item " << item->GetEntry() << " GUID:" << item->GetGUIDLow() << " count:" << item->GetCount() << " bag:" << bag_guid << " slot:" << uint32(slot);
-                GetSession()->ProcessAnticheatAction("PassiveAnticheat", oss.str().c_str(), CHEAT_ACTION_LOG);
             }
         }
         while (result->NextRow());
@@ -15929,7 +15879,6 @@ void Player::_SaveInventory()
                 stmt.addUInt32(GetGUIDLow());
                 stmt.Execute();
                 // also THIS item should be somewhere else, cheat attempt
-                GetSession()->ProcessAnticheatAction("PassiveAnticheat", "_SaveInventory: item not found", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
                 item->FSetState(ITEM_REMOVED); // we are IN updateQueue right now, can't use SetState which modifies the queue
                 // don't skip, let the switch delete it
             }
@@ -15941,8 +15890,6 @@ void Player::_SaveInventory()
                 continue;
             }
         }
-        if (item->GetOwnerGuid() != GetObjectGuid())
-            GetSession()->ProcessAnticheatAction("PassiveAnticheat", "_SaveInventory: attempting to save not owned item", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
 
         static SqlStatementID insertInventory ;
         static SqlStatementID updateInventory ;
@@ -16966,10 +16913,7 @@ bool Player::ActivateTaxiPathTo(std::vector<uint32> const& nodes, Creature* npc 
     if (!IsTaxiCheater() && !nocheck)
         for (uint32 node : nodes)
             if (!m_taxi.IsTaximaskNodeKnown(node))
-            {
-                GetSession()->ProcessAnticheatAction("PassiveAnticheat", "Taxi: Attempt to use unknown node.", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
                 return false;
-            }
 
     // taximaster case
     if (npc)

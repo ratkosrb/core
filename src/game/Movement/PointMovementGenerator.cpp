@@ -26,7 +26,6 @@
 #include "World.h"
 #include "MoveSplineInit.h"
 #include "MoveSpline.h"
-#include "Anticheat.h"
 
 //----- Point Movement Generator
 template<class T>
@@ -268,7 +267,6 @@ void ChargeMovementGenerator<T>::ComputePath(T& attacker, Unit& victim)
     Vector3 victimPos; // victim position
     Vector3 chargeVect; // vector of the charge
     Vector3 victimSpd; // speed vector of victim
-    float o;
 
     if (Transport* t = attacker.GetTransport())
         path.SetTransport(t);
@@ -285,50 +283,6 @@ void ChargeMovementGenerator<T>::ComputePath(T& attacker, Unit& victim)
 
     // Base path is to current victim position
     path.calculate(victimPos.x, victimPos.y, victimPos.z, false);
-
-    // Improved path to victim future estimated position
-    if (Player* victimPlayer = victim.ToPlayer())
-    {
-        MovementAnticheat* data = victimPlayer->GetCheatData();
-        if ((data->ExtrapolateMovement(victimPlayer->m_movementInfo, 1000, victimSpd.x, victimSpd.y, victimSpd.z, o)) &&
-                (data->ExtrapolateMovement(victimPlayer->m_movementInfo, 0, victimPos.x, victimPos.y, victimPos.z, o)))
-        {
-            // Victim speed per sec.
-            victimSpd -= victimPos;
-            // We get only the component of the speed in the direction of charge vector
-            float victimSpeed = victimSpd.dot(chargeVect); // dot product
-            if (abs(victimSpeed) > 0.1f)
-            {
-                float currDistance = path.Length();
-                uint32 pathTravelTime;
-                // Equation when matching collision distance, to get collision time:
-                // m_speed * t = currDistance + victimSpeed * t
-                // t = currDistance / (m_speed - victimSpeed)
-                if (m_speed > 2 * victimSpeed) // we don't want to reach target if target speed is more than half charge speed
-                    pathTravelTime = (uint32)(1000 * currDistance / (m_speed - victimSpeed));
-                else
-                    pathTravelTime = (uint32)(1000 * 2 * currDistance / m_speed);
-
-                pathTravelTime *= 0.45f; // Attenuation factor (empirical)
-                m_interpolateDelay = (WorldTimer::getMSTime() - victimPlayer->m_movementInfo.time) + pathTravelTime;
-                if (m_interpolateDelay > 1500) m_interpolateDelay = 1500;
-                if (data->ExtrapolateMovement(victimPlayer->m_movementInfo, m_interpolateDelay, victimPos.x, victimPos.y, victimPos.z, o))
-                {
-                    victim.UpdateAllowedPositionZ(victimPos.x, victimPos.y, victimPos.z);
-                    path.calculate(victimPos.x, victimPos.y, victimPos.z, false);
-                    path.UpdateForMelee(&victim, attacker.GetMeleeReach());
-                }
-            }
-            else
-                path.UpdateForMelee(&victim, attacker.GetMeleeReach());
-        }
-    }
-    else
-    {
-        // TODO: PvE victim position prediction?
-        // Relocate last path point to hitbox rather than exact position of victim
-        path.UpdateForMelee(&victim, attacker.GetMeleeReach());
-    }
 }
 
 template<class T>

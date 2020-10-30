@@ -29,7 +29,6 @@
 #include "Item.h"
 #include "UpdateData.h"
 #include "Chat.h"
-#include "Anticheat.h"
 
 void WorldSession::HandleSplitItemOpcode(WorldPacket& recv_data)
 {
@@ -88,10 +87,7 @@ void WorldSession::HandleSwapInvItemOpcode(WorldPacket& recv_data)
     }
 
     if ((_player->IsBankPos(INVENTORY_SLOT_BAG_0, srcslot) || _player->IsBankPos(INVENTORY_SLOT_BAG_0, dstslot)) && !CanUseBank())
-    {
-        ProcessAnticheatAction("ItemsCheck", "Attempt to cheat-bank items", CHEAT_ACTION_REPORT_GMS);
         return;
-    }
 
     uint16 src = ((INVENTORY_SLOT_BAG_0 << 8) | srcslot);
     uint16 dst = ((INVENTORY_SLOT_BAG_0 << 8) | dstslot);
@@ -146,10 +142,7 @@ void WorldSession::HandleSwapItem(WorldPacket& recv_data)
     }
 
     if ((_player->IsBankPos(srcbag, srcslot) || _player->IsBankPos(dstbag, dstslot)) && !CanUseBank())
-    {
-        ProcessAnticheatAction("ItemsCheck", "Attempt to cheat-bank items", CHEAT_ACTION_REPORT_GMS);
         return;
-    }
 
     _player->SwapItem(src, dst);
 }

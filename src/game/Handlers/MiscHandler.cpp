@@ -46,7 +46,6 @@
 #include "SocialMgr.h"
 #include "Spell.h"
 #include "ZoneScript.h"
-#include "Anticheat.h"
 #include "MasterPlayer.h"
 #include "GossipDef.h"
 #include "GameEventMgr.h"
@@ -728,10 +727,7 @@ void WorldSession::HandleResurrectResponseOpcode(WorldPacket& recv_data)
     recv_data >> status;
 
     if (!guid) // Cheating attempt
-    {
-        ProcessAnticheatAction("PassiveAnticheat", "Instant resurrect hack detected", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
         return;
-    }
 
     if (GetPlayer()->IsAlive())
         return;
@@ -1249,11 +1245,5 @@ void WorldSession::HandleRequestPetInfoOpcode(WorldPacket& /*recv_data */)
 
 void WorldSession::HandleWardenDataOpcode(WorldPacket& recv_data)
 {
-    if (!m_warden)
-    {
-        sLog.outWarden("HandleWardenDataOpcode: warden interface not found!");
-        return;
-    }
 
-    m_warden->HandleWardenDataOpcode(recv_data);
 }

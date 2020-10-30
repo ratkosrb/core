@@ -53,7 +53,6 @@
 #include "PlayerAI.h"
 #include "PlayerBotAI.h"
 #include "PlayerBotMgr.h"
-#include "Anticheat.h"
 #include "ReplayMgr.h"
 
 using namespace Spells;

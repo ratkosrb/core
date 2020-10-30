@@ -56,7 +56,6 @@ public:
     };
     void WhisperedBy(MasterPlayer* whisperer);
     uint32 CountWhispersTo(MasterPlayer* from, MasterPlayer* player);
-    bool CanWhisper(MasterPlayer* player) const;
     uint32 GetWhisperScore(MasterPlayer* from, MasterPlayer* player) const;
     uint32 CountDifferentWhispTargets() const { return m_whisperTargets.size(); }
 

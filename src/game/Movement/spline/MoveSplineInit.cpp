@@ -22,7 +22,6 @@
 #include "Unit.h"
 #include "Transport.h"
 #include "ObjectAccessor.h"
-#include "Anticheat.h"
 #include "WorldPacket.h"
 
 namespace Movement
@@ -117,9 +116,6 @@ int32 MoveSplineInit::Launch()
 
     if (!args.Validate(&unit))
         return 0;
-
-    if (Player* pPlayer = unit.ToPlayer())
-        pPlayer->GetCheatData()->ResetJumpCounters();
 
     unit.m_movementInfo.SetMovementFlags((MovementFlags)moveFlags);
     move_spline.SetMovementOrigin(movementType);

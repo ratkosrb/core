@@ -34,7 +34,6 @@
 #include "GameObjectAI.h"
 #include "World.h"
 #include "Util.h"
-#include "Anticheat.h"
 
 void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recv_data)
 {
@@ -298,10 +297,7 @@ void WorldSession::HandleLootOpcode(WorldPacket& recv_data)
     recv_data >> guid;
 
     if (!guid.IsAnyTypeCreature() && !guid.IsPlayer() && !guid.IsCorpse())
-    {
-        ProcessAnticheatAction("ItemsCheck", "CMSG_LOOT on non-unit guid", CHEAT_ACTION_LOG);
         return;
-    }
 
     // Check possible cheat
     if (!_player->IsAlive())

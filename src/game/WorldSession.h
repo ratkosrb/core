@@ -51,8 +51,6 @@ class LoginQueryHolder;
 class CharacterHandler;
 class MovementInfo;
 class WorldSession;
-class Warden;
-class MovementAnticheat;
 class BigNumber;
 class BehaviorAnalyzer;
 class MasterPlayer;
@@ -486,20 +484,12 @@ class WorldSession
         bool m_connected;
         uint32 m_disconnectTimer;
 
-        // Warden / Anticheat
-        void InitWarden(BigNumber* K);
-        Warden* GetWarden() const { return m_warden; }
-
         bool AllowPacket(uint16 opcode);
-        void ProcessAnticheatAction(char const* detector, char const* reason, uint32 action, uint32 banTime = 0 /* Perm ban */);
         uint32 GetLastReceivedPacketTime() const { return m_lastReceivedPacketTime; }
         void AddClientIdentifier(uint32 i, std::string str);
         ClientIdentifiersMap const& GetClientIdentifiers() const { return _clientIdentifiers; }
         void ComputeClientHash();
         bool IsClientHashComputed() const { return _clientHashComputeStep != HASH_NOT_COMPUTED; }
-        
-        void InitCheatData(Player* pPlayer);
-        MovementAnticheat* GetCheatData();
 
         void AddScript(std::string name, WorldSessionScript* script)
         {
@@ -913,9 +903,6 @@ class WorldSession
         TutorialDataState m_tutorialState;
         ACE_Based::LockedQueue<WorldPacket*, ACE_Thread_Mutex> _recvQueue[PACKET_PROCESS_MAX_TYPE];
         bool _receivedPacketType[PACKET_PROCESS_MAX_TYPE];
-
-        Warden* m_warden;
-        MovementAnticheat* m_cheatData;
 
         std::string m_username;
         uint32 _floodPacketsCount[FLOOD_MAX_OPCODES_TYPE];
