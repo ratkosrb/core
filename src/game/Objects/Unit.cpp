@@ -9213,7 +9213,7 @@ void Unit::GetRandomAttackPoint(Unit const* attacker, float &x, float &y, float 
     angle += (attacker_number ? ((float(M_PI / 2) - float(M_PI) * rand_norm_f()) * attacker_number / sizeFactor) * 0.3f : 0);
 
     float dist = attacker->GetObjectBoundingRadius() + GetObjectBoundingRadius() + rand_norm_f() * (attacker->GetMeleeReach() - attacker->GetObjectBoundingRadius());
-    float initialPosX, initialPosY, initialPosZ, o;
+    float initialPosX, initialPosY, initialPosZ;
     GetPosition(initialPosX, initialPosY, initialPosZ);
 
     // Moving player: try to extrapolate movement a bit
