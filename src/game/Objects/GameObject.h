@@ -585,6 +585,7 @@ struct GameObjectData
     bool temp = false;
     uint32 creator = 0;
     GOState go_state = GO_STATE_ACTIVE;
+    uint32 faction = 0;
     uint32 flags = 0;
     uint32 spawn_flags = SPAWN_FLAG_ACTIVE;
     float visibility_mod = 0.0f;

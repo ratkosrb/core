@@ -731,6 +731,8 @@ void ReplayMgr::UpdateGameObjectsForCurrentTime()
                 itr.second->SetGoState(GOState(data->go_state));
             if (itr.second->GetUInt32Value(GAMEOBJECT_FLAGS) != data->flags)
                 itr.second->SetUInt32Value(GAMEOBJECT_FLAGS, data->flags);
+            if (itr.second->GetUInt32Value(GAMEOBJECT_FACTION) != data->faction)
+                itr.second->SetUInt32Value(GAMEOBJECT_FACTION, data->faction);
         }
     }
 

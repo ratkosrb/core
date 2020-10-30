@@ -941,6 +941,7 @@ bool GameObject::LoadFromDB(uint32 guid, Map* map)
     }
 
     SetUInt32Value(GAMEOBJECT_FLAGS, data->flags);
+    SetUInt32Value(GAMEOBJECT_FACTION, data->faction);
 
     if (data->spawn_flags & SPAWN_FLAG_ACTIVE)
         m_isActiveObject = true;

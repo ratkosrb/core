@@ -1952,8 +1952,8 @@ void ObjectMgr::LoadGameobjects(bool reload)
 
     //                                                               0       1     2      3             4             5             6
     std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`,"
-    //                      7            8            9            10           11      12         13              14       15
-                          "`rotation0`, `rotation1`, `rotation2`, `rotation3`, `temp`, `creator`, `animprogress`, `state`, `flags` FROM `gameobject`"));
+    //                      7            8            9            10           11      12         13              14       15        16
+                          "`rotation0`, `rotation1`, `rotation2`, `rotation3`, `temp`, `creator`, `animprogress`, `state`, `faction, `flags` FROM `gameobject`"));
 
     if (!result)
     {
@@ -2004,7 +2004,8 @@ void ObjectMgr::LoadGameobjects(bool reload)
         data.rotation3        = fields[10].GetFloat();
         data.temp             = fields[11].GetBool();
         data.creator          = fields[12].GetInt32();
-        data.flags            = fields[15].GetUInt32();
+        data.faction          = fields[15].GetUInt32();
+        data.flags            = fields[16].GetUInt32();
         data.instanciatedContinentInstanceId = sMapMgr.GetContinentInstanceId(data.position.mapId, data.position.x, data.position.y);
 
         MapEntry const* mapEntry = sMapStorage.LookupEntry<MapEntry>(data.position.mapId);
