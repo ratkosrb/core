@@ -7,8 +7,6 @@
 #include "ChannelMgr.h"
 #include "Anticheat.h"
 
-typedef std::chrono::high_resolution_clock Clock;
-
 enum NormalizeFlags
 {
     NF_CUT_COLOR        = 0x001,
