@@ -358,16 +358,42 @@ void ReplayMgr::LoadInitialWorldStates()
 
 void ReplayMgr::SpawnCharacters()
 {
+    uint32 maxGuid = 0;
     for (const auto& itr : m_characterTemplates)
     {
         CharacterMovementMap const* movementMap = nullptr;
         auto movement = m_characterMovements.find(itr.first);
         if (movement != m_characterMovements.end())
             movementMap = &movement->second;
+        if (itr.first > maxGuid)
+            maxGuid = itr.first;
         ReplayBotAI* ai = new ReplayBotAI(itr.first, &itr.second, movementMap);
         m_playerBots[itr.first] = ai;
         sPlayerBotMgr.AddBot(ai);
     }
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT DISTINCT `sender_name` FROM `character_chat` WHERE `guid`=0"));
+    if (result)
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+            std::string name = fields[0].GetCppString();
+            if (name.empty())
+                continue;
+
+            uint32 guid = ++maxGuid;
+            CharacterTemplateEntry& character = m_characterTemplates[guid];
+            character.name = name;
+            character.classId = CLASS_WARRIOR;
+            character.raceId = RACE_HUMAN;
+            character.level = PLAYER_MAX_LEVEL;
+            character.health = 100;
+            ReplayBotAI* ai = new ReplayBotAI(guid, &character, nullptr);
+            m_playerBots[guid] = ai;
+            sPlayerBotMgr.AddBot(ai);
+        } while (result->NextRow());
+    }
+
     sLog.outString("[ReplayMgr] All characters spawned");
 }
 

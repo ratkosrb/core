@@ -98,6 +98,7 @@ void ReplayMgr::LoadSniffedEvents()
     LoadSpellCastGoPositions();
     LoadSpellChannelStart();
     LoadSpellChannelUpdate();
+    LoadPlayerChat();
     LoadPlayMusic();
     LoadPlaySound();
     LoadPlaySpellVisualKit();
@@ -1639,6 +1640,180 @@ void SniffedEvent_SpellChannelUpdate::Execute() const
             pUnitCaster->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
         }
     }
+}
+
+void ReplayMgr::LoadPlayerChat()
+{
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `sender_name`, `text`, `chat_type`, `channel_name`, `unixtimems` FROM `character_chat` ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            std::string senderName = fields[1].GetCppString();
+            std::string text = fields[2].GetCppString();
+            uint8 chatType = fields[3].GetUInt8();
+            std::string channelName = fields[4].GetCppString();
+            uint64 unixtimems = fields[5].GetUInt64();
+
+            std::shared_ptr<SniffedEvent_PlayerChat> newEvent = std::make_shared<SniffedEvent_PlayerChat>(guid, senderName, text, chatType, channelName);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+enum class ChatMessageTypeNew : uint8
+{
+    System = 0,
+    Say = 1,
+    Party = 2,
+    Raid = 3,
+    Guild = 4,
+    Officer = 5,
+    Yell = 6,
+    Whisper = 7,
+    Whisper2 = 8,
+    WhisperInform = 9,
+    Emote = 10,
+    TextEmote = 11,
+    MonsterSay = 12,
+    MonsterParty = 13,
+    MonsterYell = 14,
+    MonsterWhisper = 15,
+    MonsterEmote = 16,
+    Channel = 17,
+    ChannelJoin = 18,
+    ChannelLeave = 19,
+    ChannelList = 20,
+    ChannelNotice = 21,
+    ChannelNoticeUser = 22,
+    Afk = 23,
+    Dnd = 24,
+    Ignored = 25,
+    Skill = 26,
+    Loot = 27,
+    Money = 28,
+    Opening = 29,
+    Tradeskills = 30,
+    PetInfo = 31,
+    CombatMiscInfo = 32,
+    CombatXpGain = 33,
+    CombatHonorGain = 34,
+    CombatFactionChange = 35,
+    BgSystemNeutral = 36,
+    BgSystemAlliance = 37,
+    BgSystemHorde = 38,
+    RaidLeader = 39,
+    RaidWarning = 40,
+    RaidBossEmote = 41,
+    RaidBossWhisper = 42,
+    Filtered = 43,
+    Restricted = 44,
+    //unused1 = 45,
+    Achievement = 46,
+    GuildAchievement = 47,
+    //unused2 = 48,
+    PartyLeader = 49,
+    Targeticons = 50,
+    BnWhisper = 51,
+    BnWhisperInform = 52,
+    BnConversation = 53,
+    BnConversationNotice = 54,
+    BnConversationList = 55,
+    BnInlineToastAlert = 56,
+    BnInlineToastBroadcast = 57,
+    BnInlineToastBroadcastInform = 58,
+    BnInlineToastConversation = 59,
+    BnWhisperPlayerOffline = 60,
+    CombatGuildXpGain = 61,
+    Battleground = 62,
+    BattlegroundLeader = 63,
+    PetBattleCombatLog = 64,
+    PetBattleInfo = 65,
+    InstanceChat = 66,
+    InstanceChatLeader = 67,
+};
+
+ChatMsg ConvertClassicChatTypeToVanilla(uint8 chatType)
+{
+    switch (ChatMessageTypeNew(chatType))
+    {
+        case ChatMessageTypeNew::Say:
+            return CHAT_MSG_SAY;
+        case ChatMessageTypeNew::Party:
+            return CHAT_MSG_PARTY;
+        case ChatMessageTypeNew::Raid:
+            return CHAT_MSG_RAID;
+        case ChatMessageTypeNew::Guild:
+            return CHAT_MSG_GUILD;
+        case ChatMessageTypeNew::Officer:
+            return CHAT_MSG_OFFICER;
+        case ChatMessageTypeNew::Yell:
+            return CHAT_MSG_YELL;
+        case ChatMessageTypeNew::Whisper:
+            return CHAT_MSG_WHISPER;
+        case ChatMessageTypeNew::Whisper2:
+            return CHAT_MSG_WHISPER;
+        case ChatMessageTypeNew::WhisperInform:
+            return CHAT_MSG_WHISPER_INFORM;
+        case ChatMessageTypeNew::Emote:
+            return CHAT_MSG_EMOTE;
+        case ChatMessageTypeNew::TextEmote:
+            return CHAT_MSG_TEXT_EMOTE;
+        case ChatMessageTypeNew::Channel:
+            return CHAT_MSG_CHANNEL;
+        case ChatMessageTypeNew::BgSystemNeutral:
+            return CHAT_MSG_BG_SYSTEM_NEUTRAL;
+        case ChatMessageTypeNew::BgSystemAlliance:
+            return CHAT_MSG_BG_SYSTEM_ALLIANCE;
+        case ChatMessageTypeNew::BgSystemHorde:
+            return CHAT_MSG_BG_SYSTEM_HORDE;
+        case ChatMessageTypeNew::RaidLeader:
+            return CHAT_MSG_RAID_LEADER;
+        case ChatMessageTypeNew::RaidWarning:
+            return CHAT_MSG_RAID_WARNING;
+        case ChatMessageTypeNew::PartyLeader:
+            return CHAT_MSG_PARTY;
+        case ChatMessageTypeNew::BnWhisper:
+            return CHAT_MSG_WHISPER;
+        case ChatMessageTypeNew::BnWhisperInform:
+            return CHAT_MSG_WHISPER_INFORM;
+        case ChatMessageTypeNew::Battleground:
+            return CHAT_MSG_BATTLEGROUND;
+        case ChatMessageTypeNew::BattlegroundLeader:
+            return CHAT_MSG_BATTLEGROUND_LEADER;
+        case ChatMessageTypeNew::InstanceChat:
+            return CHAT_MSG_PARTY;
+        case ChatMessageTypeNew::InstanceChatLeader:
+            return CHAT_MSG_PARTY;
+    }
+    return CHAT_MSG_SAY;
+}
+
+void SniffedEvent_PlayerChat::Execute() const
+{
+    ChatMsg chatType = ConvertClassicChatTypeToVanilla(m_chatType);
+    ObjectGuid guid;
+    if (m_guid)
+    {
+        if (Player* pSender = sReplayMgr.GetPlayer(m_guid))
+            guid = pSender->GetObjectGuid();
+    }
+    else if (!m_senderName.empty())
+    {
+        guid = sObjectMgr.GetPlayerGuidByName(m_senderName);
+        if (guid.IsEmpty())
+        {
+            sLog.outError("SniffedEvent_PlayerChat: Cannot find bot!");
+        }
+    }
+
+    WorldPacket data;
+    ChatHandler::BuildChatPacket(data, chatType, m_text.c_str(), LANG_UNIVERSAL, 0, guid, m_senderName.c_str(), ObjectGuid(), "", m_senderName.c_str(), 0);
+    sWorld.SendGlobalMessage(&data);
 }
 
 void ReplayMgr::LoadPlayMusic()

@@ -113,6 +113,7 @@ enum SniffedEventType : uint8
     SE_GAMEOBJECT_DESTROY,
     SE_GAMEOBJECT_UPDATE_FLAGS,
     SE_GAMEOBJECT_UPDATE_STATE,
+    SE_PLAYER_CHAT,
     SE_PLAY_MUSIC,
     SE_PLAY_SOUND,
     SE_PLAY_SPELL_VISUAL_KIT,
@@ -202,6 +203,8 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "GameObject Update Flags";
         case SE_GAMEOBJECT_UPDATE_STATE:
             return "GameObject Update State";
+        case SE_PLAYER_CHAT:
+            return "Player Chat";
         case SE_PLAY_MUSIC:
             return "Play Music";
         case SE_PLAY_SOUND:
@@ -1019,6 +1022,26 @@ struct SniffedEvent_SpellChannelUpdate : SniffedEvent
     KnownObject GetSourceObject() const final
     {
         return KnownObject(m_casterGuid, m_casterId, TypeID(m_casterType));
+    }
+};
+
+struct SniffedEvent_PlayerChat : SniffedEvent
+{
+    SniffedEvent_PlayerChat(uint32 guid, std::string senderName, std::string text, uint8 chatType, std::string channelName) :
+        m_guid(guid), m_senderName(senderName), m_text(text), m_chatType(chatType), m_channelName(channelName) {};
+    uint32 m_guid = 0;
+    std::string m_senderName;
+    std::string m_text;
+    uint8 m_chatType = 0;
+    std::string m_channelName;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_PLAYER_CHAT;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, 0, TYPEID_PLAYER);
     }
 };
 

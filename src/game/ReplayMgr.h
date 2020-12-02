@@ -237,6 +237,7 @@ class ReplayMgr
         void LoadSpellCastGoPositions();
         void LoadSpellChannelStart();
         void LoadSpellChannelUpdate();
+        void LoadPlayerChat();
         void LoadPlayMusic();
         void LoadPlaySound();
         void LoadPlaySpellVisualKit();
