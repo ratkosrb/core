@@ -214,6 +214,8 @@ struct CreatureData
     float mana_percent = 100.0f;
     uint8 movement_type = 0;
     uint8 movement_type_real = 0; // for display in .npc spawn info
+    float scale = 1.0f;
+    bool hover = false;
     uint32 spawn_flags = 1;
     float visibility_mod = 0.0f;
 

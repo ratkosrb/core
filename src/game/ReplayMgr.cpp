@@ -622,6 +622,11 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
                 itr.second->SetUInt32Value(OBJECT_FIELD_ENTRY, data->creature_id[0]);
             if (itr.second->GetDisplayId() != data->display_id)
                 itr.second->SetDisplayId(data->display_id);
+
+            float defaultScale = (data->scale * Creature::GetScaleForDisplayId(itr.second->GetDisplayId()));
+            if (itr.second->GetObjectScale() != defaultScale)
+                itr.second->SetObjectScale(defaultScale);
+
             if (itr.second->GetFactionTemplateId() != data->faction)
                 itr.second->SetFactionTemplateId(data->faction);
             if (itr.second->GetUInt32Value(UNIT_FIELD_FLAGS) != data->unit_flags)

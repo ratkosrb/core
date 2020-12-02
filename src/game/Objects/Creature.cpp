@@ -1660,6 +1660,9 @@ bool Creature::LoadFromDB(uint32 guidlow, Map* map)
     SetUInt32Value(UNIT_NPC_FLAGS, data->npc_flags);
     SetUInt32Value(UNIT_FIELD_FLAGS, data->unit_flags);
 
+    if (data->hover)
+        SetUnitMovementFlags(MOVEFLAG_FIXED_Z);
+
     // checked at creature_template loading
     m_defaultMovementType = MovementGeneratorType(data->movement_type);
 

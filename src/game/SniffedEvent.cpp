@@ -828,7 +828,11 @@ void SniffedEvent_UnitUpdate_scale::Execute() const
         return;
     }
 
-    pUnit->SetObjectScale(m_value);
+    float scale = m_value;
+    if (pUnit->IsCreature())
+        scale *= Creature::GetScaleForDisplayId(pUnit->GetDisplayId());
+
+    pUnit->SetObjectScale(scale);
 }
 
 void SniffedEvent_UnitUpdate_display_id::Execute() const

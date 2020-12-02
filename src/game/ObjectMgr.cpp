@@ -1794,8 +1794,8 @@ void ObjectMgr::LoadCreatureSpells()
 void ObjectMgr::LoadCreatures(bool reload)
 {
     uint32 count = 0;
-    //                                                               0       1     2      3             4             5             6              7             8          9        10                11            12              13          14            15           16                  17                    18           19            20                 21
-    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `display_id`, `faction`, `level`, `current_health`, `max_health`, `current_mana`, `max_mana`, `speed_walk`, `speed_run`, `base_attack_time`, `ranged_attack_time`, `npc_flags`, `unit_flags`, `wander_distance`, `movement_type` FROM `creature`"));
+    //                                                               0       1     2      3             4             5             6              7             8          9        10                11            12              13          14            15           16                  17                    18           19            20                 21               22       23
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `display_id`, `faction`, `level`, `current_health`, `max_health`, `current_mana`, `max_mana`, `speed_walk`, `speed_run`, `base_attack_time`, `ranged_attack_time`, `npc_flags`, `unit_flags`, `wander_distance`, `movement_type`, `scale`, `hover` FROM `creature`"));
 
     if (!result)
     {
@@ -1851,6 +1851,8 @@ void ObjectMgr::LoadCreatures(bool reload)
         data.unit_flags         = fields[19].GetUInt32();
         data.wander_distance_real = fields[20].GetFloat();
         data.movement_type_real = fields[21].GetUInt8();
+        data.scale              = fields[22].GetFloat();
+        data.hover              = fields[23].GetBool();
 
         if (data.current_health == 0)
             data.spawn_flags |= SPAWN_FLAG_DEAD;
