@@ -1812,7 +1812,7 @@ void SniffedEvent_PlayerChat::Execute() const
     }
 
     WorldPacket data;
-    ChatHandler::BuildChatPacket(data, chatType, m_text.c_str(), LANG_UNIVERSAL, 0, guid, m_senderName.c_str(), ObjectGuid(), "", m_senderName.c_str(), 0);
+    ChatHandler::BuildChatPacket(data, chatType, m_text.c_str(), LANG_UNIVERSAL, 0, guid, m_senderName.c_str(), ObjectGuid(), "", m_channelName.c_str(), 0);
     sWorld.SendGlobalMessage(&data);
 }
 
