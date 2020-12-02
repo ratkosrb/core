@@ -183,6 +183,8 @@ public:
     virtual void run();
 };
 
+typedef std::map<uint32 /*guid*/, std::map<uint32 /*parent_point*/, std::vector<G3D::Vector3>>> SplinesMap;
+
 class ReplayMgr
 {
     public:
@@ -206,7 +208,9 @@ class ReplayMgr
         void LoadCreatureCreate1();
         void LoadCreatureCreate2();
         void LoadCreatureDestroy();
-        void LoadCreatureMovement(char const* tableName);
+        void LoadCreatureClientSideMovement();
+        void LoadServerSideMovement(char const* tableName, TypeID typeId, SplinesMap const& splinesMap);
+        void LoadServerSideMovementSplines(char const* tableName, SplinesMap& splinesMap);
         void LoadCreatureTextTemplate();
         void LoadCreatureText();
         void LoadCreatureEmote();
@@ -367,6 +371,9 @@ class ReplayMgr
         uint32 m_timeDifference = 0;
         uint32 m_initialWorldStateSendTime = 0;
         std::map<uint32 /*state*/, uint32 /*value*/> m_initialWorldStates;
+        SplinesMap m_characterMovementSplines;
+        SplinesMap m_creatureMovementSplines;
+        SplinesMap m_creatureMovementCombatSplines;
         std::map<uint32 /*guid*/, std::shared_ptr<WaypointPath>> m_creatureWaypoints;
         std::map<uint32 /*list_id*/, std::vector<KnownObject>> m_spellCastGoTargets;
         std::map<uint32 /*position_id*/, G3D::Vector3> m_spellCastGoPositions;

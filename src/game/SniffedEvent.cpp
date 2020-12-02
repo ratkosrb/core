@@ -31,6 +31,7 @@
 #include "SpellAuras.h"
 #include "WaypointManager.h"
 #include "MovementPacketSender.h"
+#include "MoveSplineInit.h"
 
 void ReplayMgr::LoadSniffedEvents()
 {
@@ -39,8 +40,13 @@ void ReplayMgr::LoadSniffedEvents()
     LoadCreatureCreate1();
     LoadCreatureCreate2();
     LoadCreatureDestroy();
-    LoadCreatureMovement("creature_movement");
-    LoadCreatureMovement("creature_movement_combat");
+    LoadCreatureClientSideMovement();
+    LoadServerSideMovementSplines("character_movement_server_spline", m_characterMovementSplines);
+    LoadServerSideMovementSplines("creature_movement_server_spline", m_creatureMovementSplines);
+    LoadServerSideMovementSplines("creature_movement_server_combat_spline", m_creatureMovementCombatSplines);
+    LoadServerSideMovement("character_movement_server", TYPEID_PLAYER, m_characterMovementSplines);
+    LoadServerSideMovement("creature_movement_server", TYPEID_UNIT, m_creatureMovementSplines);
+    LoadServerSideMovement("creature_movement_server_combat", TYPEID_UNIT, m_creatureMovementCombatSplines);
     LoadCreatureTextTemplate();
     LoadCreatureText();
     LoadCreatureEmote();
@@ -288,38 +294,51 @@ void SniffedEvent_CreatureDestroy::Execute() const
     pCreature->SetVisibility(VISIBILITY_OFF);
 }
 
-void ReplayMgr::LoadCreatureMovement(char const* tableName)
+void ReplayMgr::LoadServerSideMovement(char const* tableName, TypeID typeId, SplinesMap const& splinesMap)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `id`, `spline_count`, `move_time`, `start_position_x`, `start_position_y`, `start_position_z`, `end_position_x`, `end_position_y`, `end_position_z`, `orientation`, `unixtime` FROM `%s` ORDER BY `unixtime`", tableName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `point`, `spline_count`, `move_time`, `start_position_x`, `start_position_y`, `start_position_z`, `end_position_x`, `end_position_y`, `end_position_z`, `orientation`, `unixtime` FROM `%s` ORDER BY `unixtime`", tableName))
     {
         do
         {
             Field* fields = result->Fetch();
 
             uint32 guid = fields[0].GetUInt32();
-            uint32 creatureId = GetCreatureEntryFromGuid(guid);
-            uint32 spline_count = fields[1].GetUInt32();
-            uint32 moveTime = fields[2].GetUInt32();
-            float startX = fields[3].GetFloat();
-            float startY = fields[4].GetFloat();
-            float startZ = fields[5].GetFloat();
-            float endX = fields[6].GetFloat();
-            float endY = fields[7].GetFloat();
-            float endZ = fields[8].GetFloat();
-            float orientation = fields[9].GetFloat();
-            uint64 unixtime = fields[10].GetUInt32();
+            uint32 point = fields[1].GetUInt32();
+            uint32 creatureId = typeId == TYPEID_UNIT ? GetCreatureEntryFromGuid(guid) : 0;
+            uint32 spline_count = fields[2].GetUInt32();
+            uint32 moveTime = fields[3].GetUInt32();
+            float startX = fields[4].GetFloat();
+            float startY = fields[5].GetFloat();
+            float startZ = fields[6].GetFloat();
+            float endX = fields[7].GetFloat();
+            float endY = fields[8].GetFloat();
+            float endZ = fields[9].GetFloat();
+            float orientation = fields[10].GetFloat();
+            uint64 unixtime = fields[11].GetUInt32();
 
             if (spline_count == 0 && orientation != 100)
             {
-                std::shared_ptr<SniffedEvent_CreatureFacing> newEvent = std::make_shared<SniffedEvent_CreatureFacing>(guid, creatureId, orientation);
+                std::shared_ptr<SniffedEvent_UnitUpdate_orientation> newEvent = std::make_shared<SniffedEvent_UnitUpdate_orientation>(guid, creatureId, typeId, orientation);
                 m_eventsMap.insert(std::make_pair(unixtime * IN_MILLISECONDS, newEvent));
             }
             else
             {
+                std::vector<G3D::Vector3> const* pSplines = nullptr;
+                if (spline_count > 1)
+                {
+                    auto itr1 = splinesMap.find(guid);
+                    if (itr1 != splinesMap.end())
+                    {
+                        auto itr2 = itr1->second.find(point);
+                        if (itr2 != itr1->second.end())
+                            pSplines = &itr2->second;
+                    }
+                }
+
                 float x = spline_count ? endX : startX;
                 float y = spline_count ? endY : startY;
                 float z = spline_count ? endZ : startZ;
-                std::shared_ptr<SniffedEvent_CreatureMovement> newEvent = std::make_shared<SniffedEvent_CreatureMovement>(guid, creatureId, moveTime, x, y, z, orientation);
+                std::shared_ptr<SniffedEvent_ServerSideMovement> newEvent = std::make_shared<SniffedEvent_ServerSideMovement>(guid, creatureId, typeId, moveTime, x, y, z, orientation, pSplines);
                 m_eventsMap.insert(std::make_pair(unixtime * IN_MILLISECONDS, newEvent));
             }
         } while (result->NextRow());
@@ -327,28 +346,77 @@ void ReplayMgr::LoadCreatureMovement(char const* tableName)
     }
 }
 
-void SniffedEvent_CreatureMovement::Execute() const
+void ReplayMgr::LoadServerSideMovementSplines(char const* tableName, SplinesMap& splinesMap)
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `parent_point`, `spline_point`, `position_x`, `position_y`, `position_z` FROM `%s` ORDER BY `guid`, `parent_point`, `spline_point`", tableName))
     {
-        sLog.outError("SniffedEvent_CreatureMovement: Cannot find source creature!");
-        return;
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint32 parent_point = fields[1].GetUInt32();
+            //uint32 spline_point = fields[2].GetUInt32();
+            G3D::Vector3 position;
+            position.x = fields[3].GetFloat();
+            position.y = fields[4].GetFloat();
+            position.z = fields[5].GetFloat();
+
+            splinesMap[guid][parent_point].push_back(position);
+        } while (result->NextRow());
+        delete result;
     }
-    float speed = m_moveTime != 0 ? pCreature->GetDistance(m_x, m_y, m_z) / ((float)m_moveTime * 0.001f) : 0.0f;
-    float orientation = m_o != 100 ? m_o : -10;
-    pCreature->MonsterMoveWithSpeed(m_x, m_y, m_z, orientation, speed, MOVE_FORCE_DESTINATION);
 }
 
-void SniffedEvent_CreatureFacing::Execute() const
+void SniffedEvent_ServerSideMovement::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureFacing: Cannot find source creature!");
+        sLog.outError("SniffedEvent_ServerSideMovement: Cannot find source unit!");
         return;
     }
-    pCreature->SetOrientation(m_o);
+
+    if (Player* pPlayer = pUnit->ToPlayer())
+        if (pPlayer->IsBeingTeleported())
+            return;
+
+    if (m_moveTime == 0)
+    {
+        if (pUnit->GetDistance(m_x, m_y, m_z) > 1.0f)
+        {
+            if (Creature* pCreature = pUnit->ToCreature())
+                pCreature->GetMap()->CreatureRelocation(pCreature, m_x, m_y, m_z, pCreature->GetOrientation());
+            else if (Player* pPlayer = pUnit->ToPlayer())
+                pPlayer->GetMap()->PlayerRelocation(pPlayer, m_x, m_y, m_z, pPlayer->GetOrientation());
+        }
+        else
+            return;
+    }
+
+    Movement::MoveSplineInit init(*pUnit, "MovementReplay");
+    if (m_splines)
+        init.MovebyPath(*m_splines);
+    else
+        init.MoveTo(m_x, m_y, m_z, MOVE_FORCE_DESTINATION);
+    
+    float speed = m_moveTime != 0 ? pUnit->GetDistance(m_x, m_y, m_z) / ((float)m_moveTime * 0.001f) : 0.0f;
+    if (speed > 0.0f)
+        init.SetVelocity(speed);
+    if (m_o != 100)
+        init.SetFacing(m_o);
+    init.Launch();
+}
+
+void SniffedEvent_UnitUpdate_orientation::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_orientation: Cannot find source unit!");
+        return;
+    }
+    pUnit->SetOrientation(m_o);
 }
 
 enum ChatMessageType
@@ -2155,8 +2223,8 @@ std::shared_ptr<WaypointPath> ReplayMgr::GetOrCreateWaypoints(uint32 guid, bool 
 
     uint32 firstMoveTime = 0;
     std::shared_ptr<WaypointPath> path = std::make_shared<WaypointPath>();
-    //                                              0     1        2            3               4               5                   6                   7                   8                 9                 10                11             12
-    if (auto result = SniffDatabase.PQuery("SELECT `id`, `point`, `move_time`, `spline_flags`, `spline_count`, `start_position_x`, `start_position_y`, `start_position_z`, `end_position_x`, `end_position_y`, `end_position_z`, `orientation`, `unixtime` FROM `creature_movement` WHERE `id`=%u", guid))
+    //                                              0       1        2            3               4               5                   6                   7                   8                 9                 10                11             12
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `point`, `move_time`, `spline_flags`, `spline_count`, `start_position_x`, `start_position_y`, `start_position_z`, `end_position_x`, `end_position_y`, `end_position_z`, `orientation`, `unixtime` FROM `creature_movement_server` WHERE `guid`=%u", guid))
     {
         uint32 pointCounter = 0;
         WaypointNode* lastPoint = nullptr;
@@ -2260,7 +2328,7 @@ std::shared_ptr<WaypointPath> ReplayMgr::GetOrCreateWaypoints(uint32 guid, bool 
 uint32 ReplayMgr::GetTotalMovementPointsForCreature(uint32 guid)
 {
     uint32 count = 0;
-    if (auto result = SniffDatabase.PQuery("SELECT COUNT(`point`) FROM `creature_movement` WHERE `id`=%u", guid))
+    if (auto result = SniffDatabase.PQuery("SELECT COUNT(`point`) FROM `creature_movement_server` WHERE `guid`=%u", guid))
     {
         do
         {

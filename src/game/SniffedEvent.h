@@ -86,12 +86,13 @@ enum SniffedEventType : uint8
     SE_CREATURE_DESTROY,
     SE_CREATURE_TEXT,
     SE_CREATURE_EMOTE,
+    SE_CREATURE_CLIENTSIDE_MOVEMENT,
     SE_UNIT_TARGET_CHANGE,
     SE_UNIT_ATTACK_LOG,
     SE_UNIT_ATTACK_START,
     SE_UNIT_ATTACK_STOP,
-    SE_CREATURE_MOVEMENT,
-    SE_CREATURE_FACING,
+    SE_UNIT_SERVERSIDE_MOVEMENT,
+    SE_UNIT_UPDATE_ORIENTATION,
     SE_UNIT_UPDATE_ENTRY,
     SE_UNIT_UPDATE_SCALE,
     SE_UNIT_UPDATE_DISPLAY_ID,
@@ -157,10 +158,10 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "Unit Attack Start";
         case SE_UNIT_ATTACK_STOP:
             return "Unit Attack Stop";
-        case SE_CREATURE_MOVEMENT:
-            return "Creature Movement";
-        case SE_CREATURE_FACING:
-            return "Creature Facing";
+        case SE_UNIT_SERVERSIDE_MOVEMENT:
+            return "Unit Server-side Movement";
+        case SE_UNIT_UPDATE_ORIENTATION:
+            return "Unit Update Orientation";
         case SE_UNIT_UPDATE_ENTRY:
             return "Unit Update Entry";
         case SE_UNIT_UPDATE_SCALE:
@@ -331,13 +332,16 @@ struct SniffedEvent_CreatureDestroy : SniffedEvent
     }
 };
 
-struct SniffedEvent_CreatureMovement : SniffedEvent
+struct SniffedEvent_ClientSideMovement : SniffedEvent
 {
-    SniffedEvent_CreatureMovement(uint32 guid, uint32 entry, uint32 moveTime, float x, float y, float z, float o) :
-        m_guid(guid), m_entry(entry), m_moveTime(moveTime), m_x(x), m_y(y), m_z(z), m_o(o) {};
+    SniffedEvent_ClientSideMovement(uint32 guid, uint32 entry, uint16 opcode, uint32 moveTime, uint32 moveFlags, float x, float y, float z, float o) :
+        m_guid(guid), m_entry(entry), m_opcode(opcode), m_moveTime(moveTime), m_moveFlags(moveFlags), m_x(x), m_y(y), m_z(z), m_o(o) {};
+
     uint32 m_guid = 0;
     uint32 m_entry = 0;
+    uint16 m_opcode = 0;
     uint32 m_moveTime = 0;
+    uint32 m_moveFlags = 0;
     float m_x = 0.0f;
     float m_y = 0.0f;
     float m_z = 0.0f;
@@ -345,7 +349,7 @@ struct SniffedEvent_CreatureMovement : SniffedEvent
     void Execute() const final;
     SniffedEventType GetType() const final
     {
-        return SE_CREATURE_MOVEMENT;
+        return SE_CREATURE_CLIENTSIDE_MOVEMENT;
     }
     KnownObject GetSourceObject() const final
     {
@@ -353,21 +357,46 @@ struct SniffedEvent_CreatureMovement : SniffedEvent
     }
 };
 
-struct SniffedEvent_CreatureFacing : SniffedEvent
+struct SniffedEvent_ServerSideMovement : SniffedEvent
 {
-    SniffedEvent_CreatureFacing(uint32 guid, uint32 entry, float o) :
-        m_guid(guid), m_entry(entry), m_o(o) {};
+    SniffedEvent_ServerSideMovement(uint32 guid, uint32 entry, uint32 typeId, uint32 moveTime, float x, float y, float z, float o, std::vector<G3D::Vector3> const* splines) :
+        m_guid(guid), m_entry(entry), m_typeId(typeId), m_moveTime(moveTime), m_x(x), m_y(y), m_z(z), m_o(o), m_splines(splines) {};
     uint32 m_guid = 0;
     uint32 m_entry = 0;
+    uint32 m_typeId = 0;
+    uint32 m_moveTime = 0;
+    float m_x = 0.0f;
+    float m_y = 0.0f;
+    float m_z = 0.0f;
+    float m_o = 0.0f;
+    std::vector<G3D::Vector3> const* m_splines;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_SERVERSIDE_MOVEMENT;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_typeId));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_orientation : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_orientation(uint32 guid, uint32 entry, uint32 typeId, float o) :
+        m_guid(guid), m_entry(entry), m_typeId(typeId), m_o(o) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_typeId = 0;
     float m_o = 0.0f;
     void Execute() const final;
     SniffedEventType GetType() const final
     {
-        return SE_CREATURE_FACING;
+        return SE_UNIT_UPDATE_ORIENTATION;
     }
     KnownObject GetSourceObject() const final
     {
-        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+        return KnownObject(m_guid, m_entry, TypeID(m_typeId));
     }
 };
 
@@ -914,7 +943,7 @@ struct SniffedEvent_SpellCastFailed : SniffedEvent
     uint32 m_spellId = 0;
     uint32 m_casterGuid = 0;
     uint32 m_casterId = 0;
-    uint32 m_casterType;
+    uint32 m_casterType = 0;
     void Execute() const final;
     SniffedEventType GetType() const final
     {
@@ -935,7 +964,7 @@ struct SniffedEvent_SpellCastStart : SniffedEvent
     uint32 m_castFlags = 0;
     uint32 m_casterGuid = 0;
     uint32 m_casterId = 0;
-    uint32 m_casterType;
+    uint32 m_casterType = 0;
     uint32 m_targetGuid = 0;
     uint32 m_targetId = 0;
     uint32 m_targetType = 0;
@@ -961,7 +990,7 @@ struct SniffedEvent_SpellCastGo : SniffedEvent
     uint32 m_spellId = 0;
     uint32 m_casterGuid = 0;
     uint32 m_casterId = 0;
-    uint32 m_casterType;
+    uint32 m_casterType = 0;
     uint32 m_targetGuid = 0;
     uint32 m_targetId = 0;
     uint32 m_targetType = 0;
@@ -994,7 +1023,7 @@ struct SniffedEvent_SpellChannelStart : SniffedEvent
     int32 m_duration = 0;
     uint32 m_casterGuid = 0;
     uint32 m_casterId = 0;
-    uint32 m_casterType;
+    uint32 m_casterType = 0;
     void Execute() const final;
     SniffedEventType GetType() const final
     {
@@ -1013,7 +1042,7 @@ struct SniffedEvent_SpellChannelUpdate : SniffedEvent
     int32 m_duration = 0;
     uint32 m_casterGuid = 0;
     uint32 m_casterId = 0;
-    uint32 m_casterType;
+    uint32 m_casterType = 0;
     void Execute() const final;
     SniffedEventType GetType() const final
     {

@@ -228,7 +228,7 @@ void ReplayMgr::LoadCharacterMovements()
     uint32 count = 0;
 
     //                                                               0       1         2            3             4      5             6             7             8              9
-    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `opcode`, `move_time`, `move_flags`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `unixtimems` FROM `character_movement`"));
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `opcode`, `move_time`, `move_flags`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `unixtimems` FROM `character_movement_client`"));
 
     if (!result)
     {
@@ -268,6 +268,61 @@ void ReplayMgr::LoadCharacterMovements()
     } while (result->NextRow());
 
     sLog.outString(">> Loaded %u sniffed character movements", count);
+}
+
+void ReplayMgr::LoadCreatureClientSideMovement()
+{
+    //                                                               0       1         2            3             4      5             6             7             8              9
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `opcode`, `move_time`, `move_flags`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `unixtimems` FROM `creature_movement_client`"));
+    if (!result)
+        return;
+
+    do
+    {
+        Field* fields = result->Fetch();
+
+        uint32 guid = fields[0].GetUInt32();
+        uint32 creatureId = GetCreatureEntryFromGuid(guid);
+
+        std::string opcodeName = fields[1].GetCppString();
+        uint16 opcode = ConvertMovementOpcode(opcodeName);
+        if (!opcode)
+            continue;
+
+        uint64 unixtimems = fields[9].GetUInt64();
+        uint32 moveTime = fields[2].GetUInt32();
+        uint32 moveFlags = ConvertMovementFlags(fields[3].GetUInt32());
+        float x = fields[5].GetFloat();
+        float y = fields[6].GetFloat();
+        float z = fields[7].GetFloat();
+        float o = fields[8].GetFloat();
+
+        std::shared_ptr<SniffedEvent_ClientSideMovement> newEvent = std::make_shared<SniffedEvent_ClientSideMovement>(guid, creatureId, opcode, moveTime, moveFlags, x, y, z, o);
+        m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+    } while (result->NextRow());
+}
+
+void SniffedEvent_ClientSideMovement::Execute() const
+{
+    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
+    if (!pCreature)
+    {
+        sLog.outError("SniffedEvent_ClientSideMovement: Cannot find source creature!");
+        return;
+    }
+
+    pCreature->GetMap()->CreatureRelocation(pCreature, m_x, m_y, m_z, m_o);
+    pCreature->m_movementInfo.SetMovementFlags(MovementFlags(m_moveFlags));
+    pCreature->m_movementInfo.UpdateTime(m_moveTime);
+    WorldPacket data(m_opcode);
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
+    data << pCreature->GetPackGUID();
+#else
+    data << pCreature->GetGUID();
+#endif
+    data << pCreature->m_movementInfo;
+    pCreature->SendMovementMessageToSet(std::move(data), false);
 }
 
 void ReplayMgr::LoadActivePlayer()
@@ -371,6 +426,8 @@ void ReplayMgr::SpawnCharacters()
         m_playerBots[itr.first] = ai;
         sPlayerBotMgr.AddBot(ai);
     }
+
+    // Spawn chat bots, for characters that were never seen, but said something in chat.
     std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT DISTINCT `sender_name` FROM `character_chat` WHERE `guid`=0"));
     if (result)
     {
@@ -688,10 +745,10 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
                 visibleCreatures.erase(itr.second->GetSourceObject().m_guid);
                 break;
             }
-            case SE_CREATURE_MOVEMENT:
+            case SE_UNIT_SERVERSIDE_MOVEMENT:
             {
                 uint32 const guid = itr.second->GetSourceObject().m_guid;
-                auto moveEvent = std::static_pointer_cast<SniffedEvent_CreatureMovement>(itr.second);
+                auto moveEvent = std::static_pointer_cast<SniffedEvent_ServerSideMovement>(itr.second);
                 creaturePositions[guid] = Position(moveEvent->m_x, moveEvent->m_y, moveEvent->m_z, moveEvent->m_o);
                 break;
             }
