@@ -63,27 +63,45 @@ void ReplayMgr::LoadSniffedEvents()
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_display_id>("display_id");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_mount>("mount_display_id");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_faction>("faction");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_level>("level");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_aura_state>("aura_state");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_emote_state>("emote_state");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_stand_state>("stand_state");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_vis_flags>("vis_flags");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_sheath_state>("sheath_state");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_shapeshift_form>("shapeshift_form");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_npc_flags>("npc_flags");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_unit_flags>("unit_flags");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_max_health>("max_health");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_current_health>("current_health");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_max_mana>("max_mana");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_current_mana>("current_mana");
+    LoadCreatureValuesUpdate_float<SniffedEvent_UnitUpdate_bounding_radius>("bounding_radius");
+    LoadCreatureValuesUpdate_float<SniffedEvent_UnitUpdate_combat_reach>("combat_reach");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_base_attack_time>("base_attack_time");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_ranged_attack_time>("ranged_attack_time");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_entry>("entry");
     LoadPlayerValuesUpdate_float<SniffedEvent_UnitUpdate_scale>("scale");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_display_id>("display_id");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_mount>("mount_display_id");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_faction>("faction");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_level>("level");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_aura_state>("aura_state");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_emote_state>("emote_state");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_stand_state>("stand_state");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_vis_flags>("vis_flags");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_sheath_state>("sheath_state");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_shapeshift_form>("shapeshift_form");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_npc_flags>("npc_flags");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_unit_flags>("unit_flags");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_max_health>("max_health");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_current_health>("current_health");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_max_mana>("max_mana");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_current_mana>("current_mana");
+    LoadPlayerValuesUpdate_float<SniffedEvent_UnitUpdate_bounding_radius>("bounding_radius");
+    LoadPlayerValuesUpdate_float<SniffedEvent_UnitUpdate_combat_reach>("combat_reach");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_base_attack_time>("base_attack_time");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_ranged_attack_time>("ranged_attack_time");
     LoadCreatureSpeedUpdate(MOVE_WALK);
     LoadCreatureSpeedUpdate(MOVE_RUN);
     LoadCreatureSpeedUpdate(MOVE_SWIM);
@@ -690,10 +708,6 @@ void SniffedEvent_UnitAttackLog::Execute() const
     pAttacker->SendMessageToSet(&data, true);
 }
 
-template void ReplayMgr::LoadUnitTargetChange<SniffedEvent_UnitTargetChange>(char const* tableName, uint32 typeId);
-template void ReplayMgr::LoadUnitTargetChange<SniffedEvent_UnitAttackStart>(char const* tableName, uint32 typeId);
-template void ReplayMgr::LoadUnitTargetChange<SniffedEvent_UnitAttackStop>(char const* tableName, uint32 typeId);
-
 template <class T>
 void ReplayMgr::LoadUnitTargetChange(char const* tableName, uint32 typeId)
 {
@@ -759,19 +773,6 @@ void SniffedEvent_UnitAttackStop::Execute() const
         pUnit->SendMeleeAttackStop(pVictim);
 }
 
-template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_max_mana>(char const* fieldName);
-template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_current_mana>(char const* fieldName);
-template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_max_health>(char const* fieldName);
-template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_current_health>(char const* fieldName);
-template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_unit_flags>(char const* fieldName);
-template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_npc_flags>(char const* fieldName);
-template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_stand_state>(char const* fieldName);
-template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_emote_state>(char const* fieldName);
-template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_faction>(char const* fieldName);
-template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_mount>(char const* fieldName);
-template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_display_id>(char const* fieldName);
-template void ReplayMgr::LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_entry>(char const* fieldName);
-
 template <class T>
 void ReplayMgr::LoadCreatureValuesUpdate(char const* fieldName)
 {
@@ -793,8 +794,6 @@ void ReplayMgr::LoadCreatureValuesUpdate(char const* fieldName)
         delete result;
     }
 }
-
-template void ReplayMgr::LoadCreatureValuesUpdate_float<SniffedEvent_UnitUpdate_scale>(char const* fieldName);
 
 template <class T>
 void ReplayMgr::LoadCreatureValuesUpdate_float(char const* fieldName)
@@ -818,19 +817,6 @@ void ReplayMgr::LoadCreatureValuesUpdate_float(char const* fieldName)
     }
 }
 
-template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_max_mana>(char const* fieldName);
-template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_current_mana>(char const* fieldName);
-template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_max_health>(char const* fieldName);
-template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_current_health>(char const* fieldName);
-template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_unit_flags>(char const* fieldName);
-template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_npc_flags>(char const* fieldName);
-template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_stand_state>(char const* fieldName);
-template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_emote_state>(char const* fieldName);
-template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_faction>(char const* fieldName);
-template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_mount>(char const* fieldName);
-template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_display_id>(char const* fieldName);
-template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_entry>(char const* fieldName);
-
 template <class T>
 void ReplayMgr::LoadPlayerValuesUpdate(char const* fieldName)
 {
@@ -851,8 +837,6 @@ void ReplayMgr::LoadPlayerValuesUpdate(char const* fieldName)
         delete result;
     }
 }
-
-template void ReplayMgr::LoadPlayerValuesUpdate_float<SniffedEvent_UnitUpdate_scale>(char const* fieldName);
 
 template <class T>
 void ReplayMgr::LoadPlayerValuesUpdate_float(char const* fieldName)
@@ -939,6 +923,30 @@ void SniffedEvent_UnitUpdate_faction::Execute() const
     pUnit->SetUInt32Value(UNIT_FIELD_FACTIONTEMPLATE, m_value);
 }
 
+void SniffedEvent_UnitUpdate_level::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_level: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SetUInt32Value(UNIT_FIELD_LEVEL, m_value);
+}
+
+void SniffedEvent_UnitUpdate_aura_state::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_aura_state: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SetUInt32Value(UNIT_FIELD_AURASTATE, m_value);
+}
+
 void SniffedEvent_UnitUpdate_emote_state::Execute() const
 {
     Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
@@ -961,6 +969,42 @@ void SniffedEvent_UnitUpdate_stand_state::Execute() const
     }
 
     pUnit->SetStandState(m_value);
+}
+
+void SniffedEvent_UnitUpdate_vis_flags::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_vis_flags: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SetByteFlag(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_VIS_FLAG, m_value);
+}
+
+void SniffedEvent_UnitUpdate_sheath_state::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_sheath_state: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SetSheath(SheathState(m_value));
+}
+
+void SniffedEvent_UnitUpdate_shapeshift_form::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_shapeshift_form: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SetByteFlag(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_SHAPESHIFT_FORM, m_value);
 }
 
 void SniffedEvent_UnitUpdate_npc_flags::Execute() const
@@ -1036,6 +1080,54 @@ void SniffedEvent_UnitUpdate_max_mana::Execute() const
     }
 
     pUnit->SetMaxPower(POWER_MANA, m_value);
+}
+
+void SniffedEvent_UnitUpdate_bounding_radius::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_bounding_radius: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, m_value);
+}
+
+void SniffedEvent_UnitUpdate_combat_reach::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_combat_reach: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SetFloatValue(UNIT_FIELD_COMBATREACH, m_value);
+}
+
+void SniffedEvent_UnitUpdate_base_attack_time::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_base_attack_time: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SetFloatValue(UNIT_FIELD_BASEATTACKTIME, m_value);
+}
+
+void SniffedEvent_UnitUpdate_ranged_attack_time::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_ranged_attack_time: Cannot find source unit!");
+        return;
+    }
+
+    pUnit->SetUInt32Value(UNIT_FIELD_RANGEDATTACKTIME, m_value);
 }
 
 void ReplayMgr::LoadCreatureSpeedUpdate(uint32 speedType)
@@ -1258,10 +1350,6 @@ void SniffedEvent_GameObjectDestroy::Execute() const
     }
     pGo->SetVisible(false);
 }
-
-
-template void ReplayMgr::LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_flags>(char const* fieldName);
-template void ReplayMgr::LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_state>(char const* fieldName);
 
 template <class T>
 void ReplayMgr::LoadGameObjectUpdate(char const* fieldName)

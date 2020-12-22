@@ -382,26 +382,28 @@ bool Creature::UpdateEntry(uint32 Entry, Team team, CreatureData const* data /*=
 
     SelectLevel(GetCreatureInfo(), data);
 
+    if (data && data->faction)
+        SetFactionTemplateId(data->faction);
+    else
+        SetFactionTemplateId(GetCreatureInfo()->faction);
+
     if (data)
     {
-        SetFactionTemplateId(data->faction);
+        SetUInt32Value(UNIT_NPC_FLAGS, data->npc_flags);
+        SetFloatValue(UNIT_FIELD_BASEATTACKTIME, data->base_attack_time);
+        SetFloatValue(UNIT_FIELD_RANGEDATTACKTIME, data->ranged_attack_time);
+        SetUInt32Value(UNIT_FIELD_FLAGS, data->unit_flags);
         SetSpeedRateReal(MOVE_WALK, data->speed_walk);
         SetSpeedRateReal(MOVE_RUN, data->speed_run);
-        SetUInt32Value(UNIT_FIELD_BASEATTACKTIME, data->base_attack_time);
-        SetUInt32Value(UNIT_FIELD_RANGEDATTACKTIME, data->ranged_attack_time);
-        SetUInt32Value(UNIT_NPC_FLAGS, data->npc_flags);
-        SetUInt32Value(UNIT_FIELD_FLAGS, data->unit_flags);
     }
     else
     {
-        SetFactionTemplateId(GetCreatureInfo()->faction);
-        SetUInt32Value(UNIT_NPC_FLAGS, GetCreatureInfo()->npc_flags);
-
         uint32 attackTimer = GetCreatureInfo()->base_attack_time;
         SetAttackTime(BASE_ATTACK, attackTimer);
         SetAttackTime(OFF_ATTACK, attackTimer);
         SetAttackTime(RANGED_ATTACK, GetCreatureInfo()->ranged_attack_time);
 
+        SetUInt32Value(UNIT_NPC_FLAGS, GetCreatureInfo()->npc_flags);
         uint32 unitFlags = GetCreatureInfo()->unit_flags;
         // we may need to append or remove additional flags
         if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IN_COMBAT))

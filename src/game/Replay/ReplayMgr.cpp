@@ -746,8 +746,8 @@ void ReplayMgr::ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntr
 
     pPlayer->SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, initialState.bounding_radius);
     pPlayer->SetFloatValue(UNIT_FIELD_COMBATREACH, initialState.combat_reach);
-    pPlayer->SetUInt32Value(UNIT_FIELD_BASEATTACKTIME, initialState.base_attack_time);
-    pPlayer->SetUInt32Value(UNIT_FIELD_RANGEDATTACKTIME, initialState.ranged_attack_time);
+    pPlayer->SetFloatValue(UNIT_FIELD_BASEATTACKTIME, initialState.base_attack_time);
+    pPlayer->SetFloatValue(UNIT_FIELD_RANGEDATTACKTIME, initialState.ranged_attack_time);
 
     ObjectGuid charmGuid;
     if (!initialState.charmGuid.IsEmpty())
@@ -825,14 +825,23 @@ void ReplayMgr::UpdatePlayersForCurrentTime()
                 case SE_UNIT_UPDATE_DISPLAY_ID:
                 case SE_UNIT_UPDATE_MOUNT:
                 case SE_UNIT_UPDATE_FACTION:
+                case SE_UNIT_UPDATE_LEVEL:
+                case SE_UNIT_UPDATE_AURA_STATE:
                 case SE_UNIT_UPDATE_EMOTE_STATE:
                 case SE_UNIT_UPDATE_STAND_STATE:
+                case SE_UNIT_UPDATE_VIS_FLAGS:
+                case SE_UNIT_UPDATE_SHEATH_STATE:
+                case SE_UNIT_UPDATE_SHAPESHIFT_FORM:
                 case SE_UNIT_UPDATE_NPC_FLAGS:
                 case SE_UNIT_UPDATE_UNIT_FLAGS:
                 case SE_UNIT_UPDATE_CURRENT_HEALTH:
                 case SE_UNIT_UPDATE_MAX_HEALTH:
                 case SE_UNIT_UPDATE_CURRENT_MANA:
                 case SE_UNIT_UPDATE_MAX_MANA:
+                case SE_UNIT_UPDATE_BOUNDING_RADIUS:
+                case SE_UNIT_UPDATE_COMBAT_REACH:
+                case SE_UNIT_UPDATE_BASE_ATTACK_TIME:
+                case SE_UNIT_UPDATE_RANGED_ATTACK_TIME:
                 case SE_UNIT_UPDATE_SPEED:
                 case SE_UNIT_TARGET_CHANGE:
                 case SE_SPELL_CHANNEL_START:
@@ -944,8 +953,8 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
 
             pCreature->SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, data->bounding_radius);
             pCreature->SetFloatValue(UNIT_FIELD_COMBATREACH, data->combat_reach);
-            pCreature->SetUInt32Value(UNIT_FIELD_BASEATTACKTIME, data->base_attack_time);
-            pCreature->SetUInt32Value(UNIT_FIELD_RANGEDATTACKTIME, data->ranged_attack_time);
+            pCreature->SetFloatValue(UNIT_FIELD_BASEATTACKTIME, data->base_attack_time);
+            pCreature->SetFloatValue(UNIT_FIELD_RANGEDATTACKTIME, data->ranged_attack_time);
 
             pCreature->SetVirtualItem(VIRTUAL_ITEM_SLOT_0, data->main_hand_slot_item);
             pCreature->SetVirtualItem(VIRTUAL_ITEM_SLOT_1, data->off_hand_slot_item);
@@ -1036,14 +1045,23 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
             case SE_UNIT_UPDATE_DISPLAY_ID:
             case SE_UNIT_UPDATE_MOUNT:
             case SE_UNIT_UPDATE_FACTION:
+            case SE_UNIT_UPDATE_LEVEL:
+            case SE_UNIT_UPDATE_AURA_STATE:
             case SE_UNIT_UPDATE_EMOTE_STATE:
             case SE_UNIT_UPDATE_STAND_STATE:
+            case SE_UNIT_UPDATE_VIS_FLAGS:
+            case SE_UNIT_UPDATE_SHEATH_STATE:
+            case SE_UNIT_UPDATE_SHAPESHIFT_FORM:
             case SE_UNIT_UPDATE_NPC_FLAGS:
             case SE_UNIT_UPDATE_UNIT_FLAGS:
             case SE_UNIT_UPDATE_CURRENT_HEALTH:
             case SE_UNIT_UPDATE_MAX_HEALTH:
             case SE_UNIT_UPDATE_CURRENT_MANA:
             case SE_UNIT_UPDATE_MAX_MANA:
+            case SE_UNIT_UPDATE_BOUNDING_RADIUS:
+            case SE_UNIT_UPDATE_COMBAT_REACH:
+            case SE_UNIT_UPDATE_BASE_ATTACK_TIME:
+            case SE_UNIT_UPDATE_RANGED_ATTACK_TIME:
             case SE_UNIT_UPDATE_SPEED:
             case SE_UNIT_TARGET_CHANGE:
             case SE_SPELL_CHANNEL_START:

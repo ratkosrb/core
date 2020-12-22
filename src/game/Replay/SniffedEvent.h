@@ -44,14 +44,23 @@ enum SniffedEventType : uint8
     SE_UNIT_UPDATE_DISPLAY_ID,
     SE_UNIT_UPDATE_MOUNT,
     SE_UNIT_UPDATE_FACTION,
+    SE_UNIT_UPDATE_LEVEL,
+    SE_UNIT_UPDATE_AURA_STATE,
     SE_UNIT_UPDATE_EMOTE_STATE,
     SE_UNIT_UPDATE_STAND_STATE,
+    SE_UNIT_UPDATE_VIS_FLAGS,
+    SE_UNIT_UPDATE_SHEATH_STATE,
+    SE_UNIT_UPDATE_SHAPESHIFT_FORM,
     SE_UNIT_UPDATE_NPC_FLAGS,
     SE_UNIT_UPDATE_UNIT_FLAGS,
     SE_UNIT_UPDATE_CURRENT_HEALTH,
     SE_UNIT_UPDATE_MAX_HEALTH,
     SE_UNIT_UPDATE_CURRENT_MANA,
     SE_UNIT_UPDATE_MAX_MANA,
+    SE_UNIT_UPDATE_BOUNDING_RADIUS,
+    SE_UNIT_UPDATE_COMBAT_REACH,
+    SE_UNIT_UPDATE_BASE_ATTACK_TIME,
+    SE_UNIT_UPDATE_RANGED_ATTACK_TIME,
     SE_UNIT_UPDATE_SPEED,
     SE_GAMEOBJECT_CREATE1,
     SE_GAMEOBJECT_CREATE2,
@@ -118,10 +127,20 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "Unit Update Mount";
         case SE_UNIT_UPDATE_FACTION:
             return "Unit Update Faction";
+        case SE_UNIT_UPDATE_LEVEL:
+            return "Unit Update Level";
+        case SE_UNIT_UPDATE_AURA_STATE:
+            return "Unit Update Aura State";
         case SE_UNIT_UPDATE_EMOTE_STATE:
             return "Unit Update Emote State";
         case SE_UNIT_UPDATE_STAND_STATE:
             return "Unit Update Stand State";
+        case SE_UNIT_UPDATE_VIS_FLAGS:
+            return "Unit Update Vis Flags";
+        case SE_UNIT_UPDATE_SHEATH_STATE:
+            return "Unit Update Sheath State";
+        case SE_UNIT_UPDATE_SHAPESHIFT_FORM:
+            return "Unit Update Shapeshift Form";
         case SE_UNIT_UPDATE_NPC_FLAGS:
             return "Unit Update NPC Flags";
         case SE_UNIT_UPDATE_UNIT_FLAGS:
@@ -134,6 +153,14 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "Unit Update Current Mana";
         case SE_UNIT_UPDATE_MAX_MANA:
             return "Unit Update Max Mana";
+        case SE_UNIT_UPDATE_BOUNDING_RADIUS:
+            return "Unit Update Bounding Radius";
+        case SE_UNIT_UPDATE_COMBAT_REACH:
+            return "Unit Update Combat Reach";
+        case SE_UNIT_UPDATE_BASE_ATTACK_TIME:
+            return "Unit Update Melee Speed";
+        case SE_UNIT_UPDATE_RANGED_ATTACK_TIME:
+            return "Unit Update Ranged Speed";
         case SE_UNIT_UPDATE_SPEED:
             return "Unit Update Speed";
         case SE_GAMEOBJECT_CREATE1:
@@ -583,6 +610,45 @@ struct SniffedEvent_UnitUpdate_faction : SniffedEvent
     }
 };
 
+struct SniffedEvent_UnitUpdate_level : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_level(uint32 guid, uint32 entry, uint32 type, uint32 value) :
+        m_guid(guid), m_entry(entry), m_type(type), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_LEVEL;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_aura_state : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_aura_state(uint32 guid, uint32 entry, uint32 type, uint32 value) :
+        m_guid(guid), m_entry(entry), m_type(type), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_AURA_STATE;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+
 struct SniffedEvent_UnitUpdate_emote_state : SniffedEvent
 {
     SniffedEvent_UnitUpdate_emote_state(uint32 guid, uint32 entry, uint32 type, uint32 value) :
@@ -614,6 +680,63 @@ struct SniffedEvent_UnitUpdate_stand_state : SniffedEvent
     SniffedEventType GetType() const final
     {
         return SE_UNIT_UPDATE_STAND_STATE;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_vis_flags : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_vis_flags(uint32 guid, uint32 entry, uint32 type, uint32 value) :
+        m_guid(guid), m_entry(entry), m_type(type), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_VIS_FLAGS;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_sheath_state : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_sheath_state(uint32 guid, uint32 entry, uint32 type, uint32 value) :
+        m_guid(guid), m_entry(entry), m_type(type), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_SHEATH_STATE;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_shapeshift_form : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_shapeshift_form(uint32 guid, uint32 entry, uint32 type, uint32 value) :
+        m_guid(guid), m_entry(entry), m_type(type), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_SHAPESHIFT_FORM;
     }
     KnownObject GetSourceObject() const final
     {
@@ -728,6 +851,82 @@ struct SniffedEvent_UnitUpdate_max_mana : SniffedEvent
     SniffedEventType GetType() const final
     {
         return SE_UNIT_UPDATE_MAX_MANA;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_bounding_radius : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_bounding_radius(uint32 guid, uint32 entry, uint32 type, float value) :
+        m_guid(guid), m_entry(entry), m_type(type), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    float m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_BOUNDING_RADIUS;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_combat_reach : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_combat_reach(uint32 guid, uint32 entry, uint32 type, float value) :
+        m_guid(guid), m_entry(entry), m_type(type), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    float m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_COMBAT_REACH;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_base_attack_time : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_base_attack_time(uint32 guid, uint32 entry, uint32 type, uint32 value) :
+        m_guid(guid), m_entry(entry), m_type(type), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_BASE_ATTACK_TIME;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_ranged_attack_time : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_ranged_attack_time(uint32 guid, uint32 entry, uint32 type, uint32 value) :
+        m_guid(guid), m_entry(entry), m_type(type), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_RANGED_ATTACK_TIME;
     }
     KnownObject GetSourceObject() const final
     {
