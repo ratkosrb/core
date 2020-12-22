@@ -1102,11 +1102,13 @@ struct SniffedEvent_SpellCastFailed : SniffedEvent
 
 struct SniffedEvent_SpellCastStart : SniffedEvent
 {
-    SniffedEvent_SpellCastStart(uint32 spellId, uint32 castTime, uint32 castFlags, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType) :
-        m_spellId(spellId), m_castTime(castTime), m_castFlags(castFlags), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType), m_targetGuid(targetGuid), m_targetId(targetId), m_targetType(targetType) {};
+    SniffedEvent_SpellCastStart(uint32 spellId, uint32 castTime, uint32 castFlags, uint32 ammoDisplayId, uint32 ammoInventoryType, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType) :
+        m_spellId(spellId), m_castTime(castTime), m_castFlags(castFlags), m_ammoDisplayId(ammoDisplayId), m_ammoInventoryType(ammoInventoryType), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType), m_targetGuid(targetGuid), m_targetId(targetId), m_targetType(targetType) {};
     uint32 m_spellId = 0;
     uint32 m_castTime = 0;
     uint32 m_castFlags = 0;
+    uint32 m_ammoDisplayId = 0;
+    uint32 m_ammoInventoryType = 0;
     uint32 m_casterGuid = 0;
     uint32 m_casterId = 0;
     uint32 m_casterType = 0;
@@ -1130,9 +1132,12 @@ struct SniffedEvent_SpellCastStart : SniffedEvent
 
 struct SniffedEvent_SpellCastGo : SniffedEvent
 {
-    SniffedEvent_SpellCastGo(uint32 spellId, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType, uint32 hitTargetsCount, uint32 hitTargetsListId, uint32 missTargetsCount, uint32 missTargetsListId, uint32 srcPositionId, uint32 dstPositionId) :
-        m_spellId(spellId), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType), m_targetGuid(targetGuid), m_targetId(targetId), m_targetType(targetType), m_hitTargetsCount(hitTargetsCount), m_hitTargetsListId(hitTargetsListId), m_missTargetsCount(missTargetsCount), m_missTargetsListId(missTargetsListId), m_srcPositionId(srcPositionId), m_dstPositionId(dstPositionId) {};
+    SniffedEvent_SpellCastGo(uint32 spellId, uint32 castFlags, uint32 ammoDisplayId, uint32 ammoInventoryType, uint32 casterGuid, uint32 casterId, uint32 casterType, uint32 targetGuid, uint32 targetId, uint32 targetType, uint32 hitTargetsCount, uint32 hitTargetsListId, uint32 missTargetsCount, uint32 missTargetsListId, uint32 srcPositionId, uint32 dstPositionId) :
+        m_spellId(spellId), m_castFlags(castFlags), m_ammoDisplayId(ammoDisplayId), m_ammoInventoryType(ammoInventoryType), m_casterGuid(casterGuid), m_casterId(casterId), m_casterType(casterType), m_targetGuid(targetGuid), m_targetId(targetId), m_targetType(targetType), m_hitTargetsCount(hitTargetsCount), m_hitTargetsListId(hitTargetsListId), m_missTargetsCount(missTargetsCount), m_missTargetsListId(missTargetsListId), m_srcPositionId(srcPositionId), m_dstPositionId(dstPositionId) {};
     uint32 m_spellId = 0;
+    uint32 m_castFlags = 0;
+    uint32 m_ammoDisplayId = 0;
+    uint32 m_ammoInventoryType = 0;
     uint32 m_casterGuid = 0;
     uint32 m_casterId = 0;
     uint32 m_casterType = 0;

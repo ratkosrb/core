@@ -1437,7 +1437,7 @@ void SniffedEvent_SpellCastFailed::Execute() const
 
 void ReplayMgr::LoadSpellCastStart()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `cast_time`, `cast_flags`, `target_guid`, `target_id`, `target_type` FROM `spell_cast_start` ORDER BY `unixtimems`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `caster_guid`, `caster_id`, `caster_type`, `caster_unit_guid`, `caster_unit_id`, `caster_unit_type`, `spell_id`, `cast_time`, `cast_flags`, `ammo_display_id`, `ammo_inventory_type`, `target_guid`, `target_id`, `target_type` FROM `spell_cast_start` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -1447,17 +1447,28 @@ void ReplayMgr::LoadSpellCastStart()
             uint32 casterGuid = fields[1].GetUInt32();
             uint32 casterId = fields[2].GetUInt32();
             std::string casterType = fields[3].GetCppString();
-            uint32 spellId = fields[4].GetUInt32();
-            uint32 castTime = fields[5].GetUInt32();
-            uint32 castFlags = fields[6].GetUInt32();
-            uint32 targetGuid = fields[7].GetUInt32();
-            uint32 targetId = fields[8].GetUInt32();
-            std::string targetType = fields[9].GetCppString();
+            uint32 casterUnitGuid = fields[4].GetUInt32();
+            uint32 casterUnitId = fields[5].GetUInt32();
+            std::string casterUnitType = fields[6].GetCppString();
+            if (casterType == "Item" && casterUnitType.length() > 1)
+            {
+                casterGuid = casterUnitGuid;
+                casterId = casterUnitId;
+                casterType = casterUnitType;
+            }
+            uint32 spellId = fields[7].GetUInt32();
+            uint32 castTime = fields[8].GetUInt32();
+            uint32 castFlags = fields[9].GetUInt32();
+            uint32 ammoDisplayId = fields[10].GetUInt32();
+            uint32 ammoInventoryType = fields[11].GetUInt32();
+            uint32 targetGuid = fields[12].GetUInt32();
+            uint32 targetId = fields[13].GetUInt32();
+            std::string targetType = fields[14].GetCppString();
 
             if (casterType == "Pet")
                 continue;
 
-            std::shared_ptr<SniffedEvent_SpellCastStart> newEvent = std::make_shared<SniffedEvent_SpellCastStart>(spellId, castTime, castFlags, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType));
+            std::shared_ptr<SniffedEvent_SpellCastStart> newEvent = std::make_shared<SniffedEvent_SpellCastStart>(spellId, castTime, castFlags, ammoDisplayId, ammoInventoryType, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType));
             m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
@@ -1504,14 +1515,18 @@ void SniffedEvent_SpellCastStart::Execute() const
     data << targets;
 
     if (m_castFlags & CAST_FLAG_AMMO)                         // projectile info
-        Spell::WriteAmmoToPacket(&data, pCaster, pCaster->ToUnit());
+    {
+        data << uint32(m_ammoDisplayId);
+        data << uint32(m_ammoInventoryType);
+    }
 
     pCaster->SendObjectMessageToSet(&data, false);
 }
 
 void ReplayMgr::LoadSpellCastGo()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `main_target_guid`, `main_target_id`, `main_target_type`, `hit_targets_count`, `hit_targets_list_id`, `miss_targets_count`, `miss_targets_list_id`, `src_position_id`, `dst_position_id` FROM `spell_cast_go` ORDER BY `unixtimems`"))
+    //                                             0             1              2            3              4                   5                 6                   7           8             9                  10                     11                  12                13                  14                   15                     16                    17                      18                 19
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `caster_guid`, `caster_id`, `caster_type`, `caster_unit_guid`, `caster_unit_id`, `caster_unit_type`, `spell_id`, `cast_flags`, `ammo_display_id`, `ammo_inventory_type`, `main_target_guid`, `main_target_id`, `main_target_type`, `hit_targets_count`, `hit_targets_list_id`, `miss_targets_count`, `miss_targets_list_id`, `src_position_id`, `dst_position_id` FROM `spell_cast_go` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -1521,18 +1536,30 @@ void ReplayMgr::LoadSpellCastGo()
             uint32 casterGuid = fields[1].GetUInt32();
             uint32 casterId = fields[2].GetUInt32();
             std::string casterType = fields[3].GetCppString();
-            uint32 spellId = fields[4].GetUInt32();
-            uint32 targetGuid = fields[5].GetUInt32();
-            uint32 targetId = fields[6].GetUInt32();
-            std::string targetType = fields[7].GetCppString();
-            uint32 hitTargetsCount = fields[8].GetUInt32();
-            uint32 hitTargetsListId = fields[9].GetUInt32();
-            uint32 missTargetsCount = fields[10].GetUInt32();
-            uint32 missTargetsListId = fields[11].GetUInt32();
-            uint32 srcPositionId = fields[12].GetUInt32();
-            uint32 dstPositionId = fields[13].GetUInt32();
+            uint32 casterUnitGuid = fields[4].GetUInt32();
+            uint32 casterUnitId = fields[5].GetUInt32();
+            std::string casterUnitType = fields[6].GetCppString();
+            if (casterType == "Item" && casterUnitType.length() > 1)
+            {
+                casterGuid = casterUnitGuid;
+                casterId = casterUnitId;
+                casterType = casterUnitType;
+            }
+            uint32 spellId = fields[7].GetUInt32();
+            uint32 castFlags = fields[8].GetUInt32();
+            uint32 ammoDisplayId = fields[9].GetUInt32();
+            uint32 ammoInventoryType = fields[10].GetUInt32();
+            uint32 targetGuid = fields[11].GetUInt32();
+            uint32 targetId = fields[12].GetUInt32();
+            std::string targetType = fields[13].GetCppString();
+            uint32 hitTargetsCount = fields[14].GetUInt32();
+            uint32 hitTargetsListId = fields[15].GetUInt32();
+            uint32 missTargetsCount = fields[16].GetUInt32();
+            uint32 missTargetsListId = fields[17].GetUInt32();
+            uint32 srcPositionId = fields[18].GetUInt32();
+            uint32 dstPositionId = fields[19].GetUInt32();
 
-            std::shared_ptr<SniffedEvent_SpellCastGo> newEvent = std::make_shared<SniffedEvent_SpellCastGo>(spellId, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType), hitTargetsCount, hitTargetsListId, missTargetsCount, missTargetsListId, srcPositionId, dstPositionId);
+            std::shared_ptr<SniffedEvent_SpellCastGo> newEvent = std::make_shared<SniffedEvent_SpellCastGo>(spellId, castFlags, ammoDisplayId, ammoInventoryType, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType), hitTargetsCount, hitTargetsListId, missTargetsCount, missTargetsListId, srcPositionId, dstPositionId);
             m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
@@ -1598,8 +1625,6 @@ void SniffedEvent_SpellCastGo::Execute() const
         }
     }
 
-    uint32 castFlags = CAST_FLAG_UNKNOWN9;
-
     WorldPacket data(SMSG_SPELL_GO, 53);
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
     data << pCaster->GetPackGUID();
@@ -1610,7 +1635,7 @@ void SniffedEvent_SpellCastGo::Execute() const
 #endif
 
     data << uint32(m_spellId);                              // spellId
-    data << uint16(castFlags);                              // cast flags
+    data << uint16(m_castFlags);                            // cast flags
 
     //WriteSpellGoTargets(&data);
 
@@ -1708,8 +1733,11 @@ void SniffedEvent_SpellCastGo::Execute() const
 
     data << targets;
 
-    if (castFlags & CAST_FLAG_AMMO)                         // projectile info
-        Spell::WriteAmmoToPacket(&data, pCaster, pCaster->ToUnit());
+    if (m_castFlags & CAST_FLAG_AMMO)                         // projectile info
+    {
+        data << uint32(m_ammoDisplayId);
+        data << uint32(m_ammoInventoryType);
+    }
 
     pCaster->SendObjectMessageToSet(&data, false);
 }
