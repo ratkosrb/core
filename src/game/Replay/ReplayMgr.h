@@ -247,7 +247,7 @@ class ReplayMgr
         void LoadCreatureEmote();
         void LoadUnitAttackLog(char const* tableName, uint32 typeId);
         template <class T>
-        void LoadUnitTargetChange(char const* tableName, uint32 typeId);
+        void LoadUnitAttackToggle(char const* tableName, uint32 typeId);
         template <class T>
         void LoadCreatureValuesUpdate(char const* fieldName);
         template <class T>
@@ -256,6 +256,7 @@ class ReplayMgr
         void LoadPlayerValuesUpdate(char const* fieldName);
         template <class T>
         void LoadPlayerValuesUpdate_float(char const* fieldName);
+        void LoadUnitGuidValuesUpdate(char const* tableName, uint32 typeId);
         void LoadCreatureSpeedUpdate(uint32 speedType);
         void LoadPlayerSpeedUpdate(uint32 speedType);
         void LoadGameObjectCreate1();
@@ -295,6 +296,7 @@ class ReplayMgr
         void UpdateObjectStateAndVisiblityForCurrentTime();
         void ResetGameObjectToInitialState(GameObject* pGo);
         void ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntry const& initialState);
+        void UpdatePlayerToCurrentState(Player* pPlayer, CharacterTemplateEntry const& initialState);
         void StartPlaying();
         void StopPlaying();
         bool IsPlaying() { return m_enabled; }
@@ -303,6 +305,7 @@ class ReplayMgr
         uint64 GetCurrentSniffTimeMs() { return m_currentSniffTimeMs; }
         uint32 GetStartTimeSniff() { return m_startTimeSniff; }
         uint32 GetTimeDifference() { return m_timeDifference; }
+        uint32 GetFirstEventTime() { return (m_eventsMap.empty() ? 0 : (m_eventsMap.begin()->first / IN_MILLISECONDS)); }
 
         Player* GetPlayer(uint32 guid);
         Player* GetActivePlayer();

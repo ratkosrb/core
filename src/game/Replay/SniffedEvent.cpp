@@ -32,6 +32,7 @@
 #include "WaypointManager.h"
 #include "MovementPacketSender.h"
 #include "MoveSplineInit.h"
+#include "MoveSpline.h"
 
 void ReplayMgr::LoadSniffedEvents()
 {
@@ -50,14 +51,14 @@ void ReplayMgr::LoadSniffedEvents()
     LoadCreatureTextTemplate();
     LoadCreatureText();
     LoadCreatureEmote();
+    LoadUnitGuidValuesUpdate("creature_guid_values_update", TYPEID_UNIT);
+    LoadUnitGuidValuesUpdate("player_guid_values_update", TYPEID_PLAYER);
     LoadUnitAttackLog("creature_attack_log", TYPEID_UNIT);
     LoadUnitAttackLog("player_attack_log", TYPEID_PLAYER);
-    //LoadUnitTargetChange<SniffedEvent_UnitTargetChange>("creature_target_change", TYPEID_UNIT);
-    LoadUnitTargetChange<SniffedEvent_UnitAttackStart>("creature_attack_start", TYPEID_UNIT);
-    LoadUnitTargetChange<SniffedEvent_UnitAttackStop>("creature_attack_stop", TYPEID_UNIT);
-    //LoadUnitTargetChange<SniffedEvent_UnitTargetChange>("player_target_change", TYPEID_PLAYER);
-    LoadUnitTargetChange<SniffedEvent_UnitAttackStart>("player_attack_start", TYPEID_PLAYER);
-    LoadUnitTargetChange<SniffedEvent_UnitAttackStop>("player_attack_stop", TYPEID_PLAYER);
+    LoadUnitAttackToggle<SniffedEvent_UnitAttackStart>("creature_attack_start", TYPEID_UNIT);
+    LoadUnitAttackToggle<SniffedEvent_UnitAttackStop>("creature_attack_stop", TYPEID_UNIT);
+    LoadUnitAttackToggle<SniffedEvent_UnitAttackStart>("player_attack_start", TYPEID_PLAYER);
+    LoadUnitAttackToggle<SniffedEvent_UnitAttackStop>("player_attack_stop", TYPEID_PLAYER);
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_entry>("entry");
     LoadCreatureValuesUpdate_float<SniffedEvent_UnitUpdate_scale>("scale");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_display_id>("display_id");
@@ -412,6 +413,10 @@ void SniffedEvent_ServerSideMovement::Execute() const
             return;
     }
 
+    // flight path
+    if (pUnit->IsPlayer() && (m_moveTime >= (MINUTE * IN_MILLISECONDS)) && m_splines && m_splines->size() >= 15)
+        pUnit->AddUnitMovementFlag(MOVEFLAG_FLYING);
+
     Movement::MoveSplineInit init(*pUnit, "MovementReplay");
     if (m_splines)
         init.MovebyPath(*m_splines);
@@ -709,7 +714,7 @@ void SniffedEvent_UnitAttackLog::Execute() const
 }
 
 template <class T>
-void ReplayMgr::LoadUnitTargetChange(char const* tableName, uint32 typeId)
+void ReplayMgr::LoadUnitAttackToggle(char const* tableName, uint32 typeId)
 {
     if (auto result = SniffDatabase.PQuery("SELECT `unixtimems`, `victim_guid`, `victim_id`, `victim_type`, `guid` FROM `%s` ORDER BY `unixtimems`", tableName))
     {
@@ -730,21 +735,6 @@ void ReplayMgr::LoadUnitTargetChange(char const* tableName, uint32 typeId)
         } while (result->NextRow());
         delete result;
     }
-}
-
-void SniffedEvent_UnitTargetChange::Execute() const
-{
-    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
-    if (!pUnit)
-    {
-        sLog.outError("SniffedEvent_UnitTargetChange: Cannot find source unit!");
-        return;
-    }
-
-    if (GetTargetObject().IsEmpty())
-        pUnit->ClearTarget();
-    else if (Unit* pVictim = ToUnit(sReplayMgr.GetStoredObject(GetTargetObject())))
-        pUnit->SetTargetGuid(pVictim->GetObjectGuid());
 }
 
 void SniffedEvent_UnitAttackStart::Execute() const
@@ -906,6 +896,17 @@ void SniffedEvent_UnitUpdate_mount::Execute() const
     {
         sLog.outError("SniffedEvent_UnitUpdate_mount: Cannot find source unit!");
         return;
+    }
+
+    // flight path ending
+    if (!m_value && pUnit->IsPlayer() && pUnit->HasUnitMovementFlag(MOVEFLAG_FLYING))
+    {
+        pUnit->RemoveUnitMovementFlag(MOVEFLAG_FLYING);
+        if (!pUnit->movespline->Finalized())
+        {
+            pUnit->StopMoving();
+            sLog.outInfo("Forcibly stopping flight path for %s", pUnit->GetGuidStr().c_str());
+        }
     }
 
     pUnit->SetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID, m_value);
@@ -1128,6 +1129,72 @@ void SniffedEvent_UnitUpdate_ranged_attack_time::Execute() const
     }
 
     pUnit->SetUInt32Value(UNIT_FIELD_RANGEDATTACKTIME, m_value);
+}
+
+void ReplayMgr::LoadUnitGuidValuesUpdate(char const* tableName, uint32 typeId)
+{
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `field_name`, `object_guid`, `object_id`, `object_type` FROM `%s` ORDER BY `unixtimems`", tableName))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint32 creatureId = typeId == TYPEID_UNIT ? GetCreatureEntryFromGuid(guid) : 0;
+            uint64 unixtimems = fields[1].GetUInt64();
+            std::string fieldName = fields[2].GetCppString();
+            uint32 objectGuid = fields[3].GetUInt32();
+            uint32 objectId = fields[4].GetUInt32();
+            std::string objectType = fields[5].GetCppString();
+            
+            uint32 fieldIndex = 0;
+            if (fieldName == "Charm")
+                fieldIndex = UNIT_FIELD_CHARM;
+            else if (fieldName == "Summon")
+                fieldIndex = UNIT_FIELD_SUMMON;
+            else if (fieldName == "CharmedBy")
+                fieldIndex = UNIT_FIELD_CHARMEDBY;
+            else if (fieldName == "SummonedBy")
+                fieldIndex = UNIT_FIELD_SUMMONEDBY;
+            else if (fieldName == "CreatedBy")
+                fieldIndex = UNIT_FIELD_CREATEDBY;
+            else if (fieldName == "Target")
+                fieldIndex = UNIT_FIELD_TARGET;
+            else
+                continue;
+
+            std::shared_ptr<SniffedEvent_UnitUpdate_guid_value> newEvent = std::make_shared<SniffedEvent_UnitUpdate_guid_value>(guid, creatureId, typeId, objectGuid, objectId, GetKnownObjectTypeId(objectType), fieldIndex);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_UnitUpdate_guid_value::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_guid_value: Cannot find source unit!");
+        return;
+    }
+
+    ObjectGuid guidValue;
+
+    if (!GetTargetObject().IsEmpty())
+    {
+        WorldObject* pObject = sReplayMgr.GetStoredObject(GetTargetObject());
+        if (!pObject)
+        {
+            sLog.outError("SniffedEvent_UnitUpdate_guid_value: Cannot find target object!");
+            return;
+        }
+        guidValue = pObject->GetObjectGuid();
+    }
+    
+
+    pUnit->SetGuidValue(m_updateField, guidValue);
 }
 
 void ReplayMgr::LoadCreatureSpeedUpdate(uint32 speedType)

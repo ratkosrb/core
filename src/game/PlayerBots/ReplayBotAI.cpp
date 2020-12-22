@@ -215,12 +215,14 @@ void ReplayBotAI::UpdateAI(uint32 const diff)
             }  
         }
 
-        sReplayMgr.ResetPlayerToInitialState(me, *m_template);
-
         // Fix zone in who window
         uint32 newzone, newarea;
         me->GetZoneAndAreaId(newzone, newarea);
         me->UpdateZone(newzone, newarea);
+
+        sReplayMgr.ResetPlayerToInitialState(me, *m_template);
+        if (sReplayMgr.GetCurrentSniffTime() != sReplayMgr.GetFirstEventTime())
+            sReplayMgr.UpdatePlayerToCurrentState(me, *m_template);
 
         m_sniffStartTime = sReplayMgr.GetStartTimeSniff();
         m_lastMoveUnixTimeMs = sReplayMgr.GetCurrentSniffTimeMs();

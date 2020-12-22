@@ -33,7 +33,6 @@ enum SniffedEventType : uint8
     SE_CREATURE_TEXT,
     SE_CREATURE_EMOTE,
     SE_CREATURE_CLIENTSIDE_MOVEMENT,
-    SE_UNIT_TARGET_CHANGE,
     SE_UNIT_ATTACK_LOG,
     SE_UNIT_ATTACK_START,
     SE_UNIT_ATTACK_STOP,
@@ -61,6 +60,7 @@ enum SniffedEventType : uint8
     SE_UNIT_UPDATE_COMBAT_REACH,
     SE_UNIT_UPDATE_BASE_ATTACK_TIME,
     SE_UNIT_UPDATE_RANGED_ATTACK_TIME,
+    SE_UNIT_UPDATE_GUID_VALUE,
     SE_UNIT_UPDATE_SPEED,
     SE_GAMEOBJECT_CREATE1,
     SE_GAMEOBJECT_CREATE2,
@@ -105,8 +105,6 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "Creature Text";
         case SE_CREATURE_EMOTE:
             return "Creature Emote";
-        case SE_UNIT_TARGET_CHANGE:
-            return "Unit Target Change";
         case SE_UNIT_ATTACK_LOG:
             return "Unit Attack Log";
         case SE_UNIT_ATTACK_START:
@@ -161,6 +159,8 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "Unit Update Melee Speed";
         case SE_UNIT_UPDATE_RANGED_ATTACK_TIME:
             return "Unit Update Ranged Speed";
+        case SE_UNIT_UPDATE_GUID_VALUE:
+            return "Unit Update GUID Value";
         case SE_UNIT_UPDATE_SPEED:
             return "Unit Update Speed";
         case SE_GAMEOBJECT_CREATE1:
@@ -406,31 +406,6 @@ struct SniffedEvent_CreatureEmote : SniffedEvent
     KnownObject GetSourceObject() const final
     {
         return KnownObject(m_guid, m_entry, TYPEID_UNIT);
-    }
-};
-
-struct SniffedEvent_UnitTargetChange : SniffedEvent
-{
-    SniffedEvent_UnitTargetChange(uint32 guid, uint32 entry, uint32 type, uint32 victimGuid, uint32 victimId, uint32 victimType) :
-        m_guid(guid), m_entry(entry), m_type(type), m_victimGuid(victimGuid), m_victimId(victimId), m_victimType(victimType) {};
-    uint32 m_guid = 0;
-    uint32 m_entry = 0;
-    uint32 m_type = 0;
-    uint32 m_victimGuid = 0;
-    uint32 m_victimId = 0;
-    uint32 m_victimType;
-    void Execute() const final;
-    SniffedEventType GetType() const final
-    {
-        return SE_UNIT_TARGET_CHANGE;
-    }
-    KnownObject GetSourceObject() const final
-    {
-        return KnownObject(m_guid, m_entry, TypeID(m_type));
-    }
-    KnownObject GetTargetObject() const final
-    {
-        return KnownObject(m_victimGuid, m_victimId, TypeID(m_victimType));
     }
 };
 
@@ -931,6 +906,32 @@ struct SniffedEvent_UnitUpdate_ranged_attack_time : SniffedEvent
     KnownObject GetSourceObject() const final
     {
         return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_guid_value : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_guid_value(uint32 guid, uint32 entry, uint32 type, uint32 objectGuid, uint32 objectId, uint32 objectType, uint32 updateField) :
+        m_guid(guid), m_entry(entry), m_type(type), m_objectGuid(objectGuid), m_objectId(objectId), m_objectType(objectType), m_updateField(updateField) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    uint32 m_objectGuid = 0;
+    uint32 m_objectId = 0;
+    uint32 m_objectType;
+    uint32 m_updateField;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_GUID_VALUE;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+    KnownObject GetTargetObject() const final
+    {
+        return KnownObject(m_objectGuid, m_objectId, TypeID(m_objectType));
     }
 };
 

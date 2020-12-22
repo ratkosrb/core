@@ -698,6 +698,11 @@ void ReplayMgr::Update(uint32 const diff)
     }
 }
 
+void ReplaySetTimePlayerWorker::run()
+{
+    sReplayMgr.UpdatePlayersForCurrentTime();
+}
+
 void ReplayMgr::ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntry const& initialState)
 {
     pPlayer->SetUInt32Value(UNIT_FIELD_LEVEL, initialState.level);
@@ -789,90 +794,83 @@ void ReplayMgr::ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntr
     pPlayer->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
 }
 
-void ReplaySetTimePlayerWorker::run()
+void ReplayMgr::UpdatePlayerToCurrentState(Player* pPlayer, CharacterTemplateEntry const& initialState)
 {
-    sReplayMgr.UpdatePlayersForCurrentTime();
+    for (const auto& itr : m_eventsMap)
+    {
+        if (itr.first > m_currentSniffTimeMs)
+            break;
+
+        if (itr.second->GetSourceObject().m_type != TYPEID_PLAYER ||
+            itr.second->GetSourceObject().m_guid != initialState.guid)
+            continue;
+
+        switch (itr.second->GetType())
+        {
+            case SE_UNIT_UPDATE_ENTRY:
+            case SE_UNIT_UPDATE_SCALE:
+            case SE_UNIT_UPDATE_DISPLAY_ID:
+            case SE_UNIT_UPDATE_MOUNT:
+            case SE_UNIT_UPDATE_FACTION:
+            case SE_UNIT_UPDATE_LEVEL:
+            case SE_UNIT_UPDATE_AURA_STATE:
+            case SE_UNIT_UPDATE_EMOTE_STATE:
+            case SE_UNIT_UPDATE_STAND_STATE:
+            case SE_UNIT_UPDATE_VIS_FLAGS:
+            case SE_UNIT_UPDATE_SHEATH_STATE:
+            case SE_UNIT_UPDATE_SHAPESHIFT_FORM:
+            case SE_UNIT_UPDATE_NPC_FLAGS:
+            case SE_UNIT_UPDATE_UNIT_FLAGS:
+            case SE_UNIT_UPDATE_CURRENT_HEALTH:
+            case SE_UNIT_UPDATE_MAX_HEALTH:
+            case SE_UNIT_UPDATE_CURRENT_MANA:
+            case SE_UNIT_UPDATE_MAX_MANA:
+            case SE_UNIT_UPDATE_BOUNDING_RADIUS:
+            case SE_UNIT_UPDATE_COMBAT_REACH:
+            case SE_UNIT_UPDATE_BASE_ATTACK_TIME:
+            case SE_UNIT_UPDATE_RANGED_ATTACK_TIME:
+            case SE_UNIT_UPDATE_SPEED:
+            case SE_UNIT_UPDATE_GUID_VALUE:
+            case SE_SPELL_CHANNEL_START:
+            case SE_SPELL_CHANNEL_UPDATE:
+            {
+                itr.second->Execute();
+                break;
+            }
+        }
+    }
+
+    auto itr = m_characterMovements.find(initialState.guid);
+    if (itr != m_characterMovements.end())
+    {
+        WorldLocation position = initialState.position;
+        for (const auto itr2 : itr->second)
+        {
+            if (itr2.first > m_currentSniffTimeMs)
+                break;
+
+            position = itr2.second.position;
+        }
+
+        if ((pPlayer->GetMapId() != position.mapId) || (pPlayer->GetPosition() != position.ToPosition()))
+        {
+            pPlayer->TeleportTo(position);
+        }
+    }
 }
 
 void ReplayMgr::UpdatePlayersForCurrentTime()
 {
     if (m_initialized)
     {
-        std::map<uint32, WorldLocation> playerPositions;
         for (const auto& itr : m_characterTemplates)
         {
-            playerPositions[itr.first] = itr.second.position;
             auto const& initialState = itr.second;
 
             if (Player* pPlayer = GetPlayer(itr.first))
             {
                 ResetPlayerToInitialState(pPlayer, initialState);
-            }
-        }
-
-        for (const auto& itr : m_eventsMap)
-        {
-            if (itr.first > m_currentSniffTimeMs)
-                break;
-
-            if (itr.second->GetSourceObject().m_type != TYPEID_PLAYER)
-                continue;
-
-            switch (itr.second->GetType())
-            {
-                case SE_UNIT_UPDATE_ENTRY:
-                case SE_UNIT_UPDATE_SCALE:
-                case SE_UNIT_UPDATE_DISPLAY_ID:
-                case SE_UNIT_UPDATE_MOUNT:
-                case SE_UNIT_UPDATE_FACTION:
-                case SE_UNIT_UPDATE_LEVEL:
-                case SE_UNIT_UPDATE_AURA_STATE:
-                case SE_UNIT_UPDATE_EMOTE_STATE:
-                case SE_UNIT_UPDATE_STAND_STATE:
-                case SE_UNIT_UPDATE_VIS_FLAGS:
-                case SE_UNIT_UPDATE_SHEATH_STATE:
-                case SE_UNIT_UPDATE_SHAPESHIFT_FORM:
-                case SE_UNIT_UPDATE_NPC_FLAGS:
-                case SE_UNIT_UPDATE_UNIT_FLAGS:
-                case SE_UNIT_UPDATE_CURRENT_HEALTH:
-                case SE_UNIT_UPDATE_MAX_HEALTH:
-                case SE_UNIT_UPDATE_CURRENT_MANA:
-                case SE_UNIT_UPDATE_MAX_MANA:
-                case SE_UNIT_UPDATE_BOUNDING_RADIUS:
-                case SE_UNIT_UPDATE_COMBAT_REACH:
-                case SE_UNIT_UPDATE_BASE_ATTACK_TIME:
-                case SE_UNIT_UPDATE_RANGED_ATTACK_TIME:
-                case SE_UNIT_UPDATE_SPEED:
-                case SE_UNIT_TARGET_CHANGE:
-                case SE_SPELL_CHANNEL_START:
-                case SE_SPELL_CHANNEL_UPDATE:
-                {
-                    itr.second->Execute();
-                    break;
-                }
-            }
-        }
-
-        for (const auto& itr : m_characterMovements)
-        {
-            for (const auto itr2 : itr.second)
-            {
-                if (itr2.first > m_currentSniffTimeMs)
-                    break;
-
-                playerPositions[itr.first] = itr2.second.position;
-            }
-        }
-
-        for (const auto& itr : playerPositions)
-        {
-            if (Player* pPlayer = GetPlayer(itr.first))
-            {
-                if (pPlayer->GetMapId() != itr.second.mapId ||
-                    pPlayer->GetPosition() != itr.second.ToPosition())
-                {
-                    pPlayer->TeleportTo(itr.second);
-                }
+                UpdatePlayerToCurrentState(pPlayer, initialState);
             }
         }
     }
@@ -1063,7 +1061,7 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
             case SE_UNIT_UPDATE_BASE_ATTACK_TIME:
             case SE_UNIT_UPDATE_RANGED_ATTACK_TIME:
             case SE_UNIT_UPDATE_SPEED:
-            case SE_UNIT_TARGET_CHANGE:
+            case SE_UNIT_UPDATE_GUID_VALUE:
             case SE_SPELL_CHANNEL_START:
             case SE_SPELL_CHANNEL_UPDATE:
             {
