@@ -39,12 +39,10 @@ set (game_SRCS
     pchdef.cpp
     PlayerDump.cpp
     QuestDef.cpp
-    ReplayMgr.cpp
     ReputationMgr.cpp
     ScriptMgr.cpp
     SocialMgr.cpp
     StatSystem.cpp
-    SniffedEvent.cpp
     UnitAuraProcHandler.cpp
     Weather.cpp
     World.cpp
@@ -192,6 +190,8 @@ set (game_SRCS
     Protocol/Opcodes.cpp
     Protocol/WorldSocket.cpp
     Protocol/WorldSocketMgr.cpp
+    Replay/ReplayMgr.cpp
+    Replay/SniffedEvent.cpp
     Spells/Spell.cpp
     Spells/SpellAuras.cpp
     Spells/SpellEffects.cpp
@@ -236,13 +236,11 @@ set (game_SRCS
     pchdef.h
     PlayerDump.h
     QuestDef.h
-    ReplayMgr.h
     ReputationMgr.h
     ScriptedGossip.h
     ScriptMgr.h
     SharedDefines.h
     SocialMgr.h
-    SniffedEvent.h
     UnitEvents.h
     Weather.h
     World.h
@@ -376,6 +374,10 @@ set (game_SRCS
     Protocol/Opcodes.h
     Protocol/WorldSocket.h
     Protocol/WorldSocketMgr.h
+    Replay/ClassicDefines.h
+    Replay/KnownObject.h
+    Replay/ReplayMgr.h
+    Replay/SniffedEvent.h
     Spells/Spell.h
     Spells/SpellAuraDefines.h
     Spells/SpellAuras.h

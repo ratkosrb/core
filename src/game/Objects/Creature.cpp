@@ -58,7 +58,7 @@
 #include "TemporarySummon.h"
 #include "ScriptedEscortAI.h"
 #include "GuardMgr.h"
-#include "ReplayMgr.h"
+#include "Replay/ReplayMgr.h"
 
 // apply implementation of the singletons
 #include "Policies/SingletonImp.h"
@@ -330,15 +330,10 @@ bool Creature::InitEntry(uint32 Entry, Team team, CreatureData const* data /*=nu
     {
         LoadEquipment(eventData->equipment_id);             // use event equipment if any for active event
     }
-    else if (!data || data->equipment_id == 0)
+    else
     {
         // use default from the template
         LoadEquipment(cinfo->equipment_id);
-    }
-    else if (data && data->equipment_id != -1)
-    {
-        // override, -1 means no equipment
-        LoadEquipment(data->equipment_id);
     }
 
     SetName(normalInfo->name);                              // at normal entry always
@@ -366,102 +361,10 @@ uint32 Creature::GetSpawnFlags() const
     return 0;
 }
 
-void Creature::UnloadCreatureAddon(CreatureDataAddon const* data)
-{
-    if (data->mount != 0)
-        Unmount();
-
-    if (data->bytes1 != 0)
-    {
-        // 0 StandState
-        // 1 LoyaltyLevel  Pet only, so always 0 for default creature
-        // 2 ShapeshiftForm     Must be determined/set by shapeshift spell/aura
-        // 3 StandMiscFlags
-
-        SetByteValue(UNIT_FIELD_BYTES_1, 0, 0);
-        //SetByteValue(UNIT_FIELD_BYTES_1, 1, 0);
-        //SetByteValue(UNIT_FIELD_BYTES_1, 1, 0);
-        //SetByteValue(UNIT_FIELD_BYTES_2, 2, 0);
-        SetByteValue(UNIT_FIELD_BYTES_1, 3, 0);
-    }
-
-    // UNIT_FIELD_BYTES_2
-    // 0 SheathState
-    // 1 Bytes2Flags, in 3.x used UnitPVPStateFlags, that have different meaning
-    // 2 UnitRename         Pet only, so always 0 for default creature
-    // 3 ShapeshiftForm     Must be determined/set by shapeshift spell/aura
-    SetByteValue(UNIT_FIELD_BYTES_2, 0, 0);
-    SetByteValue(UNIT_FIELD_BYTES_2, 1, 0);
-
-    //SetByteValue(UNIT_FIELD_BYTES_2, 2, 0);
-    //SetByteValue(UNIT_FIELD_BYTES_2, 3, 0);
-
-    if (data->emote != 0)
-        SetUInt32Value(UNIT_NPC_EMOTESTATE, 0);
-
-    if (data->auras)
-    {
-        for (uint32 const* cAura = data->auras; *cAura; ++cAura)
-        {
-            if (HasAura(*cAura))
-            {
-                RemoveAurasDueToSpellByCancel(*cAura);
-            }
-        }
-    }
-}
-
 bool Creature::UpdateEntry(uint32 Entry, Team team, CreatureData const* data /*=nullptr*/, GameEventCreatureData const* eventData /*=nullptr*/, bool preserveHPAndPower /*=true*/)
 {
-    bool addonReload = false;
-
-    /*
-     * This section of code is an attempt to handle the case where creature entry IDs are
-     * updated after creature creation. This is typically done to randomise trash spawn
-     * types and it works (mostly) fine until the different creature entries have different
-     * creature_template_aura entries. What we want to do is ensure auras belonging to
-     * the previous creature entry are removed and auras belonging to the new creature
-     * entry are applied. This complication is that this function is also called
-     * from several other spots, including Creature::Create, which causes a
-     * few problems if not handled correctly, for some definition of correct.
-     *
-     * TL;DR: Hack to handle randomised trash spawn auras without requiring
-     * script authors to do it explicitly and/or breaking existing code.
-     * Would be better to have a spawn system that could properly handle
-     * random entries.
-     */
-    if (m_creatureInfo) // prevent aura unloading if this creature is still under creation
-    {
-        auto newAddonData = ObjectMgr::GetCreatureTemplateAddon(Entry);
-        auto prevAddonData = ObjectMgr::GetCreatureTemplateAddon(m_creatureInfo->entry);
-        auto creaAddonData = ObjectMgr::GetCreatureAddon(GetGUIDLow());
-
-        /*
-         * Auras listed in creature_addon override anything contained in creature_template_addon,
-         * so we don't want to unload GUID-based auras, even if we're changing the template entry
-         */
-        if (!creaAddonData && prevAddonData != newAddonData)
-        {
-            addonReload = true;
-
-            /*
-             * Looks like we're changing the creature's entry ID, so remove any auras
-             * coming from the creature_template_auras table
-             */
-            if (prevAddonData)
-            {
-                UnloadCreatureAddon(prevAddonData);
-            }
-        }
-    }
-
     if (!InitEntry(Entry, team, data, eventData))
         return false;
-
-    if (addonReload)
-    {
-        LoadCreatureAddon(true);
-    }
 
     if (GetCreatureInfo()->regeneration & REGEN_FLAG_HEALTH)
         AddCreatureState(CSTATE_REGEN_HEALTH);
@@ -706,7 +609,6 @@ void Creature::Update(uint32 update_diff, uint32 diff)
                     SetHealth(0);
                     i_motionMaster.Clear();
                     ClearUnitState(UNIT_STAT_ALL_DYN_STATES);
-                    LoadCreatureAddon(true);
                 }
                 else
                     SetDeathState(JUST_ALIVED);
@@ -1083,7 +985,6 @@ bool Creature::Create(uint32 guidlow, CreatureCreatePos& cPos, CreatureInfo cons
         cPos.GetMap()->GetCreatureLinkingHolder()->AddMasterToHolder(this);
     }
 
-    LoadCreatureAddon();
     InitializeReactState();
     return true;
 }
@@ -1366,92 +1267,12 @@ bool Creature::IsTappedBy(Player const* player) const
 
 void Creature::SaveToDB()
 {
-    // this should only be used when the creature has already been loaded
-    // preferably after adding to map, because mapid may not be valid otherwise
-    CreatureData const* data = sObjectMgr.GetCreatureData(GetGUIDLow());
-    if (!data)
-    {
-        sLog.outError("Creature::SaveToDB failed, cannot get creature data!");
-        return;
-    }
 
-    SaveToDB(GetMapId());
 }
 
 void Creature::SaveToDB(uint32 mapid)
 {
-    // update in loaded data
-    CreatureData& data = sObjectMgr.NewOrExistCreatureData(GetGUIDLow());
 
-    uint32 displayId = GetNativeDisplayId();
-
-    // check if it's a custom display id and if not, use 0 for displayId
-    CreatureInfo const* cinfo = GetCreatureInfo();
-    if (cinfo)
-    {
-        if (displayId != cinfo->display_id[0] && displayId != cinfo->display_id[1] && displayId != cinfo->display_id[2] && displayId != cinfo->display_id[3])
-        {
-            for (int i = 0; i < MAX_DISPLAY_IDS_PER_CREATURE && displayId; ++i)
-                if (cinfo->display_id[i])
-                    if (CreatureDisplayInfoAddon const* minfo = sObjectMgr.GetCreatureDisplayInfoAddon(cinfo->display_id[i]))
-                        if (displayId == minfo->display_id_other_gender)
-                            displayId = 0;
-        }
-        else
-            displayId = 0;
-    }
-
-    // data->guid = guid must not be updated at save
-    data.creature_id[0] = GetEntry();
-    data.position.mapId = mapid;
-    data.display_id = displayId;
-    data.equipment_id = GetEquipmentId();
-    data.position.x = GetPositionX();
-    data.position.y = GetPositionY();
-    data.position.z = GetPositionZ();
-    data.position.o = GetOrientation();
-    data.spawntimesecsmin = m_respawnDelay;
-    data.spawntimesecsmax = m_respawnDelay;
-    data.wander_distance = GetDefaultMovementType() == IDLE_MOTION_TYPE ? 0 : m_wanderDistance;;
-    data.movement_type = !m_wanderDistance && GetDefaultMovementType() == RANDOM_MOTION_TYPE
-                        ? IDLE_MOTION_TYPE : GetDefaultMovementType();
-    data.spawn_flags = m_isActiveObject ? SPAWN_FLAG_ACTIVE : 0;
-
-    float const wander_distance = GetDefaultMovementType() == RANDOM_MOTION_TYPE ? m_wanderDistance : 0.0f;
-
-    // updated in DB
-    WorldDatabase.BeginTransaction();
-
-    WorldDatabase.PExecuteLog("DELETE FROM `creature` WHERE `guid`=%u", GetGUIDLow());
-
-    std::ostringstream ss;
-    ss << "INSERT INTO `creature` VALUES ("
-       << GetGUIDLow() << ","
-       << data.creature_id[0] << ","
-       << data.creature_id[1] << ","
-       << data.creature_id[2] << ","
-       << data.creature_id[3] << ","
-       << mapid << ","
-       << data.display_id << ","
-       << data.equipment_id << ","
-       << data.position.x << ","
-       << data.position.y << ","
-       << data.position.z << ","
-       << data.position.o << ","
-       << data.spawntimesecsmin << ","
-       << data.spawntimesecsmax << ","
-       << wander_distance << ","
-       << data.health_percent << ","
-       << data.mana_percent << ","
-       << uint32(data.movement_type) << ","
-       << data.spawn_flags << ","
-       << m_visibilityModifier << ","
-       << "0,"                                             // patch_min
-       << "10)";                                           // patch_max
-
-    WorldDatabase.PExecuteLog("%s", ss.str().c_str());
-
-    WorldDatabase.CommitTransaction();
 }
 
 void Creature::SelectLevel(CreatureInfo const* cinfo, CreatureData const* cdata)
@@ -1878,7 +1699,6 @@ void Creature::SetDeathState(DeathState s)
         // Dynamic flags may be adjusted by spells. Clear them
         // first and let spell from *addon apply where needed.
         SetUInt32Value(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_NONE);
-        LoadCreatureAddon(true);
 
         // Flags after LoadCreatureAddon. Any spell in *addon
         // will not be able to adjust these.
@@ -2342,72 +2162,9 @@ bool Creature::IsOutOfThreatArea(Unit* pVictim) const
     return false;
 }
 
-CreatureDataAddon const* Creature::GetCreatureAddon() const
-{
-    if (CreatureDataAddon const* addon = ObjectMgr::GetCreatureAddon(GetGUIDLow()))
-        return addon;
-
-    return ObjectMgr::GetCreatureTemplateAddon(GetCreatureInfo()->entry);
-}
-
 CreatureData const* Creature::GetCreatureData() const
 {
     return sObjectMgr.GetCreatureData(GetDBTableGUIDLow());
-}
-
-//creature_addon table
-bool Creature::LoadCreatureAddon(bool reload)
-{
-    CreatureDataAddon const* cainfo = GetCreatureAddon();
-    if (!cainfo)
-        return false;
-
-    if (!reload)
-        m_mountId = cainfo->mount;
-
-    if (m_mountId != 0)
-        Mount(m_mountId);
-
-    // UNIT_FIELD_BYTES_1
-    // 0 StandState
-    // 1 LoyaltyLevel  Pet only, so always 0 for default creature
-    // 2 ShapeshiftForm     Must be determined/set by shapeshift spell/aura
-    // 3 StandMiscFlags
-    SetByteValue(UNIT_FIELD_BYTES_1, 0, cainfo->stand_state);
-
-    // UNIT_FIELD_BYTES_2
-    // 0 SheathState
-    // 1 Bytes2Flags, in 3.x used UnitPVPStateFlags, that have different meaning
-    // 2 UnitRename         Pet only, so always 0 for default creature
-    // 3 ShapeshiftForm     Must be determined/set by shapeshift spell/aura
-    SetByteValue(UNIT_FIELD_BYTES_2, 0, cainfo->sheath_state);
-
-    if (cainfo->emote != 0)
-        SetUInt32Value(UNIT_NPC_EMOTESTATE, cainfo->emote);
-
-    if (cainfo->auras)
-    {
-        for (uint32 const* cAura = cainfo->auras; *cAura; ++cAura)
-        {
-            SpellEntry const* AdditionalSpellInfo = sSpellMgr.GetSpellEntry(*cAura);
-            if (!AdditionalSpellInfo)
-            {
-                sLog.outErrorDb("Creature (GUIDLow: %u Entry: %u ) has wrong spell %u defined in `auras` field.", GetGUIDLow(), GetEntry(), *cAura);
-                continue;
-            }
-
-            if (HasAura(*cAura))
-            {
-                if (!reload)
-                    sLog.outErrorDb("Creature (GUIDLow: %u Entry: %u) has duplicate spell %u in `auras` field.", GetGUIDLow(), GetEntry(), *cAura);
-
-                continue;
-            }
-
-            CastSpell(this, AdditionalSpellInfo, true);
-        }
-    }
-    return true;
 }
 
 /// Send a message to LocalDefense channel for players opposition team in the zone

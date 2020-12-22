@@ -31,12 +31,12 @@
 
 INSTANTIATE_SINGLETON_1(ReplayMgr);
 
-void ReplayMgr::LoadCharacterTemplates()
+void ReplayMgr::LoadPlayers()
 {
     uint32 count = 0;
 
-    //                                                               0       1          2       3       4        5         6        7     8        9              10              11             12            13            14            15     16             17        18        19
-    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `account`, `name`, `race`, `class`, `gender`, `level`, `xp`, `money`, `playerBytes`, `playerBytes2`, `playerFlags`, `position_x`, `position_y`, `position_z`, `map`, `orientation`, `health`, `power1`, `equipmentCache` FROM `characters`"));
+    //                                                               0       1      2             3             4             5              6       7       8        9         10       11    12       13               14               15              16       17            18                   19                  20         21            22                23            24              25          26            27             28             29                   30           31           32              33           34           35                 36            37           38                 39              40                 41                  42                  43                    44                 45
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `name`, `race`, `class`, `gender`, `level`, `xp`, `money`, `player_bytes1`, `player_bytes2`, `player_flags`, `scale`, `display_id`, `native_display_id`, `mount_display_id`, `faction`, `unit_flags`, `current_health`, `max_health`, `current_mana`, `max_mana`, `aura_state`, `emote_state`, `stand_state`, `pet_talent_points`, `vis_flags`, `anim_tier`, `sheath_state`, `pvp_flags`, `pet_flags`, `shapeshift_form`, `speed_walk`, `speed_run`, `bounding_radius`, `combat_reach`, `mod_melee_haste`, `mod_ranged_haste`, `base_attack_time`, `ranged_attack_time`, `equipment_cache`, `auras` FROM `player`"));
 
     if (!result)
     {
@@ -44,7 +44,7 @@ void ReplayMgr::LoadCharacterTemplates()
         bar.step();
 
         sLog.outString();
-        sLog.outErrorDb(">> Loaded 0 character definitions. DB table `characters` is empty.");
+        sLog.outErrorDb(">> Loaded 0 player definitions. DB table `player` is empty.");
         return;
     }
 
@@ -58,21 +58,101 @@ void ReplayMgr::LoadCharacterTemplates()
         uint32 guid = fields[0].GetUInt32();
         CharacterTemplateEntry& character = m_characterTemplates[guid];
         character.guid = guid;
-        character.name = fields[2].GetCppString();
-        character.raceId = fields[3].GetUInt8();
-        character.classId = fields[4].GetUInt8();
-        character.gender = fields[5].GetUInt8();
-        character.level = fields[6].GetUInt32();
-        character.playerBytes = fields[9].GetUInt32();
-        character.playerBytes2 = fields[10].GetUInt32();
-        character.position.x = fields[12].GetFloat();
-        character.position.y = fields[13].GetFloat();
-        character.position.z = fields[14].GetFloat();
-        character.position.mapId = fields[15].GetUInt16();
-        character.position.o = fields[16].GetFloat();
-        character.health = fields[17].GetUInt32();
-        character.mana = fields[18].GetUInt32();
-        std::string equipmentCache = fields[19].GetCppString();
+        character.position.mapId = fields[1].GetUInt16();
+        character.position.x = fields[2].GetFloat();
+        character.position.y = fields[3].GetFloat();
+        character.position.z = fields[4].GetFloat();
+        character.position.o = fields[5].GetFloat();
+        character.name = fields[6].GetCppString();
+        character.raceId = fields[7].GetUInt8();
+        character.classId = fields[8].GetUInt8();
+
+        if (!sChrRacesStore.LookupEntry(character.raceId) ||
+            !sChrClassesStore.LookupEntry(character.classId))
+        {
+            sLog.outError("ReplayMgr::LoadPlayers - Invalid race or class for character %s (GUID %u)", character.name.c_str(), guid);
+            character.raceId = RACE_HUMAN;
+            character.classId = CLASS_PALADIN;
+        }
+
+        character.gender = fields[9].GetUInt8();
+        character.level = fields[10].GetUInt8();
+        if (!character.level)
+        {
+            sLog.outError("ReplayMgr::LoadPlayers - Invalid level for character %s (GUID %u)", character.name.c_str(), guid);
+            character.level = 1;
+        }
+        character.playerBytes = fields[13].GetUInt32();
+        character.playerBytes2 = fields[14].GetUInt32();
+        character.playerFlags = fields[15].GetUInt32();
+        character.scale = fields[16].GetFloat();
+
+        character.display_id = fields[17].GetUInt32();
+        if (!sCreatureDisplayInfoStore.LookupEntry(character.display_id))
+        {
+            sLog.outError("ReplayMgr::LoadPlayers - Invalid display id for character %s (GUID %u)", character.name.c_str(), guid);
+            character.display_id = 0;
+        }
+        character.native_display_id = fields[18].GetUInt32();
+        if (!sCreatureDisplayInfoStore.LookupEntry(character.native_display_id))
+        {
+            sLog.outError("ReplayMgr::LoadPlayers - Invalid native display id for character %s (GUID %u)", character.name.c_str(), guid);
+            character.native_display_id = 0;
+        }
+
+        character.mount_display_id = fields[19].GetUInt32();
+        if (character.mount_display_id && !sCreatureDisplayInfoStore.LookupEntry(character.mount_display_id))
+        {
+            sLog.outError("ReplayMgr::LoadPlayers - Invalid mount display id for character %s (GUID %u)", character.name.c_str(), guid);
+            character.mount_display_id = 0;
+        }
+
+        character.faction = fields[20].GetUInt32();
+        if (!sObjectMgr.GetFactionTemplateEntry(character.faction))
+        {
+            sLog.outError("ReplayMgr::LoadPlayers - Invalid faction id for character %s (GUID %u)", character.name.c_str(), guid);
+            character.faction = 0;
+        }
+
+        character.unit_flags = fields[21].GetUInt32();
+        character.current_health = fields[22].GetUInt32();
+        character.max_health = fields[23].GetUInt32();
+        character.current_mana = fields[24].GetUInt32();
+        character.max_mana = fields[25].GetUInt32();
+        character.aura_state = fields[26].GetUInt32();
+        character.emote_state = fields[27].GetUInt32();
+        if (character.emote_state && !sEmotesStore.LookupEntry(character.emote_state))
+        {
+            sLog.outError("ReplayMgr::LoadPlayers - Invalid emote state for character %s (GUID %u)", character.name.c_str(), guid);
+            character.emote_state = 0;
+        }
+
+        character.stand_state = fields[28].GetUInt8();
+        if (character.stand_state >= MAX_UNIT_STAND_STATE)
+        {
+            sLog.outError("ReplayMgr::LoadPlayers - Invalid stand state for character %s (GUID %u)", character.name.c_str(), guid);
+            character.stand_state = UNIT_STAND_STATE_STAND;
+        }
+
+        character.vis_flags = fields[30].GetUInt8();
+
+        character.sheath_state = fields[32].GetUInt8();
+        if (character.sheath_state >= MAX_SHEATH_STATE)
+        {
+            sLog.outError("ReplayMgr::LoadPlayers - Invalid sheath state for character %s (GUID %u)", character.name.c_str(), guid);
+            character.sheath_state = SHEATH_STATE_UNARMED;
+        }
+
+        character.shapeshift_form = fields[35].GetUInt8();
+        character.speed_walk = fields[36].GetFloat();
+        character.speed_run = fields[37].GetFloat();
+        character.bounding_radius = fields[38].GetFloat();
+        character.combat_reach = fields[39].GetFloat();
+        character.mod_melee_haste = fields[40].GetFloat();
+        character.mod_ranged_haste = fields[41].GetFloat();
+        character.base_attack_time = fields[42].GetUInt32();
+        character.ranged_attack_time = fields[43].GetUInt32();
+        std::string equipmentCache = fields[44].GetCppString();
         std::string temp;
         bool isItemId = true;
         uint32 itemCounter = 0;
@@ -108,6 +188,70 @@ void ReplayMgr::LoadCharacterTemplates()
     while (result->NextRow());
 
     sLog.outString(">> Loaded %u sniffed character templates", count);
+}
+
+void ReplayMgr::LoadInitialPlayerGuidValues()
+{
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `charm_guid`, `charm_id`, `charm_type`, `summon_guid`, `summon_id`, `summon_type`, `charmer_guid`, `charmer_id`, `charmer_type`, `creator_guid`, `creator_id`, `creator_type`, `summoner_guid`, `summoner_id`, `summoner_type`, `target_guid`, `target_id`, `target_type` FROM `player_guid_values`"));
+
+    if (!result)
+        return;
+
+    do
+    {
+        Field* fields = result->Fetch();
+
+        uint32 guid = fields[0].GetUInt32();
+        auto itr = m_characterTemplates.find(guid);
+        if (itr == m_characterTemplates.end())
+            continue;
+
+        CharacterTemplateEntry& character = itr->second;
+
+        {
+            uint32 charmGuid = fields[1].GetUInt32();
+            uint32 charmId = fields[2].GetUInt32();
+            std::string charmType = fields[3].GetCppString();
+            character.charmGuid = KnownObject(charmGuid, charmId, GetKnownObjectTypeId(charmType));
+
+        }
+        
+        {
+            uint32 summonGuid = fields[4].GetUInt32();
+            uint32 summonId = fields[5].GetUInt32();
+            std::string summonType = fields[6].GetCppString();
+            character.summonGuid = KnownObject(summonGuid, summonId, GetKnownObjectTypeId(summonType));
+        }
+        
+        {
+            uint32 charmerGuid = fields[7].GetUInt32();
+            uint32 charmerId = fields[8].GetUInt32();
+            std::string charmerType = fields[9].GetCppString();
+            character.charmerGuid = KnownObject(charmerGuid, charmerId, GetKnownObjectTypeId(charmerType));
+        }
+
+        {
+            uint32 creatorGuid = fields[10].GetUInt32();
+            uint32 creatorId = fields[11].GetUInt32();
+            std::string creatorType = fields[12].GetCppString();
+            character.creatorGuid = KnownObject(creatorGuid, creatorId, GetKnownObjectTypeId(creatorType));
+        }
+
+        {
+            uint32 summonerGuid = fields[13].GetUInt32();
+            uint32 summonerId = fields[14].GetUInt32();
+            std::string summonerType = fields[15].GetCppString();
+            character.summonerGuid = KnownObject(summonerGuid, summonerId, GetKnownObjectTypeId(summonerType));
+        }
+
+        {
+            uint32 targetGuid = fields[16].GetUInt32();
+            uint32 targetId = fields[17].GetUInt32();
+            std::string targetType = fields[18].GetCppString();
+            character.targetGuid = KnownObject(targetGuid, targetId, GetKnownObjectTypeId(targetType));
+        }
+        
+    } while (result->NextRow());
 }
 
 uint16 ConvertMovementOpcode(std::string const& opcodeName)
@@ -228,7 +372,7 @@ void ReplayMgr::LoadCharacterMovements()
     uint32 count = 0;
 
     //                                                               0       1         2            3             4      5             6             7             8              9
-    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `opcode`, `move_time`, `move_flags`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `unixtimems` FROM `character_movement_client`"));
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `opcode`, `move_time`, `move_flags`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `unixtimems` FROM `player_movement_client`"));
 
     if (!result)
     {
@@ -236,7 +380,7 @@ void ReplayMgr::LoadCharacterMovements()
         bar.step();
 
         sLog.outString();
-        sLog.outErrorDb(">> Loaded 0 character movements. DB table `character_movement` is empty.");
+        sLog.outErrorDb(">> Loaded 0 character movements. DB table `player_movement_client` is empty.");
         return;
     }
 
@@ -330,7 +474,7 @@ void ReplayMgr::LoadActivePlayer()
     uint32 count = 0;
 
     //                                                               0       1
-    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `unixtime` FROM `character_active_player`"));
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `unixtime` FROM `player_active_player`"));
 
     if (!result)
     {
@@ -428,7 +572,7 @@ void ReplayMgr::SpawnCharacters()
     }
 
     // Spawn chat bots, for characters that were never seen, but said something in chat.
-    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT DISTINCT `sender_name` FROM `character_chat` WHERE `guid`=0"));
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT DISTINCT `sender_name` FROM `player_chat` WHERE `guid`=0"));
     if (result)
     {
         do
@@ -444,7 +588,8 @@ void ReplayMgr::SpawnCharacters()
             character.classId = CLASS_WARRIOR;
             character.raceId = RACE_HUMAN;
             character.level = PLAYER_MAX_LEVEL;
-            character.health = 100;
+            character.current_health = 100;
+            character.max_health = 100;
             ReplayBotAI* ai = new ReplayBotAI(guid, &character, nullptr);
             m_playerBots[guid] = ai;
             sPlayerBotMgr.AddBot(ai);
@@ -553,6 +698,97 @@ void ReplayMgr::Update(uint32 const diff)
     }
 }
 
+void ReplayMgr::ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntry const& initialState)
+{
+    pPlayer->SetUInt32Value(UNIT_FIELD_LEVEL, initialState.level);
+
+    if (initialState.native_display_id)
+        pPlayer->SetUInt32Value(UNIT_FIELD_NATIVEDISPLAYID, initialState.display_id);
+
+    if (initialState.display_id)
+        pPlayer->SetUInt32Value(UNIT_FIELD_DISPLAYID, initialState.display_id);
+    else
+        pPlayer->SetUInt32Value(UNIT_FIELD_DISPLAYID, pPlayer->GetNativeDisplayId());
+
+    pPlayer->SetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID, initialState.mount_display_id);
+
+    if (initialState.scale)
+    {
+        float defaultScale = (initialState.scale * Creature::GetScaleForDisplayId(pPlayer->GetDisplayId()));
+        pPlayer->SetObjectScale(defaultScale);
+    }
+    else
+        pPlayer->SetObjectScale(pPlayer->GetNativeScale());
+
+    if (initialState.faction)
+        pPlayer->SetFactionTemplateId(initialState.faction);
+    else
+        pPlayer->SetFactionForRace(pPlayer->GetRace());
+
+    pPlayer->SetUInt32Value(UNIT_FIELD_FLAGS, initialState.unit_flags);
+
+    pPlayer->SetMaxHealth(initialState.max_health);
+    pPlayer->SetHealth(initialState.current_health);
+    pPlayer->SetMaxPower(POWER_MANA, initialState.max_mana);
+    pPlayer->SetPower(POWER_MANA, initialState.current_health);
+
+    pPlayer->SetUInt32Value(UNIT_FIELD_AURASTATE, initialState.aura_state);
+    pPlayer->SetUInt32Value(UNIT_NPC_EMOTESTATE, initialState.emote_state);
+    pPlayer->SetStandState(initialState.stand_state);
+    pPlayer->SetByteValue(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_VIS_FLAG, initialState.vis_flags);
+    pPlayer->SetSheath(SheathState(initialState.sheath_state));
+    pPlayer->SetByteValue(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_SHAPESHIFT_FORM, initialState.shapeshift_form);
+
+    if (pPlayer->GetSpeedRate(MOVE_WALK) != initialState.speed_walk)
+        pPlayer->SetSpeedRateDirect(MOVE_WALK, initialState.speed_walk);
+    if (pPlayer->GetSpeedRate(MOVE_RUN) != initialState.speed_run)
+        pPlayer->SetSpeedRateDirect(MOVE_RUN, initialState.speed_run);
+
+    pPlayer->SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, initialState.bounding_radius);
+    pPlayer->SetFloatValue(UNIT_FIELD_COMBATREACH, initialState.combat_reach);
+    pPlayer->SetUInt32Value(UNIT_FIELD_BASEATTACKTIME, initialState.base_attack_time);
+    pPlayer->SetUInt32Value(UNIT_FIELD_RANGEDATTACKTIME, initialState.ranged_attack_time);
+
+    ObjectGuid charmGuid;
+    if (!initialState.charmGuid.IsEmpty())
+        if (WorldObject* pObject = GetStoredObject(initialState.charmGuid))
+            charmGuid = pObject->GetObjectGuid();
+    pPlayer->SetGuidValue(UNIT_FIELD_CHARM, charmGuid);
+
+    ObjectGuid summonGuid;
+    if (!initialState.summonGuid.IsEmpty())
+        if (WorldObject* pObject = GetStoredObject(initialState.summonGuid))
+            summonGuid = pObject->GetObjectGuid();
+    pPlayer->SetGuidValue(UNIT_FIELD_SUMMON, summonGuid);
+
+    ObjectGuid charmerGuid;
+    if (!initialState.charmerGuid.IsEmpty())
+        if (WorldObject* pObject = GetStoredObject(initialState.charmerGuid))
+            charmerGuid = pObject->GetObjectGuid();
+    pPlayer->SetGuidValue(UNIT_FIELD_CHARMEDBY, charmerGuid);
+
+    ObjectGuid creatorGuid;
+    if (!initialState.creatorGuid.IsEmpty())
+        if (WorldObject* pObject = GetStoredObject(initialState.creatorGuid))
+            creatorGuid = pObject->GetObjectGuid();
+    pPlayer->SetGuidValue(UNIT_FIELD_CREATEDBY, creatorGuid);
+
+    ObjectGuid summonerGuid;
+    if (!initialState.summonerGuid.IsEmpty())
+        if (WorldObject* pObject = GetStoredObject(initialState.summonerGuid))
+            summonerGuid = pObject->GetObjectGuid();
+    pPlayer->SetGuidValue(UNIT_FIELD_SUMMONEDBY, summonerGuid);
+
+    ObjectGuid targetGuid;
+    if (!initialState.targetGuid.IsEmpty())
+        if (WorldObject* pObject = GetStoredObject(initialState.targetGuid))
+            targetGuid = pObject->GetObjectGuid();
+    pPlayer->SetGuidValue(UNIT_FIELD_TARGET, targetGuid);
+
+    pPlayer->SetChannelObjectGuid(ObjectGuid());
+    pPlayer->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
+}
+
 void ReplaySetTimePlayerWorker::run()
 {
     sReplayMgr.UpdatePlayersForCurrentTime();
@@ -566,21 +802,11 @@ void ReplayMgr::UpdatePlayersForCurrentTime()
         for (const auto& itr : m_characterTemplates)
         {
             playerPositions[itr.first] = itr.second.position;
+            auto const& initialState = itr.second;
 
             if (Player* pPlayer = GetPlayer(itr.first))
             {
-                pPlayer->SetObjectScale(pPlayer->GetNativeScale());
-                pPlayer->SetUInt32Value(UNIT_FIELD_DISPLAYID, pPlayer->GetNativeDisplayId());
-                pPlayer->SetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID, 0);
-                pPlayer->SetFactionForRace(pPlayer->GetRace());
-                pPlayer->SetUInt32Value(UNIT_NPC_EMOTESTATE, 0);
-                pPlayer->SetStandState(UNIT_STAND_STATE_STAND);
-                pPlayer->SetUInt32Value(UNIT_FIELD_FLAGS, 0);
-                pPlayer->SetMaxHealth(itr.second.health);
-                pPlayer->SetMaxPower(POWER_MANA, itr.second.mana);
-                pPlayer->ClearTarget();
-                pPlayer->SetChannelObjectGuid(ObjectGuid());
-                pPlayer->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
+                ResetPlayerToInitialState(pPlayer, initialState);
             }
         }
 
@@ -653,64 +879,117 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
     std::map<uint32, Position> creaturePositions;
     for (const auto itr : m_creatures)
     {
-        if (itr.second->GetVisibility() != VISIBILITY_OFF)
-            itr.second->SetVisibility(VISIBILITY_OFF);
+        Creature* pCreature = itr.second;
 
-        if (auto data = itr.second->GetCreatureData())
+        if (pCreature->GetVisibility() != VISIBILITY_OFF)
+            pCreature->SetVisibility(VISIBILITY_OFF);
+
+        if (auto data = pCreature->GetCreatureData())
         {
             creaturePositions[itr.first] = data->position.ToPosition();
 
-            if (!itr.second->IsAlive() && data->current_health > 0)
-                itr.second->Respawn();
+            if (!pCreature->IsAlive() && data->current_health > 0)
+                pCreature->Respawn();
             else
             {
-                if (itr.second->GetMaxHealth() != data->max_health)
-                    itr.second->SetMaxHealth(data->max_health);
-                if (itr.second->GetHealth() != data->current_health)
-                    itr.second->SetHealth(data->current_health);
+                if (pCreature->GetMaxHealth() != data->max_health)
+                    pCreature->SetMaxHealth(data->max_health);
+                if (pCreature->GetHealth() != data->current_health)
+                    pCreature->SetHealth(data->current_health);
             } 
 
-            if (itr.second->GetMaxPower(POWER_MANA) != data->max_mana)
-                itr.second->SetMaxPower(POWER_MANA, data->max_mana);
-            if (itr.second->GetPower(POWER_MANA) != data->current_mana)
-                itr.second->SetPower(POWER_MANA, data->current_mana);
+            if (pCreature->GetMaxPower(POWER_MANA) != data->max_mana)
+                pCreature->SetMaxPower(POWER_MANA, data->max_mana);
+            if (pCreature->GetPower(POWER_MANA) != data->current_mana)
+                pCreature->SetPower(POWER_MANA, data->current_mana);
 
-            if (itr.second->GetUInt32Value(OBJECT_FIELD_ENTRY) != data->creature_id[0])
-                itr.second->SetUInt32Value(OBJECT_FIELD_ENTRY, data->creature_id[0]);
-            if (itr.second->GetDisplayId() != data->display_id)
-                itr.second->SetDisplayId(data->display_id);
+            if (pCreature->GetUInt32Value(OBJECT_FIELD_ENTRY) != data->creature_id[0])
+                pCreature->SetUInt32Value(OBJECT_FIELD_ENTRY, data->creature_id[0]);
 
-            float defaultScale = (data->scale * Creature::GetScaleForDisplayId(itr.second->GetDisplayId()));
-            if (itr.second->GetObjectScale() != defaultScale)
-                itr.second->SetObjectScale(defaultScale);
+            if (data->display_id && pCreature->GetDisplayId() != data->display_id)
+                pCreature->SetDisplayId(data->display_id);
 
-            if (itr.second->GetFactionTemplateId() != data->faction)
-                itr.second->SetFactionTemplateId(data->faction);
-            if (itr.second->GetUInt32Value(UNIT_FIELD_FLAGS) != data->unit_flags)
-                itr.second->SetUInt32Value(UNIT_FIELD_FLAGS, data->unit_flags);
-            if (itr.second->GetUInt32Value(UNIT_NPC_FLAGS) != data->npc_flags)
-                itr.second->SetUInt32Value(UNIT_NPC_FLAGS, data->npc_flags);
+            if (data->native_display_id && pCreature->GetNativeDisplayId() != data->native_display_id)
+                pCreature->SetNativeDisplayId(data->native_display_id);
 
-            if (itr.second->GetSpeedRate(MOVE_WALK) != data->speed_walk)
-                itr.second->SetSpeedRateDirect(MOVE_WALK, data->speed_walk);
-            if (itr.second->GetSpeedRate(MOVE_RUN) != data->speed_run)
-                itr.second->SetSpeedRateDirect(MOVE_RUN, data->speed_run);
+            if (pCreature->GetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID) != data->mount_display_id)
+                pCreature->SetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID, data->mount_display_id);
+
+            float defaultScale = (data->scale * Creature::GetScaleForDisplayId(pCreature->GetDisplayId()));
+            if (pCreature->GetObjectScale() != defaultScale)
+                pCreature->SetObjectScale(defaultScale);
+
+            if (data->faction && pCreature->GetFactionTemplateId() != data->faction)
+                pCreature->SetFactionTemplateId(data->faction);
+            if (pCreature->GetUInt32Value(UNIT_FIELD_FLAGS) != data->unit_flags)
+                pCreature->SetUInt32Value(UNIT_FIELD_FLAGS, data->unit_flags);
+            if (pCreature->GetUInt32Value(UNIT_NPC_FLAGS) != data->npc_flags)
+                pCreature->SetUInt32Value(UNIT_NPC_FLAGS, data->npc_flags);
+
+            if (pCreature->GetUInt32Value(UNIT_FIELD_AURASTATE) != data->aura_state)
+                pCreature->SetUInt32Value(UNIT_FIELD_AURASTATE, data->aura_state);
+            if (pCreature->GetUInt32Value(UNIT_NPC_EMOTESTATE) != data->emote_state)
+                pCreature->SetUInt32Value(UNIT_NPC_EMOTESTATE, data->emote_state);
+            if (pCreature->GetStandState() != data->stand_state)
+                pCreature->SetStandState(data->stand_state);
+            pCreature->SetByteValue(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_VIS_FLAG, data->vis_flags);
+            if (pCreature->GetSheath() != data->sheath_state)
+                pCreature->SetSheath(SheathState(data->sheath_state));
+            pCreature->SetByteValue(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_SHAPESHIFT_FORM, data->shapeshift_form);
+
+            if (pCreature->GetSpeedRate(MOVE_WALK) != data->speed_walk)
+                pCreature->SetSpeedRateDirect(MOVE_WALK, data->speed_walk);
+            if (pCreature->GetSpeedRate(MOVE_RUN) != data->speed_run)
+                pCreature->SetSpeedRateDirect(MOVE_RUN, data->speed_run);
+
+            pCreature->SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, data->bounding_radius);
+            pCreature->SetFloatValue(UNIT_FIELD_COMBATREACH, data->combat_reach);
+            pCreature->SetUInt32Value(UNIT_FIELD_BASEATTACKTIME, data->base_attack_time);
+            pCreature->SetUInt32Value(UNIT_FIELD_RANGEDATTACKTIME, data->ranged_attack_time);
+
+            pCreature->SetVirtualItem(VIRTUAL_ITEM_SLOT_0, data->main_hand_slot_item);
+            pCreature->SetVirtualItem(VIRTUAL_ITEM_SLOT_1, data->off_hand_slot_item);
+            pCreature->SetVirtualItem(VIRTUAL_ITEM_SLOT_2, data->ranged_slot_item);
+
+            ObjectGuid charmGuid;
+            if (!data->charmGuid.IsEmpty())
+                if (WorldObject* pObject = GetStoredObject(data->charmGuid))
+                    charmGuid = pObject->GetObjectGuid();
+            pCreature->SetGuidValue(UNIT_FIELD_CHARM, charmGuid);
+
+            ObjectGuid summonGuid;
+            if (!data->summonGuid.IsEmpty())
+                if (WorldObject* pObject = GetStoredObject(data->summonGuid))
+                    summonGuid = pObject->GetObjectGuid();
+            pCreature->SetGuidValue(UNIT_FIELD_SUMMON, summonGuid);
+
+            ObjectGuid charmerGuid;
+            if (!data->charmerGuid.IsEmpty())
+                if (WorldObject* pObject = GetStoredObject(data->charmerGuid))
+                    charmerGuid = pObject->GetObjectGuid();
+            pCreature->SetGuidValue(UNIT_FIELD_CHARMEDBY, charmerGuid);
+
+            ObjectGuid creatorGuid;
+            if (!data->creatorGuid.IsEmpty())
+                if (WorldObject* pObject = GetStoredObject(data->creatorGuid))
+                    creatorGuid = pObject->GetObjectGuid();
+            pCreature->SetGuidValue(UNIT_FIELD_CREATEDBY, creatorGuid);
+
+            ObjectGuid summonerGuid;
+            if (!data->summonerGuid.IsEmpty())
+                if (WorldObject* pObject = GetStoredObject(data->summonerGuid))
+                    summonerGuid = pObject->GetObjectGuid();
+            pCreature->SetGuidValue(UNIT_FIELD_SUMMONEDBY, summonerGuid);
+
+            ObjectGuid targetGuid;
+            if (!data->targetGuid.IsEmpty())
+                if (WorldObject* pObject = GetStoredObject(data->targetGuid))
+                    targetGuid = pObject->GetObjectGuid();
+            pCreature->SetGuidValue(UNIT_FIELD_TARGET, targetGuid);
         }
 
-        if (auto addon = itr.second->GetCreatureAddon())
-        {
-            if (itr.second->GetSheath() != addon->sheath_state)
-                itr.second->SetSheath(SheathState(addon->sheath_state));
-            if (itr.second->GetStandState() != addon->stand_state)
-                itr.second->SetStandState(addon->stand_state);
-            if (itr.second->GetUInt32Value(UNIT_NPC_EMOTESTATE) != addon->emote)
-                itr.second->SetUInt32Value(UNIT_NPC_EMOTESTATE, addon->emote);
-            if (itr.second->GetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID) != addon->mount)
-                itr.second->SetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID, addon->mount);
-        }
-
-        itr.second->SetChannelObjectGuid(ObjectGuid());
-        itr.second->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
+        pCreature->SetChannelObjectGuid(ObjectGuid());
+        pCreature->SetUInt32Value(UNIT_CHANNEL_SPELL, 0);
     }
 
     std::set<uint32> visibleCreatures;
@@ -793,6 +1072,29 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
             pCreature->SetVisibility(VISIBILITY_ON);
 }
 
+void ReplayMgr::ResetGameObjectToInitialState(GameObject* pGo)
+{
+    if (auto data = pGo->GetGOData())
+    {
+        if (pGo->GetGoState() != data->go_state)
+            pGo->SetGoState(GOState(data->go_state));
+        if (pGo->GetUInt32Value(GAMEOBJECT_FLAGS) != data->flags)
+            pGo->SetUInt32Value(GAMEOBJECT_FLAGS, data->flags);
+        if (data->faction && pGo->GetUInt32Value(GAMEOBJECT_FACTION) != data->faction)
+            pGo->SetUInt32Value(GAMEOBJECT_FACTION, data->faction);
+        if (data->display_id && pGo->GetUInt32Value(GAMEOBJECT_DISPLAYID) != data->display_id)
+            pGo->SetUInt32Value(GAMEOBJECT_DISPLAYID, data->display_id);
+        if (pGo->GetUInt32Value(GAMEOBJECT_LEVEL) != data->level)
+            pGo->SetUInt32Value(GAMEOBJECT_LEVEL, data->level);
+
+        ObjectGuid creatorGuid;
+        if (!data->creatorGuid.IsEmpty())
+            if (WorldObject* pObject = GetStoredObject(data->creatorGuid))
+                creatorGuid = pObject->GetObjectGuid();
+        pGo->SetGuidValue(OBJECT_FIELD_CREATED_BY, creatorGuid);
+    }
+}
+
 void ReplaySetTimeGameObjectWorker::run()
 {
     sReplayMgr.UpdateGameObjectsForCurrentTime();
@@ -805,15 +1107,7 @@ void ReplayMgr::UpdateGameObjectsForCurrentTime()
         if (itr.second->IsVisible())
             itr.second->SetVisible(false);
 
-        if (auto data = itr.second->GetGOData())
-        {
-            if (itr.second->GetGoState() != data->go_state)
-                itr.second->SetGoState(GOState(data->go_state));
-            if (itr.second->GetUInt32Value(GAMEOBJECT_FLAGS) != data->flags)
-                itr.second->SetUInt32Value(GAMEOBJECT_FLAGS, data->flags);
-            if (itr.second->GetUInt32Value(GAMEOBJECT_FACTION) != data->faction)
-                itr.second->SetUInt32Value(GAMEOBJECT_FACTION, data->faction);
-        }
+        ResetGameObjectToInitialState(itr.second);
     }
 
     std::set<uint32> visibleGameObjects;

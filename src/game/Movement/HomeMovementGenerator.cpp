@@ -74,7 +74,6 @@ void HomeMovementGenerator<Creature>::Finalize(Creature& owner)
             owner.ClearTemporaryFaction();
 
         owner.SetWalk(!owner.HasUnitState(UNIT_STAT_RUNNING) && !owner.IsLevitating(), false);
-        owner.LoadCreatureAddon(true);
         owner.AI()->JustReachedHome();
     }
 }

@@ -78,7 +78,7 @@
 #include "AuraRemovalMgr.h"
 #include "InstanceStatistics.h"
 #include "GuardMgr.h"
-#include "ReplayMgr.h"
+#include "Replay/ReplayMgr.h"
 
 #include <chrono>
 
@@ -1282,12 +1282,6 @@ void World::SetInitialWorldSettings()
 
     sLog.outString("Loading Creature Data...");
     sObjectMgr.LoadCreatures();
-
-    sLog.outString("Loading Creature Addon Data...");
-    sLog.outString();
-    sObjectMgr.LoadCreatureAddons();                        // must be after LoadCreatureTemplates() and LoadCreatures()
-    sLog.outString(">>> Creature Addon Data loaded");
-    sLog.outString();
 
     sLog.outString("Loading Creature Groups ...");
     sCreatureGroupsManager->Load();

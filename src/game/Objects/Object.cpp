@@ -54,7 +54,7 @@
 #include "packet_builder.h"
 #include "MovementBroadcaster.h"
 #include "PlayerBroadcaster.h"
-#include "ReplayMgr.h"
+#include "Replay/ReplayMgr.h"
 
 ////////////////////////////////////////////////////////////
 // Methods of class MovementInfo

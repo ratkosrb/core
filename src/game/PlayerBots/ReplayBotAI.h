@@ -18,7 +18,7 @@
 #define MANGOS_COMBAT_BOT_BASE_H
 
 #include "PlayerBotAI.h"
-#include "ReplayMgr.h"
+#include "Replay/ReplayMgr.h"
 
 class ReplayBotAI : public PlayerBotAI
 {

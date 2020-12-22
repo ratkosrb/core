@@ -46,7 +46,7 @@
 #include "ZoneScript.h"
 #include "DynamicTree.h"
 #include "vmap/GameObjectModel.h"
-#include "ReplayMgr.h"
+#include "Replay/ReplayMgr.h"
 
 GameObject::GameObject() : WorldObject(),
     loot(this),

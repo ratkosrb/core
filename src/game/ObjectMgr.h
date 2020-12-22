@@ -647,16 +647,6 @@ class ObjectMgr
         CreatureDisplayInfoAddon const* GetCreatureDisplayInfoRandomGender(uint32 display_id);
 
         EquipmentInfo const* GetEquipmentInfo(uint32 entry);
-        static CreatureDataAddon const* GetCreatureAddon(uint32 lowguid)
-        {
-            return sCreatureDataAddonStorage.LookupEntry<CreatureDataAddon>(lowguid);
-        }
-
-        static CreatureDataAddon const* GetCreatureTemplateAddon(uint32 entry)
-        {
-            return sCreatureInfoAddonStorage.LookupEntry<CreatureDataAddon>(entry);
-        }
-
         static ItemPrototype const* GetItemPrototype(uint32 id) { return sItemStorage.LookupEntry<ItemPrototype>(id); }
 
         PetLevelInfo const* GetPetLevelInfo(uint32 creature_id, uint32 level) const;
@@ -840,7 +830,7 @@ class ObjectMgr
         void CorrectCreatureDisplayIds(uint32, uint32&);
 
         void LoadCreatures(bool reload = false);
-        void LoadCreatureAddons();
+        void LoadInitialCreatureGuidValues();
         void LoadCreatureDisplayInfoAddon();
         void LoadCreatureSpells();
         void LoadEquipmentTemplates();
@@ -1471,8 +1461,6 @@ class ObjectMgr
         uint32 m_OldMailCounter;
 
     private:
-        void LoadCreatureAddons(SQLStorage& creatureaddons, char const* entryName, char const* comment);
-        void ConvertCreatureAddonAuras(CreatureDataAddon* addon, char const* table, char const* guidEntryStr);
         void LoadQuestRelationsHelper(QuestRelationsMap& map, char const* table);
         void LoadVendors(char const* tableName, bool isTemplates);
         void LoadTrainers(char const* tableName, bool isTemplates);

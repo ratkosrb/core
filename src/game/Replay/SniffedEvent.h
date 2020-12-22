@@ -20,62 +20,8 @@
 #include "Common.h"
 #include "SharedDefines.h"
 #include "Timer.h"
+#include "KnownObject.h"
 #include <string>
-
-inline uint32 GetKnownObjectTypeId(std::string const& typeName)
-{
-    if (typeName == "Creature" || typeName == "Pet")
-        return TYPEID_UNIT;
-    else if (typeName == "Player")
-        return TYPEID_PLAYER;
-    else if (typeName == "GameObject")
-        return TYPEID_GAMEOBJECT;
-    return TYPEID_OBJECT;
-}
-
-struct KnownObject
-{
-    KnownObject() {};
-    KnownObject(uint32 guid, uint32 entry, TypeID type) :
-        m_guid(guid), m_entry(entry), m_type(type) {};
-    uint32 m_guid = 0;
-    uint32 m_entry = 0;
-    TypeID m_type = TYPEID_OBJECT;
-    bool operator==(KnownObject const& other) const
-    {
-        return m_guid == other.m_guid &&
-            m_entry == other.m_entry &&
-            m_type == other.m_type;
-    }
-    bool operator!=(KnownObject const& other) const
-    {
-        return !(m_guid == other.m_guid &&
-            m_entry == other.m_entry &&
-            m_type == other.m_type);
-    }
-    bool operator<(KnownObject const& other) const
-    {
-        return m_guid < other.m_guid;
-    }
-    bool IsEmpty()
-    {
-        return !m_type;
-    }
-};
-
-inline std::string FormatObjectName(KnownObject object)
-{
-    std::string name;
-    if (object.m_type == TYPEID_PLAYER)
-        name = "Player (Guid: " + std::to_string(object.m_guid) + ")";
-    else if (object.m_type == TYPEID_UNIT)
-        name = "Creature (Guid: " + std::to_string(object.m_guid) + " Entry: " + std::to_string(object.m_entry) + ")";
-    else if (object.m_type == TYPEID_GAMEOBJECT)
-        name = "GameObject (Guid: " + std::to_string(object.m_guid) + " Entry: " + std::to_string(object.m_entry) + ")";
-    else
-        name = "Entry: " + std::to_string(object.m_entry);
-    return name;
-}
 
 enum SniffedEventType : uint8
 {

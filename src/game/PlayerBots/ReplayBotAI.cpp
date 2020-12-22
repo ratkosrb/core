@@ -215,8 +215,7 @@ void ReplayBotAI::UpdateAI(uint32 const diff)
             }  
         }
 
-        me->SetMaxHealth(m_template->health);
-        me->SetMaxPower(POWER_MANA, m_template->mana);
+        sReplayMgr.ResetPlayerToInitialState(me, *m_template);
 
         // Fix zone in who window
         uint32 newzone, newarea;

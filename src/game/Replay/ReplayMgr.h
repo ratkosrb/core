@@ -40,8 +40,37 @@ struct CharacterTemplateEntry
     uint32 level = 0;
     uint32 playerBytes = 0;
     uint32 playerBytes2 = 0;
-    uint32 health = 0;
-    uint32 mana = 0;
+    uint32 playerFlags = 0;
+    float scale = 1;
+    uint32 display_id = 0;
+    uint32 native_display_id = 0;
+    uint32 mount_display_id = 0;
+    uint32 faction = 0;
+    uint32 unit_flags = 0;
+    uint32 current_health = 0;
+    uint32 max_health = 0;
+    uint32 current_mana = 0;
+    uint32 max_mana = 0;
+    uint32 aura_state = 0;
+    uint32 emote_state = 0;
+    uint8 stand_state = 0;
+    uint8 vis_flags = 0;
+    uint8 sheath_state = 0;
+    uint8 shapeshift_form = 0;
+    float speed_walk = 1;
+    float speed_run = 1;
+    float bounding_radius = 1;
+    float combat_reach = 1;
+    float mod_melee_haste = 1;
+    float mod_ranged_haste = 1;
+    uint32 base_attack_time = 0;
+    uint32 ranged_attack_time = 0;
+    KnownObject charmGuid;
+    KnownObject summonGuid;
+    KnownObject charmerGuid;
+    KnownObject creatorGuid;
+    KnownObject summonerGuid;
+    KnownObject targetGuid;
     WorldLocation position;
     CharacterEquipment equipment[EQUIPMENT_SLOT_END] = {};
 };
@@ -193,14 +222,16 @@ class ReplayMgr
 
         void LoadEverything()
         {
-            LoadCharacterTemplates();
+            LoadPlayers();
+            LoadInitialPlayerGuidValues();
             LoadCharacterMovements();
             LoadActivePlayer();
             LoadInitialWorldStates();
             LoadSniffedEvents();
         }
         void LoadSniffedEvents();
-        void LoadCharacterTemplates();
+        void LoadPlayers();
+        void LoadInitialPlayerGuidValues();
         void LoadCharacterMovements();
         void LoadActivePlayer();
         void LoadInitialWorldStates();
@@ -262,6 +293,8 @@ class ReplayMgr
         void UpdateCreaturesForCurrentTime();
         void UpdateGameObjectsForCurrentTime();
         void UpdateObjectStateAndVisiblityForCurrentTime();
+        void ResetGameObjectToInitialState(GameObject* pGo);
+        void ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntry const& initialState);
         void StartPlaying();
         void StopPlaying();
         bool IsPlaying() { return m_enabled; }

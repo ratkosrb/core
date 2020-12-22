@@ -41,27 +41,27 @@ void ReplayMgr::LoadSniffedEvents()
     LoadCreatureCreate2();
     LoadCreatureDestroy();
     LoadCreatureClientSideMovement();
-    LoadServerSideMovementSplines("character_movement_server_spline", m_characterMovementSplines);
+    LoadServerSideMovementSplines("player_movement_server_spline", m_characterMovementSplines);
     LoadServerSideMovementSplines("creature_movement_server_spline", m_creatureMovementSplines);
     LoadServerSideMovementSplines("creature_movement_server_combat_spline", m_creatureMovementCombatSplines);
-    LoadServerSideMovement("character_movement_server", TYPEID_PLAYER, m_characterMovementSplines);
+    LoadServerSideMovement("player_movement_server", TYPEID_PLAYER, m_characterMovementSplines);
     LoadServerSideMovement("creature_movement_server", TYPEID_UNIT, m_creatureMovementSplines);
     LoadServerSideMovement("creature_movement_server_combat", TYPEID_UNIT, m_creatureMovementCombatSplines);
     LoadCreatureTextTemplate();
     LoadCreatureText();
     LoadCreatureEmote();
     LoadUnitAttackLog("creature_attack_log", TYPEID_UNIT);
-    LoadUnitAttackLog("character_attack_log", TYPEID_PLAYER);
-    LoadUnitTargetChange<SniffedEvent_UnitTargetChange>("creature_target_change", TYPEID_UNIT);
+    LoadUnitAttackLog("player_attack_log", TYPEID_PLAYER);
+    //LoadUnitTargetChange<SniffedEvent_UnitTargetChange>("creature_target_change", TYPEID_UNIT);
     LoadUnitTargetChange<SniffedEvent_UnitAttackStart>("creature_attack_start", TYPEID_UNIT);
     LoadUnitTargetChange<SniffedEvent_UnitAttackStop>("creature_attack_stop", TYPEID_UNIT);
-    LoadUnitTargetChange<SniffedEvent_UnitTargetChange>("character_target_change", TYPEID_PLAYER);
-    LoadUnitTargetChange<SniffedEvent_UnitAttackStart>("character_attack_start", TYPEID_PLAYER);
-    LoadUnitTargetChange<SniffedEvent_UnitAttackStop>("character_attack_stop", TYPEID_PLAYER);
+    //LoadUnitTargetChange<SniffedEvent_UnitTargetChange>("player_target_change", TYPEID_PLAYER);
+    LoadUnitTargetChange<SniffedEvent_UnitAttackStart>("player_attack_start", TYPEID_PLAYER);
+    LoadUnitTargetChange<SniffedEvent_UnitAttackStop>("player_attack_stop", TYPEID_PLAYER);
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_entry>("entry");
     LoadCreatureValuesUpdate_float<SniffedEvent_UnitUpdate_scale>("scale");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_display_id>("display_id");
-    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_mount>("mount");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_mount>("mount_display_id");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_faction>("faction");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_emote_state>("emote_state");
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_stand_state>("stand_state");
@@ -74,7 +74,7 @@ void ReplayMgr::LoadSniffedEvents()
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_entry>("entry");
     LoadPlayerValuesUpdate_float<SniffedEvent_UnitUpdate_scale>("scale");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_display_id>("display_id");
-    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_mount>("mount");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_mount>("mount_display_id");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_faction>("faction");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_emote_state>("emote_state");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_stand_state>("stand_state");
@@ -834,7 +834,7 @@ template void ReplayMgr::LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_entry>(c
 template <class T>
 void ReplayMgr::LoadPlayerValuesUpdate(char const* fieldName)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `%s` FROM `character_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtimems`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `%s` FROM `player_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtimems`", fieldName, fieldName))
     {
         do
         {
@@ -857,7 +857,7 @@ template void ReplayMgr::LoadPlayerValuesUpdate_float<SniffedEvent_UnitUpdate_sc
 template <class T>
 void ReplayMgr::LoadPlayerValuesUpdate_float(char const* fieldName)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `%s` FROM `character_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtimems`", fieldName, fieldName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `%s` FROM `player_values_update` WHERE (`%s` IS NOT NULL) ORDER BY `unixtimems`", fieldName, fieldName))
     {
         do
         {
@@ -1061,7 +1061,7 @@ void ReplayMgr::LoadCreatureSpeedUpdate(uint32 speedType)
 
 void ReplayMgr::LoadPlayerSpeedUpdate(uint32 speedType)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `speed_rate` FROM `character_speed_update` WHERE `speed_type`=%u ORDER BY `unixtimems`", speedType))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `speed_rate` FROM `player_speed_update` WHERE `speed_type`=%u ORDER BY `unixtimems`", speedType))
     {
         do
         {
@@ -1716,7 +1716,7 @@ void SniffedEvent_SpellChannelUpdate::Execute() const
 
 void ReplayMgr::LoadPlayerChat()
 {
-    if (auto result = SniffDatabase.Query("SELECT `guid`, `sender_name`, `text`, `chat_type`, `channel_name`, `unixtimems` FROM `character_chat` ORDER BY `unixtimems`"))
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `sender_name`, `text`, `chat_type`, `channel_name`, `unixtimems` FROM `player_chat` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -2001,7 +2001,7 @@ void SniffedEvent_PlaySpellVisualKit::Execute() const
 
 void ReplayMgr::LoadQuestAcceptTimes()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `object_guid`, `object_id`, `object_type`, `quest_id` FROM `quest_client_accept` ORDER BY `unixtimems`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `object_guid`, `object_id`, `object_type`, `quest_id` FROM `client_quest_accept` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -2034,7 +2034,7 @@ void SniffedEvent_QuestAccept::Execute() const
 
 void ReplayMgr::LoadQuestCompleteTimes()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `object_guid`, `object_id`, `object_type`, `quest_id` FROM `quest_client_complete` ORDER BY `unixtimems`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `object_guid`, `object_id`, `object_type`, `quest_id` FROM `client_quest_complete` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -2067,7 +2067,7 @@ void SniffedEvent_QuestComplete::Execute() const
 
 void ReplayMgr::LoadCreatureInteractTimes()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `guid` FROM `creature_client_interact` ORDER BY `unixtimems`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `guid` FROM `client_creature_interact` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -2098,7 +2098,7 @@ void SniffedEvent_CreatureInteract::Execute() const
 
 void ReplayMgr::LoadGameObjectUseTimes()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `guid` FROM `gameobject_client_use` ORDER BY `unixtimems`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `guid` FROM `client_gameobject_use` ORDER BY `unixtimems`"))
     {
         do
         {
@@ -2129,7 +2129,7 @@ void SniffedEvent_GameObjectUse::Execute() const
 
 void ReplayMgr::LoadItemUseTimes()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `entry` FROM `item_client_use` ORDER BY `unixtimems`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `entry` FROM `client_item_use` ORDER BY `unixtimems`"))
     {
         do
         {

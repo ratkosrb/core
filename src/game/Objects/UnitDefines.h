@@ -69,6 +69,30 @@ enum MovementChangeType
 #define BASE_MAXDAMAGE 2.0f
 #define BASE_ATTACK_TIME 2000
 
+enum UnitBytes0Offsets : uint8
+{
+    UNIT_BYTES_0_OFFSET_RACE       = 0,
+    UNIT_BYTES_0_OFFSET_CLASS      = 1,
+    UNIT_BYTES_0_OFFSET_GENDER     = 2,
+    UNIT_BYTES_0_OFFSET_POWER_TYPE = 3,
+};
+
+enum UnitBytes1Offsets : uint8
+{
+    UNIT_BYTES_1_OFFSET_STAND_STATE     = 0,
+    UNIT_BYTES_1_OFFSET_PET_LOYALTY     = 1,
+    UNIT_BYTES_1_OFFSET_SHAPESHIFT_FORM = 2,
+    UNIT_BYTES_1_OFFSET_VIS_FLAG        = 3,
+};
+
+enum UnitBytes2Offsets : uint8
+{
+    UNIT_BYTES_2_OFFSET_SHEATH_STATE = 0,
+    UNIT_BYTES_2_OFFSET_MISC_FLAGS   = 1,
+    UNIT_BYTES_2_OFFSET_PET_FLAGS    = 2,
+    UNIT_BYTES_2_OFFSET_UNKNOWN      = 3, // shapeshift form in tbc
+};
+
 // byte value (UNIT_FIELD_BYTES_1,0)
 enum UnitStandStateType
 {

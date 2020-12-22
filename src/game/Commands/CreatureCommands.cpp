@@ -35,7 +35,7 @@
 #include "WaypointManager.h"
 #include "WaypointMovementGenerator.h"
 #include "TargetedMovementGenerator.h"
-#include "ReplayMgr.h"
+#include "Replay/ReplayMgr.h"
 #include <fstream>
 
 bool ChatHandler::HandleNpcSpawnInfoCommand(char* /*args*/)

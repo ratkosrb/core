@@ -33,6 +33,7 @@
 #include "CreatureGroups.h"
 #include "Cell.h"
 #include "Util.h"
+#include "Replay/KnownObject.h"
 
 #include <list>
 
@@ -192,30 +193,54 @@ struct CreatureData
 {
     std::array<uint32, MAX_CREATURE_IDS_PER_SPAWN> creature_id = {};
     WorldLocation position;
+    float wander_distance_real = 0.0f; // for display in .npc spawn info
+    uint8 movement_type_real = 0; // for display in .npc spawn info
+    bool hover = false;
+    bool temp = false;
+    uint32 summon_spell = 0;
+    float scale = 1.0f;
     uint32 display_id = 0;
-    int32 equipment_id = 0;
+    uint32 native_display_id = 0;
+    uint32 mount_display_id = 0;
     uint32 faction = 0;
     uint32 level = 0;
+    uint32 npc_flags = 0;
+    uint32 unit_flags = 0;
     uint32 current_health = 0;
     uint32 max_health = 0;
     uint32 current_mana = 0;
     uint32 max_mana = 0;
+    uint32 aura_state = 0;
+    uint32 emote_state = 0;
+    uint8 stand_state = 0;
+    uint8 vis_flags = 0;
+    uint8 sheath_state = 0;
+    uint8 shapeshift_form = 0;
     float speed_walk = 0.0f;
     float speed_run = 0.0f;
+    float bounding_radius = 0.0f;
+    float combat_reach = 0.0f;
     uint32 base_attack_time = 0;
     uint32 ranged_attack_time = 0;
-    uint32 npc_flags = 0;
-    uint32 unit_flags = 0;
+    uint32 main_hand_slot_item = 0;
+    uint32 off_hand_slot_item = 0;
+    uint32 ranged_slot_item = 0;
+
+    // guid fields
+    KnownObject charmGuid;
+    KnownObject summonGuid;
+    KnownObject charmerGuid;
+    KnownObject creatorGuid;
+    KnownObject summonerGuid;
+    KnownObject targetGuid;
+
+    // placeholders
     uint32 spawntimesecsmin = 1800;
     uint32 spawntimesecsmax = 1800;
     float wander_distance = 0.0f;
-    float wander_distance_real = 0.0f; // for display in .npc spawn info
     float health_percent = 100.0f;
     float mana_percent = 100.0f;
     uint8 movement_type = 0;
-    uint8 movement_type_real = 0; // for display in .npc spawn info
-    float scale = 1.0f;
-    bool hover = false;
     uint32 spawn_flags = 1;
     float visibility_mod = 0.0f;
 
@@ -245,25 +270,6 @@ struct CreatureData
         for (; creatureIdCount < MAX_CREATURE_IDS_PER_SPAWN && creature_id[creatureIdCount]; ++creatureIdCount);
         return creatureIdCount;
     }
-};
-
-// from `creature_addon` and `creature_template_addon`tables
-struct CreatureDataAddon
-{
-    uint32 guidOrEntry;
-    uint32 mount;
-    uint32 bytes1;
-    uint32 stand_state;
-    uint32 pet_talent_points;
-    uint32 vis_flags;
-    uint32 anim_tier;
-    uint32 bytes2;
-    uint32 sheath_state;
-    uint32 pvp_flags;
-    uint32 pet_flags;
-    uint32 shapeshift_form;
-    uint32 emote;
-    uint32 const* auras;                                    // loaded as char* "spell1 spell2 ... "
 };
 
 struct CreatureDisplayInfoAddon
@@ -537,8 +543,6 @@ class Creature : public Unit
         void RemoveFromWorld() override;
 
         bool Create(uint32 guidlow, CreatureCreatePos& cPos, CreatureInfo const* cinfo, Team team, uint32 firstCreatureId, CreatureData const* data = nullptr, GameEventCreatureData const* eventData = nullptr);
-        bool LoadCreatureAddon(bool reload = false);
-        void UnloadCreatureAddon(CreatureDataAddon const* data);
 
         // CreatureGroups
         CreatureGroup* GetCreatureGroup() const { return m_creatureGroup; }
@@ -699,7 +703,6 @@ class Creature : public Unit
         TrainerSpellData const* GetTrainerSpells() const;
 
         CreatureInfo const* GetCreatureInfo() const { return m_creatureInfo; }
-        CreatureDataAddon const* GetCreatureAddon() const;
         CreatureData const* GetCreatureData() const;
 
         static uint32 ChooseDisplayId(CreatureInfo const* cinfo, CreatureData const* data = nullptr, GameEventCreatureData const* eventData = nullptr, float* scale = nullptr);

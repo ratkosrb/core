@@ -29,6 +29,7 @@
 #include "Database/DatabaseEnv.h"
 #include <ace/Thread_Mutex.h>
 #include "Util.h"
+#include "Replay/KnownObject.h"
 
 // GCC have alternative #pragma pack(N) syntax and old gcc version not support pack(push,N), also any gcc version not support it at some platform
 #if defined(__GNUC__)
@@ -579,14 +580,18 @@ struct GameObjectData
     float rotation1 = 0.0f;
     float rotation2 = 0.0f;
     float rotation3 = 0.0f;
-    int32  spawntimesecsmin = 1800;
-    int32  spawntimesecsmax = 1800;
-    uint32 animprogress = 0;
     bool temp = false;
-    uint32 creator = 0;
-    GOState go_state = GO_STATE_ACTIVE;
+    KnownObject creatorGuid;
+    uint32 display_id = 0;
+    uint32 level = 0;
     uint32 faction = 0;
     uint32 flags = 0;
+    GOState go_state = GO_STATE_ACTIVE;
+    uint32 animprogress = 0;
+
+    // placeholders
+    int32  spawntimesecsmin = 1800;
+    int32  spawntimesecsmax = 1800;
     uint32 spawn_flags = SPAWN_FLAG_ACTIVE;
     float visibility_mod = 0.0f;
 

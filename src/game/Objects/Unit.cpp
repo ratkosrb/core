@@ -63,7 +63,7 @@
 #include "CreatureLinkingMgr.h"
 #include "InstanceStatistics.h"
 #include "MovementPacketSender.h"
-#include "ReplayMgr.h"
+#include "Replay/ReplayMgr.h"
 
 #include <math.h>
 #include <stdarg.h>
