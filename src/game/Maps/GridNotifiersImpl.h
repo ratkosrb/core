@@ -124,154 +124,19 @@ inline void MaNGOS::CreatureRelocationNotifier::Visit(CreatureMapType& m)
 
 inline void MaNGOS::DynamicObjectUpdater::VisitHelper(Unit* target)
 {
-    if (!target->CanSeeInWorld(i_check))
-        return;
-
-    if (!target->IsAlive() || target->IsTaxiFlying())
-        return;
-
-    if (target->GetTypeId() == TYPEID_UNIT && ((Creature*)target)->IsImmuneToAoe())
-        return;
-
-    if (!i_dynobject.IsWithinDistInMap(target, i_dynobject.GetRadius()))
-        return;
-
-    //Check targets for not_selectable unit flag and remove
-    if (target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_NOT_SELECTABLE))
-        return;
-
-    if (i_dynobject.GetCasterGuid().IsPlayer() && target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER))
-        return;
-
-    // Evade target
-    if (target->GetTypeId()==TYPEID_UNIT && ((Creature*)target)->IsInEvadeMode())
-        return;
-
-    //Check player targets and remove if in GM mode or GM invisibility (for not self casting case)
-    if (target->GetTypeId() == TYPEID_PLAYER && target != i_check && (((Player*)target)->IsGameMaster() || ((Player*)target)->GetVisibility() == VISIBILITY_OFF))
-        return;
-
-    if (!i_positive && !i_check->IsValidAttackTarget(target))
-        return;
-    if (i_positive && !i_check->IsFriendlyTo(target))
-        return;
-
-    // Must check LoS with the target to prevent casting through objects by targeting
-    // the floor. Let creatures cheat
-    if (i_dynobject.GetCasterGuid().IsPlayer() && !i_dynobject.IsWithinLOSInMap(target))
-        return;
-
-    if (!i_dynobject.NeedsRefresh(target))
-        return;
-
-    Unit* pUnit = i_check->ToUnit();
-
-    // Negative AoE from non flagged players cannot target other players
-    if (!i_positive)
-    {
-        if (Player* attackerPlayer = pUnit ? pUnit->GetCharmerOrOwnerPlayerOrPlayerItself() : nullptr)
-            if (Player* attackedPlayer = target->GetCharmerOrOwnerPlayerOrPlayerItself())
-                if (!attackerPlayer->IsPvP() && !(attackerPlayer->IsFFAPvP() && attackedPlayer->IsFFAPvP()) && !attackerPlayer->IsInDuelWith(attackedPlayer))
-                    return;
-    }
-
-    SpellEntry const* spellInfo = sSpellMgr.GetSpellEntry(i_dynobject.GetSpellId());
-    SpellEffectIndex eff_index  = i_dynobject.GetEffIndex();
-
-    // Mise en combat
-    // Exception : fusee eclairante, piege de givre
-    if (pUnit && !i_positive && i_dynobject.GetSpellId() != 1543 && i_dynobject.GetSpellId() != 13810)
-    {
-        if (CreatureAI* pAi = target->AI())
-            pAi->AttackedBy(pUnit);
-
-        target->SetInCombatWithAggressor(pUnit);
-        pUnit->SetInCombatWithVictim(target);
-    }
-    // Check target immune to spell or aura
-    if (target->IsImmuneToSpell(spellInfo, false) || target->IsImmuneToSpellEffect(spellInfo, eff_index, false))
-        return;
-
-    // Apply PersistentAreaAura on target
-    // in case 2 dynobject overlap areas for same spell, same holder is selected, so dynobjects share holder
-    SpellAuraHolder* holder = target->GetSpellAuraHolder(spellInfo->Id, i_dynobject.GetCasterGuid());
-    bool existing = false;
-
-    if (holder)
-    {
-        holder->SetInUse(true);
-        if (!holder->GetAuraByEffectIndex(eff_index))
-        {
-            Unit* pCasterUnit = i_dynobject.GetUnitCaster();
-
-            PersistentAreaAura* Aur = new PersistentAreaAura(spellInfo, eff_index, nullptr, holder, target, pCasterUnit);
-            holder->AddAura(Aur, eff_index);
-            
-            target->AddAuraToModList(Aur);
-            Aur->ApplyModifier(true,true);
-        }
-        // Don't update aura time for active channeled spells, otherwise it can become out of sync with the cast
-        else if (!i_dynobject.IsChanneled() && holder->GetAuraDuration() >= 0 && uint32(holder->GetAuraDuration()) < i_dynobject.GetDuration())
-        {
-            holder->SetAuraDuration(i_dynobject.GetDuration());
-            holder->UpdateAuraDuration();
-        }
-        holder->SetInUse(false);
-
-        existing = true;
-    }
-    else
-    {
-        WorldObject* pCaster = i_dynobject.GetCaster();
-        Unit* pCasterUnit = i_dynobject.GetUnitCaster();
-
-        holder = CreateSpellAuraHolder(spellInfo, target, pCasterUnit, pCaster);
-        PersistentAreaAura* Aur = new PersistentAreaAura(spellInfo, eff_index, nullptr, holder, target, pCasterUnit);
-        holder->AddAura(Aur, eff_index);
-
-        // Debuff slots may be full, in which case holder is deleted or holder is not able to
-        // be added for some reason
-        if (!target->AddSpellAuraHolder(holder))
-            holder = nullptr;
-    }
-
-    if (holder && holder->IsChanneled())
-    {
-        if (WorldObject* caster = i_dynobject.GetCaster())
-        {
-            // Caster is channeling this spell, update current channel spell holders with
-            // the new holder. Don't check channel object, as it might be a spell with
-            // multiple dyn objs
-            if (Spell* spell = caster->GetCurrentSpell(CURRENT_CHANNELED_SPELL))
-            {
-                if (spell->m_spellInfo->Id == spellInfo->Id)
-                {
-                    if (!existing)
-                        spell->AddChanneledAuraHolder(holder);
-
-                    holder->SetAuraDuration(spell->GetCastedTime());
-                    holder->RefreshAuraPeriodicTimers(); // make sure we are ticking in sync with the spell cast time
-                    holder->UpdateAuraDuration();
-                }
-            }
-        }
-    }
-
-    i_dynobject.AddAffected(target);
+    
 }
 
 template<>
 inline void MaNGOS::DynamicObjectUpdater::Visit(CreatureMapType& m)
 {
-    for(auto & itr : m)
-        VisitHelper(itr.getSource());
+
 }
 
 template<>
 inline void MaNGOS::DynamicObjectUpdater::Visit(PlayerMapType& m)
 {
-    for(auto & itr : m)
-        VisitHelper(itr.getSource());
+
 }
 
 // SEARCHERS & LIST SEARCHERS & WORKERS

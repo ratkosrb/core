@@ -675,10 +675,13 @@ void ReplayMgr::Update(uint32 const diff)
     if (!m_enabled)
         return;
 
+    // Wait for player bots to spawn before starting replay.
+    if (!m_playersSpawned && !m_characterTemplates.empty())
+        return;
+
     uint64 oldSniffTimeMs = m_currentSniffTimeMs;
     m_currentSniffTimeMs += diff;
     m_currentSniffTime = m_currentSniffTimeMs / 1000;
-
 
     for (const auto& itr : m_eventsMap)
     {
@@ -705,6 +708,10 @@ void ReplaySetTimePlayerWorker::run()
 
 void ReplayMgr::ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntry const& initialState)
 {
+    // clear all aura related fields
+    for (int i = UNIT_FIELD_AURA; i <= UNIT_FIELD_AURASTATE; ++i)
+        pPlayer->SetUInt32Value(i, 0);
+
     pPlayer->SetUInt32Value(UNIT_FIELD_LEVEL, initialState.level);
 
     if (initialState.native_display_id)
@@ -735,7 +742,7 @@ void ReplayMgr::ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntr
     pPlayer->SetMaxHealth(initialState.max_health);
     pPlayer->SetHealth(initialState.current_health);
     pPlayer->SetMaxPower(POWER_MANA, initialState.max_mana);
-    pPlayer->SetPower(POWER_MANA, initialState.current_health);
+    pPlayer->SetPower(POWER_MANA, initialState.current_mana);
 
     pPlayer->SetUInt32Value(UNIT_FIELD_AURASTATE, initialState.aura_state);
     pPlayer->SetUInt32Value(UNIT_NPC_EMOTESTATE, initialState.emote_state);
@@ -831,6 +838,7 @@ void ReplayMgr::UpdatePlayerToCurrentState(Player* pPlayer, CharacterTemplateEnt
             case SE_UNIT_UPDATE_RANGED_ATTACK_TIME:
             case SE_UNIT_UPDATE_SPEED:
             case SE_UNIT_UPDATE_GUID_VALUE:
+            case SE_UNIT_UPDATE_AURAS:
             case SE_SPELL_CHANNEL_START:
             case SE_SPELL_CHANNEL_UPDATE:
             {
@@ -890,6 +898,10 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
 
         if (pCreature->GetVisibility() != VISIBILITY_OFF)
             pCreature->SetVisibility(VISIBILITY_OFF);
+
+        // clear all aura related fields
+        for (int i = UNIT_FIELD_AURA; i <= UNIT_FIELD_AURASTATE; ++i)
+            pCreature->SetUInt32Value(i, 0);
 
         if (auto data = pCreature->GetCreatureData())
         {
@@ -1062,6 +1074,7 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
             case SE_UNIT_UPDATE_RANGED_ATTACK_TIME:
             case SE_UNIT_UPDATE_SPEED:
             case SE_UNIT_UPDATE_GUID_VALUE:
+            case SE_UNIT_UPDATE_AURAS:
             case SE_SPELL_CHANNEL_START:
             case SE_SPELL_CHANNEL_UPDATE:
             {

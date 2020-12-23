@@ -1713,7 +1713,7 @@ void Spell::DoSpellHitOnUnit(Unit* unit, uint32 effectMask)
     // Apply additional spell effects to target
     CastPreCastSpells(unit);
 
-    if (m_spellInfo->IsSpellAppliesAura(effectMask))
+    if (m_spellInfo->IsSpellAppliesAura(effectMask) && m_caster->IsPlayer() && !m_caster->ToPlayer()->GetSession()->GetBot())
     {
         m_spellAuraHolder = CreateSpellAuraHolder(m_spellInfo, unit, pRealUnitCaster ? pRealUnitCaster : unit, m_caster, m_CastItem);
         m_spellAuraHolder->SetTriggered(IsTriggered());

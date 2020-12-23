@@ -6698,6 +6698,9 @@ void Player::_ApplyWeaponDependentAuraDamageMod(Item* item, WeaponAttackType att
 
 void Player::ApplyItemEquipSpell(Item* item, bool apply, bool form_change)
 {
+    if (GetSession()->GetBot())
+        return;
+
     if (!item)
         return;
 
@@ -6741,6 +6744,9 @@ void Player::ApplyItemEquipSpell(Item* item, bool apply, bool form_change)
 
 void Player::ApplyEquipSpell(SpellEntry const* spellInfo, Item* item, bool apply, bool form_change)
 {
+    if (GetSession()->GetBot())
+        return;
+
     if (apply)
     {
         // Cannot be used in this stance/form

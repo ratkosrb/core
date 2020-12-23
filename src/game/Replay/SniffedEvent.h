@@ -62,6 +62,7 @@ enum SniffedEventType : uint8
     SE_UNIT_UPDATE_RANGED_ATTACK_TIME,
     SE_UNIT_UPDATE_GUID_VALUE,
     SE_UNIT_UPDATE_SPEED,
+    SE_UNIT_UPDATE_AURAS,
     SE_GAMEOBJECT_CREATE1,
     SE_GAMEOBJECT_CREATE2,
     SE_GAMEOBJECT_CUSTOM_ANIM,
@@ -163,6 +164,8 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "Unit Update GUID Value";
         case SE_UNIT_UPDATE_SPEED:
             return "Unit Update Speed";
+        case SE_UNIT_UPDATE_AURAS:
+            return "Unit Update Auras";
         case SE_GAMEOBJECT_CREATE1:
             return "GameObject Create 1";
         case SE_GAMEOBJECT_CREATE2:
@@ -948,6 +951,29 @@ struct SniffedEvent_UnitUpdate_speed : SniffedEvent
     SniffedEventType GetType() const final
     {
         return SE_UNIT_UPDATE_SPEED;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TypeID(m_type));
+    }
+};
+
+struct SniffedEvent_UnitUpdate_auras : SniffedEvent
+{
+    SniffedEvent_UnitUpdate_auras(uint32 guid, uint32 entry, uint32 type, uint32 updateId, uint32 slot, uint32 spellId, uint32 level, uint32 charges) :
+        m_guid(guid), m_entry(entry), m_type(type), m_updateId(updateId), m_slot(slot), m_spellId(spellId), m_level(level), m_charges(charges) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_type = 0;
+    uint32 m_updateId = 0;
+    uint32 m_slot = 0;
+    uint32 m_spellId = 0;
+    uint32 m_level = 0;
+    uint32 m_charges = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_UNIT_UPDATE_AURAS;
     }
     KnownObject GetSourceObject() const final
     {

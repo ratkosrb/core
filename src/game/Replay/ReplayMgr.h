@@ -259,6 +259,7 @@ class ReplayMgr
         void LoadUnitGuidValuesUpdate(char const* tableName, uint32 typeId);
         void LoadCreatureSpeedUpdate(uint32 speedType);
         void LoadPlayerSpeedUpdate(uint32 speedType);
+        void LoadUnitAurasUpdate(char const* tableName, uint32 typeId);
         void LoadGameObjectCreate1();
         void LoadGameObjectCreate2();
         void LoadGameObjectCustomAnim();
@@ -297,6 +298,7 @@ class ReplayMgr
         void ResetGameObjectToInitialState(GameObject* pGo);
         void ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntry const& initialState);
         void UpdatePlayerToCurrentState(Player* pPlayer, CharacterTemplateEntry const& initialState);
+        void MarkPlayersAsSpawned() { m_playersSpawned = true; }
         void StartPlaying();
         void StopPlaying();
         bool IsPlaying() { return m_enabled; }
@@ -401,6 +403,7 @@ class ReplayMgr
     protected:
         bool m_enabled = false;
         bool m_initialized = false;
+        bool m_playersSpawned = false;
         uint32 m_currentSniffTime = 0;
         uint64 m_currentSniffTimeMs = 0;
         uint32 m_startTimeSniff = 0;

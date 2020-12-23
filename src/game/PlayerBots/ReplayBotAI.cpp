@@ -220,6 +220,7 @@ void ReplayBotAI::UpdateAI(uint32 const diff)
         me->GetZoneAndAreaId(newzone, newarea);
         me->UpdateZone(newzone, newarea);
 
+        sReplayMgr.MarkPlayersAsSpawned();
         sReplayMgr.ResetPlayerToInitialState(me, *m_template);
         if (sReplayMgr.GetCurrentSniffTime() != sReplayMgr.GetFirstEventTime())
             sReplayMgr.UpdatePlayerToCurrentState(me, *m_template);

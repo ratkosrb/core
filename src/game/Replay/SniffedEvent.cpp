@@ -109,6 +109,8 @@ void ReplayMgr::LoadSniffedEvents()
     LoadPlayerSpeedUpdate(MOVE_WALK);
     LoadPlayerSpeedUpdate(MOVE_RUN);
     LoadPlayerSpeedUpdate(MOVE_SWIM);
+    LoadUnitAurasUpdate("creature_auras_update", TYPEID_UNIT);
+    LoadUnitAurasUpdate("player_auras_update", TYPEID_PLAYER);
     LoadGameObjectCreate1();
     LoadGameObjectCreate2();
     LoadGameObjectCustomAnim();
@@ -1249,6 +1251,101 @@ void SniffedEvent_UnitUpdate_speed::Execute() const
     pUnit->SetSpeedRateDirect(UnitMoveType(m_speedType), m_speedRate);
     if (pUnit->IsInWorld() && pUnit->GetVisibility() != VISIBILITY_OFF)
         MovementPacketSender::SendSpeedChangeToAll(pUnit, UnitMoveType(m_speedType), m_speedRate);
+}
+
+void ReplayMgr::LoadUnitAurasUpdate(char const* tableName, uint32 typeId)
+{
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `update_id`, `slot`, `spell_id`, `level`, `charges` FROM `%s` ORDER BY `unixtimems`", tableName))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint32 creatureId = typeId == TYPEID_UNIT ? GetCreatureEntryFromGuid(guid) : 0;
+            uint64 unixtimems = fields[1].GetUInt64();
+            uint32 updateId = fields[2].GetUInt32();
+            uint32 slot = fields[3].GetUInt32();
+            uint32 spellId = fields[4].GetUInt32();
+            uint32 level = fields[5].GetUInt32();
+            uint32 charges = fields[6].GetUInt32();
+
+            if (slot >= MAX_AURAS)
+                continue;
+
+            std::shared_ptr<SniffedEvent_UnitUpdate_auras> newEvent = std::make_shared<SniffedEvent_UnitUpdate_auras>(guid, creatureId, typeId, updateId, slot, spellId, level, charges);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SetAuraFlag(Unit* pUnit, SpellEntry const* pSpellEntry, uint32 slot, bool add)
+{
+    uint32 index = slot >> 3;
+    uint32 byte = (slot & 7) << 2;
+    uint32 val = pUnit->GetUInt32Value(UNIT_FIELD_AURAFLAGS + index);
+    val &= ~(uint32(AFLAG_MASK_ALL) << byte);
+    if (add)
+    {
+        uint32 flags = AFLAG_NONE;
+
+        if (pSpellEntry->IsPositiveSpell())
+        {
+            if (!pSpellEntry->HasAttribute(SPELL_ATTR_CANT_CANCEL))
+                flags |= AFLAG_CANCELABLE;
+            flags |= AFLAG_UNK3;
+        }
+        else
+            flags |= AFLAG_UNK4;
+
+        val |= (flags << byte);
+    }
+    pUnit->SetUInt32Value(UNIT_FIELD_AURAFLAGS + index, val);
+}
+
+void SetAuraLevel(Unit* pUnit, uint32 slot, uint32 level)
+{
+    uint32 index = slot / 4;
+    uint32 byte = (slot % 4) * 8;
+    uint32 val = pUnit->GetUInt32Value(UNIT_FIELD_AURALEVELS + index);
+    val &= ~(0xFF << byte);
+    val |= (level << byte);
+    pUnit->SetUInt32Value(UNIT_FIELD_AURALEVELS + index, val);
+}
+
+void SetAuraCharges(Unit* pUnit, uint32 slot, uint32 charges)
+{
+    uint32 index = slot / 4;
+    uint32 byte = (slot % 4) * 8;
+    uint32 val = pUnit->GetUInt32Value(UNIT_FIELD_AURAAPPLICATIONS + index);
+    val &= ~(0xFF << byte);
+    // field expect count-1 for proper amount show, also prevent overflow at client side
+    val |= ((uint8(charges <= 255 ? charges - 1 : 255 - 1)) << byte);
+    pUnit->SetUInt32Value(UNIT_FIELD_AURAAPPLICATIONS + index, val);
+}
+
+void SniffedEvent_UnitUpdate_auras::Execute() const
+{
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
+    {
+        sLog.outError("SniffedEvent_UnitUpdate_auras: Cannot find source unit!");
+        return;
+    }
+
+    SpellEntry const* pSpellEntry = nullptr;
+    if (m_spellId)
+    {
+        if (!(pSpellEntry = sSpellMgr.GetSpellEntry(m_spellId)))
+            return;
+    }
+    
+    pUnit->SetUInt32Value(UNIT_FIELD_AURA + m_slot, m_spellId);
+    SetAuraFlag(pUnit, pSpellEntry, m_slot, m_spellId != 0);
+    SetAuraLevel(pUnit, m_slot, m_level);
+    SetAuraCharges(pUnit, m_slot, m_charges);
 }
 
 void ReplayMgr::LoadGameObjectCreate1()
