@@ -250,7 +250,9 @@ void SniffedEvent_UnitCreate1::Execute() const
         sLog.outError("SniffedEvent_UnitCreate1: Cannot find source unit!");
         return;
     }
-    pUnit->NearTeleportTo(m_x, m_y, m_z, m_o);
+
+    if (pUnit->IsInWorld())
+        pUnit->NearTeleportTo(m_x, m_y, m_z, m_o);
     pUnit->SetVisibility(VISIBILITY_ON);
 }
 
@@ -286,7 +288,8 @@ void SniffedEvent_UnitCreate2::Execute() const
         sLog.outError("SniffedEvent_UnitCreate2: Cannot find source unit!");
         return;
     }
-    pUnit->NearTeleportTo(m_x, m_y, m_z, m_o);
+    if (pUnit->IsInWorld())
+        pUnit->NearTeleportTo(m_x, m_y, m_z, m_o);
     pUnit->SetVisibility(VISIBILITY_ON);
 }
 
