@@ -236,15 +236,15 @@ class ReplayMgr
         void LoadActivePlayer();
         void LoadInitialWorldStates();
 
-        void LoadCreatureCreate1();
-        void LoadCreatureCreate2();
-        void LoadCreatureDestroy();
+        void LoadUnitCreate1(char const* tableName, TypeID typeId);
+        void LoadUnitCreate2(char const* tableName, TypeID typeId);
+        void LoadUnitDestroy(char const* tableName, TypeID typeId);
         void LoadCreatureClientSideMovement();
         void LoadServerSideMovement(char const* tableName, TypeID typeId, SplinesMap const& splinesMap);
         void LoadServerSideMovementSplines(char const* tableName, SplinesMap& splinesMap);
         void LoadCreatureTextTemplate();
         void LoadCreatureText();
-        void LoadCreatureEmote();
+        void LoadUnitEmote(char const* tableName, TypeID typeId);
         void LoadUnitAttackLog(char const* tableName, uint32 typeId);
         template <class T>
         void LoadUnitAttackToggle(char const* tableName, uint32 typeId);
@@ -260,6 +260,7 @@ class ReplayMgr
         void LoadCreatureSpeedUpdate(uint32 speedType);
         void LoadPlayerSpeedUpdate(uint32 speedType);
         void LoadUnitAurasUpdate(char const* tableName, uint32 typeId);
+        void LoadDynamicObjectCreate();
         void LoadGameObjectCreate1();
         void LoadGameObjectCreate2();
         void LoadGameObjectCustomAnim();

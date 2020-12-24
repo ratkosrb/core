@@ -708,6 +708,9 @@ void ReplaySetTimePlayerWorker::run()
 
 void ReplayMgr::ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntry const& initialState)
 {
+    if (pPlayer->GetVisibility() != VISIBILITY_OFF)
+        pPlayer->SetVisibility(VISIBILITY_OFF);
+
     // clear all aura related fields
     for (int i = UNIT_FIELD_AURA; i <= UNIT_FIELD_AURASTATE; ++i)
         pPlayer->SetUInt32Value(i, 0);
@@ -803,6 +806,8 @@ void ReplayMgr::ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntr
 
 void ReplayMgr::UpdatePlayerToCurrentState(Player* pPlayer, CharacterTemplateEntry const& initialState)
 {
+    UnitVisibility visible = pPlayer->GetVisibility();
+
     for (const auto& itr : m_eventsMap)
     {
         if (itr.first > m_currentSniffTimeMs)
@@ -814,6 +819,17 @@ void ReplayMgr::UpdatePlayerToCurrentState(Player* pPlayer, CharacterTemplateEnt
 
         switch (itr.second->GetType())
         {
+            case SE_UNIT_CREATE1:
+            case SE_UNIT_CREATE2:
+            {
+                visible = VISIBILITY_ON;
+                break;
+            }
+            case SE_UNIT_DESTROY:
+            {
+                visible = VISIBILITY_OFF;
+                break;
+            }
             case SE_UNIT_UPDATE_ENTRY:
             case SE_UNIT_UPDATE_SCALE:
             case SE_UNIT_UPDATE_DISPLAY_ID:
@@ -865,6 +881,8 @@ void ReplayMgr::UpdatePlayerToCurrentState(Player* pPlayer, CharacterTemplateEnt
             pPlayer->TeleportTo(position);
         }
     }
+
+    pPlayer->SetVisibility(visible);
 }
 
 void ReplayMgr::UpdatePlayersForCurrentTime()
@@ -1022,23 +1040,23 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
 
         switch (itr.second->GetType())
         {
-            case SE_CREATURE_CREATE1:
+            case SE_UNIT_CREATE1:
             {
                 uint32 const guid = itr.second->GetSourceObject().m_guid;
                 visibleCreatures.insert(guid);
-                auto createEvent = std::static_pointer_cast<SniffedEvent_CreatureCreate1>(itr.second);
+                auto createEvent = std::static_pointer_cast<SniffedEvent_UnitCreate1>(itr.second);
                 creaturePositions[guid] = Position(createEvent->m_x, createEvent->m_y, createEvent->m_z, createEvent->m_o);
                 break;
             }
-            case SE_CREATURE_CREATE2:
+            case SE_UNIT_CREATE2:
             {
                 uint32 const guid = itr.second->GetSourceObject().m_guid;
                 visibleCreatures.insert(guid);
-                auto createEvent = std::static_pointer_cast<SniffedEvent_CreatureCreate2>(itr.second);
+                auto createEvent = std::static_pointer_cast<SniffedEvent_UnitCreate2>(itr.second);
                 creaturePositions[guid] = Position(createEvent->m_x, createEvent->m_y, createEvent->m_z, createEvent->m_o);
                 break;
             }
-            case SE_CREATURE_DESTROY:
+            case SE_UNIT_DESTROY:
             {
                 visibleCreatures.erase(itr.second->GetSourceObject().m_guid);
                 break;

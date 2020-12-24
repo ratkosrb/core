@@ -33,14 +33,18 @@
 #include "MovementPacketSender.h"
 #include "MoveSplineInit.h"
 #include "MoveSpline.h"
+#include "DynamicObject.h"
 
 void ReplayMgr::LoadSniffedEvents()
 {
     LoadWorldText();
     LoadWorldStateUpdates();
-    LoadCreatureCreate1();
-    LoadCreatureCreate2();
-    LoadCreatureDestroy();
+    LoadUnitCreate1("creature_create1_time", TYPEID_UNIT);
+    LoadUnitCreate2("creature_create2_time", TYPEID_UNIT);
+    LoadUnitDestroy("creature_destroy_time", TYPEID_UNIT);
+    LoadUnitCreate1("player_create1_time", TYPEID_PLAYER);
+    LoadUnitCreate2("player_create2_time", TYPEID_PLAYER);
+    LoadUnitDestroy("player_destroy_time", TYPEID_PLAYER);
     LoadCreatureClientSideMovement();
     LoadServerSideMovementSplines("player_movement_server_spline", m_characterMovementSplines);
     LoadServerSideMovementSplines("creature_movement_server_spline", m_creatureMovementSplines);
@@ -50,7 +54,8 @@ void ReplayMgr::LoadSniffedEvents()
     LoadServerSideMovement("creature_movement_server_combat", TYPEID_UNIT, m_creatureMovementCombatSplines);
     LoadCreatureTextTemplate();
     LoadCreatureText();
-    LoadCreatureEmote();
+    LoadUnitEmote("creature_emote", TYPEID_UNIT);
+    LoadUnitEmote("player_emote", TYPEID_PLAYER);
     LoadUnitGuidValuesUpdate("creature_guid_values_update", TYPEID_UNIT);
     LoadUnitGuidValuesUpdate("player_guid_values_update", TYPEID_PLAYER);
     LoadUnitAttackLog("creature_attack_log", TYPEID_UNIT);
@@ -111,6 +116,7 @@ void ReplayMgr::LoadSniffedEvents()
     LoadPlayerSpeedUpdate(MOVE_SWIM);
     LoadUnitAurasUpdate("creature_auras_update", TYPEID_UNIT);
     LoadUnitAurasUpdate("player_auras_update", TYPEID_PLAYER);
+    LoadDynamicObjectCreate();
     LoadGameObjectCreate1();
     LoadGameObjectCreate2();
     LoadGameObjectCustomAnim();
@@ -212,23 +218,23 @@ void SniffedEvent_WorldStateUpdate::Execute() const
     };
 }
 
-void ReplayMgr::LoadCreatureCreate1()
+void ReplayMgr::LoadUnitCreate1(char const* tableName, TypeID typeId)
 {
-    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtimems`, `position_x`, `position_y`, `position_z`, `orientation` FROM `creature_create1_time` ORDER BY `unixtimems`"))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `position_x`, `position_y`, `position_z`, `orientation` FROM `%s` ORDER BY `unixtimems`", tableName))
     {
         do
         {
             Field* fields = result->Fetch();
 
             uint32 guid = fields[0].GetUInt32();
-            uint32 creatureId = GetCreatureEntryFromGuid(guid);
+            uint32 creatureId = typeId == TYPEID_UNIT ? GetCreatureEntryFromGuid(guid) : 0;
             uint64 unixtimems = fields[1].GetUInt64();
             float position_x = fields[2].GetFloat();
             float position_y = fields[3].GetFloat();
             float position_z = fields[4].GetFloat();
             float orientation = fields[5].GetFloat();
 
-            std::shared_ptr<SniffedEvent_CreatureCreate1> newEvent = std::make_shared<SniffedEvent_CreatureCreate1>(guid, creatureId, position_x, position_y, position_z, orientation);
+            std::shared_ptr<SniffedEvent_UnitCreate1> newEvent = std::make_shared<SniffedEvent_UnitCreate1>(guid, creatureId, typeId, position_x, position_y, position_z, orientation);
             m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
@@ -236,35 +242,35 @@ void ReplayMgr::LoadCreatureCreate1()
     }
 }
 
-void SniffedEvent_CreatureCreate1::Execute() const
+void SniffedEvent_UnitCreate1::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureCreate1: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitCreate1: Cannot find source unit!");
         return;
     }
-    pCreature->NearTeleportTo(m_x, m_y, m_z, m_o);
-    pCreature->SetVisibility(VISIBILITY_ON);
+    pUnit->NearTeleportTo(m_x, m_y, m_z, m_o);
+    pUnit->SetVisibility(VISIBILITY_ON);
 }
 
-void ReplayMgr::LoadCreatureCreate2()
+void ReplayMgr::LoadUnitCreate2(char const* tableName, TypeID typeId)
 {
-    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtimems`, `position_x`, `position_y`, `position_z`, `orientation` FROM `creature_create2_time` ORDER BY `unixtimems`"))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `position_x`, `position_y`, `position_z`, `orientation` FROM `%s` ORDER BY `unixtimems`", tableName))
     {
         do
         {
             Field* fields = result->Fetch();
 
             uint32 guid = fields[0].GetUInt32();
-            uint32 creatureId = GetCreatureEntryFromGuid(guid);
+            uint32 creatureId = typeId == TYPEID_UNIT ? GetCreatureEntryFromGuid(guid) : 0;
             uint64 unixtimems = fields[1].GetUInt64();
             float position_x = fields[2].GetFloat();
             float position_y = fields[3].GetFloat();
             float position_z = fields[4].GetFloat();
             float orientation = fields[5].GetFloat();
 
-            std::shared_ptr<SniffedEvent_CreatureCreate2> newEvent = std::make_shared<SniffedEvent_CreatureCreate2>(guid, creatureId, position_x, position_y, position_z, orientation);
+            std::shared_ptr<SniffedEvent_UnitCreate2> newEvent = std::make_shared<SniffedEvent_UnitCreate2>(guid, creatureId, typeId, position_x, position_y, position_z, orientation);
             m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
@@ -272,31 +278,31 @@ void ReplayMgr::LoadCreatureCreate2()
     }
 }
 
-void SniffedEvent_CreatureCreate2::Execute() const
+void SniffedEvent_UnitCreate2::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureCreate2: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitCreate2: Cannot find source unit!");
         return;
     }
-    pCreature->NearTeleportTo(m_x, m_y, m_z, m_o);
-    pCreature->SetVisibility(VISIBILITY_ON);
+    pUnit->NearTeleportTo(m_x, m_y, m_z, m_o);
+    pUnit->SetVisibility(VISIBILITY_ON);
 }
 
-void ReplayMgr::LoadCreatureDestroy()
+void ReplayMgr::LoadUnitDestroy(char const* tableName, TypeID typeId)
 {
-    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtimems` FROM `creature_destroy_time` ORDER BY `unixtimems`"))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems` FROM `%s` ORDER BY `unixtimems`", tableName))
     {
         do
         {
             Field* fields = result->Fetch();
 
             uint32 guid = fields[0].GetUInt32();
-            uint32 creatureId = GetCreatureEntryFromGuid(guid);
+            uint32 creatureId = typeId == TYPEID_UNIT ? GetCreatureEntryFromGuid(guid) : 0;
             uint64 unixtimems = fields[1].GetUInt64();
 
-            std::shared_ptr<SniffedEvent_CreatureDestroy> newEvent = std::make_shared<SniffedEvent_CreatureDestroy>(guid, creatureId);
+            std::shared_ptr<SniffedEvent_UnitDestroy> newEvent = std::make_shared<SniffedEvent_UnitDestroy>(guid, creatureId, typeId);
             m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
@@ -304,15 +310,15 @@ void ReplayMgr::LoadCreatureDestroy()
     }
 }
 
-void SniffedEvent_CreatureDestroy::Execute() const
+void SniffedEvent_UnitDestroy::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureDestroy: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitDestroy: Cannot find source unit!");
         return;
     }
-    pCreature->SetVisibility(VISIBILITY_OFF);
+    pUnit->SetVisibility(VISIBILITY_OFF);
 }
 
 void ReplayMgr::LoadServerSideMovement(char const* tableName, TypeID typeId, SplinesMap const& splinesMap)
@@ -527,9 +533,9 @@ void SniffedEvent_CreatureText::Execute() const
     }
 }
 
-void ReplayMgr::LoadCreatureEmote()
+void ReplayMgr::LoadUnitEmote(char const* tableName, TypeID typeId)
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `emote_id`, `guid` FROM `creature_emote` ORDER BY `unixtimems`"))
+    if (auto result = SniffDatabase.PQuery("SELECT `unixtimems`, `emote_id`, `guid` FROM `%s` ORDER BY `unixtimems`", tableName))
     {
         do
         {
@@ -538,9 +544,9 @@ void ReplayMgr::LoadCreatureEmote()
             uint64 unixtimems = fields[0].GetUInt64();
             uint32 emoteId = fields[1].GetUInt32();
             uint32 guid = fields[2].GetUInt32();
-            uint32 creatureId = GetCreatureEntryFromGuid(guid);
+            uint32 creatureId = typeId == TYPEID_UNIT ? GetCreatureEntryFromGuid(guid) : 0;
 
-            std::shared_ptr<SniffedEvent_CreatureEmote> newEvent = std::make_shared<SniffedEvent_CreatureEmote>(guid, creatureId, emoteId);
+            std::shared_ptr<SniffedEvent_UnitEmote> newEvent = std::make_shared<SniffedEvent_UnitEmote>(guid, creatureId, typeId, emoteId);
             m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
         } while (result->NextRow());
@@ -548,16 +554,16 @@ void ReplayMgr::LoadCreatureEmote()
     }
 }
 
-void SniffedEvent_CreatureEmote::Execute() const
+void SniffedEvent_UnitEmote::Execute() const
 {
-    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
-    if (!pCreature)
+    Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pUnit)
     {
-        sLog.outError("SniffedEvent_CreatureEmote: Cannot find source creature!");
+        sLog.outError("SniffedEvent_UnitEmote: Cannot find source unit!");
         return;
     }
 
-    pCreature->HandleEmote(m_emoteId);
+    pUnit->HandleEmote(m_emoteId);
 }
 
 enum SpellHitInfo
@@ -983,7 +989,7 @@ void SniffedEvent_UnitUpdate_vis_flags::Execute() const
         return;
     }
 
-    pUnit->SetByteFlag(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_VIS_FLAG, m_value);
+    pUnit->SetByteValue(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_VIS_FLAG, m_value);
 }
 
 void SniffedEvent_UnitUpdate_sheath_state::Execute() const
@@ -1007,7 +1013,7 @@ void SniffedEvent_UnitUpdate_shapeshift_form::Execute() const
         return;
     }
 
-    pUnit->SetByteFlag(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_SHAPESHIFT_FORM, m_value);
+    pUnit->SetByteValue(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_SHAPESHIFT_FORM, m_value);
 }
 
 void SniffedEvent_UnitUpdate_npc_flags::Execute() const
@@ -1346,6 +1352,120 @@ void SniffedEvent_UnitUpdate_auras::Execute() const
     SetAuraFlag(pUnit, pSpellEntry, m_slot, m_spellId != 0);
     SetAuraLevel(pUnit, m_slot, m_level);
     SetAuraCharges(pUnit, m_slot, m_charges);
+}
+
+void ReplayMgr::LoadDynamicObjectCreate()
+{
+    std::map<uint32, DynamicObjectSpawn> spawns;
+
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `caster_guid`, `caster_id`, `caster_type`, `spell_id`, `radius`, `type` FROM `dynamicobject` ORDER BY `guid`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            DynamicObjectSpawn& spawn = spawns[guid];
+            spawn.m_map = fields[1].GetUInt32();
+            spawn.m_x = fields[2].GetFloat();
+            spawn.m_y = fields[3].GetFloat();
+            spawn.m_z = fields[4].GetFloat();
+            spawn.m_o = fields[5].GetFloat();
+            spawn.m_casterGuid = fields[6].GetUInt32();
+            spawn.m_casterId = fields[7].GetUInt32();
+            spawn.m_casterType = GetKnownObjectTypeId(fields[8].GetCppString());
+            spawn.m_spellId = fields[9].GetUInt32();
+            spawn.m_radius = fields[10].GetFloat();
+            spawn.m_type = fields[11].GetUInt32();
+        } while (result->NextRow());
+        delete result;
+    }
+
+    std::map<uint32, uint64> destroyTimes;
+
+    if (auto result = SniffDatabase.Query("SELECT `guid`, `unixtimems` FROM `dynamicobject_destroy_time` ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
+            destroyTimes[guid] = unixtimems;
+        } while (result->NextRow());
+        delete result;
+    }
+
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems` FROM `dynamicobject_create2_time` ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
+
+            auto objectData = spawns.find(guid);
+            if (objectData == spawns.end())
+                continue;
+
+            uint32 duration = 60000;
+            auto destroyTime = destroyTimes.find(guid);
+            if (destroyTime != destroyTimes.end())
+                duration = destroyTime->second - unixtimems;
+
+            std::shared_ptr<SniffedEvent_DynamicObjectCreate> newEvent = std::make_shared<SniffedEvent_DynamicObjectCreate>(objectData->second, duration);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems` FROM `dynamicobject_create1_time` WHERE `guid` NOT IN (SELECT `guid` FROM `dynamicobject_create2_time`) ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
+
+            auto objectData = spawns.find(guid);
+            if (objectData == spawns.end())
+                continue;
+
+            uint32 duration = 60000;
+            auto destroyTime = destroyTimes.find(guid);
+            if (destroyTime != destroyTimes.end())
+                duration = destroyTime->second - unixtimems;
+
+            std::shared_ptr<SniffedEvent_DynamicObjectCreate> newEvent = std::make_shared<SniffedEvent_DynamicObjectCreate>(objectData->second, duration);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_DynamicObjectCreate::Execute() const
+{
+    Unit* pCaster = sReplayMgr.GetUnit(GetSourceObject());
+    if (!pCaster)
+    {
+        sLog.outError("SniffedEvent_DynamicObjectCreate: Cannot find caster unit!");
+        return;
+    }
+
+    DynamicObject* dynObj = new DynamicObject;
+    if (!dynObj->Create(pCaster->GetMap()->GenerateLocalLowGuid(HIGHGUID_DYNAMICOBJECT), pCaster, m_objectData.m_spellId,
+        EFFECT_INDEX_0, m_objectData.m_x, m_objectData.m_y, m_objectData.m_z, m_duration, m_objectData.m_radius, DYNAMIC_OBJECT_AREA_SPELL))
+    {
+        delete dynObj;
+        return;
+    }
+
+    pCaster->AddDynObject(dynObj);
+    pCaster->GetMap()->Add(dynObj);
 }
 
 void ReplayMgr::LoadGameObjectCreate1()
