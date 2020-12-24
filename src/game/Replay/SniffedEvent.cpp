@@ -206,6 +206,12 @@ void SniffedEvent_WorldStateUpdate::Execute() const
         return;
     }
 
+    if (!pActivePlayer->IsInWorld())
+    {
+        sLog.outError("SniffedEvent_WorldStateUpdate: Active player is not in world!");
+        return;
+    }
+
     for (const auto& itr : pActivePlayer->GetMap()->GetPlayers())
     {
         if (Player* pPlayer = itr.getSource())
@@ -1456,6 +1462,12 @@ void SniffedEvent_DynamicObjectCreate::Execute() const
     if (!pCaster)
     {
         sLog.outError("SniffedEvent_DynamicObjectCreate: Cannot find caster unit!");
+        return;
+    }
+
+    if (!pCaster->IsInWorld())
+    {
+        sLog.outError("SniffedEvent_DynamicObjectCreate: Caster is not in world!");
         return;
     }
 
