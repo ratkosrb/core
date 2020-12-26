@@ -88,6 +88,8 @@ enum SniffedEventType : uint8
     SE_CLIENT_ITEM_USE,
     SE_CLIENT_RECLAIM_CORPSE,
     SE_CLIENT_RELEASE_SPIRIT,
+    SE_QUEST_UPDATE_COMPLETE,
+    SE_QUEST_UPDATE_FAILED,
 };
 
 inline char const* GetSniffedEventName(SniffedEventType eventType)
@@ -218,6 +220,10 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "Client Reclaim Corpse";
         case SE_CLIENT_RELEASE_SPIRIT:
             return "Client Release Spirit";
+        case SE_QUEST_UPDATE_COMPLETE:
+            return "Quest Completed";
+        case SE_QUEST_UPDATE_FAILED:
+            return "Quest Failed";
     }
     return "Unknown Event";
 }
@@ -359,12 +365,13 @@ struct SniffedEvent_ClientSideMovement : SniffedEvent
 
 struct SniffedEvent_ServerSideMovement : SniffedEvent
 {
-    SniffedEvent_ServerSideMovement(uint32 guid, uint32 entry, uint32 typeId, uint32 moveTime, float x, float y, float z, float o, std::vector<G3D::Vector3> const* splines) :
-        m_guid(guid), m_entry(entry), m_typeId(typeId), m_moveTime(moveTime), m_x(x), m_y(y), m_z(z), m_o(o), m_splines(splines) {};
+    SniffedEvent_ServerSideMovement(uint32 guid, uint32 entry, uint32 typeId, uint32 moveTime, uint32 splineFlags, float x, float y, float z, float o, std::vector<G3D::Vector3> const* splines) :
+        m_guid(guid), m_entry(entry), m_typeId(typeId), m_moveTime(moveTime), m_splineFlags(splineFlags), m_x(x), m_y(y), m_z(z), m_o(o), m_splines(splines) {};
     uint32 m_guid = 0;
     uint32 m_entry = 0;
     uint32 m_typeId = 0;
     uint32 m_moveTime = 0;
+    uint32 m_splineFlags = 0;
     float m_x = 0.0f;
     float m_y = 0.0f;
     float m_z = 0.0f;
@@ -1444,6 +1451,28 @@ struct SniffedEvent_ReleaseSpirit : SniffedEvent
     SniffedEventType GetType() const final
     {
         return SE_CLIENT_RELEASE_SPIRIT;
+    }
+};
+
+struct SniffedEvent_QuestUpdateComplete : SniffedEvent
+{
+    SniffedEvent_QuestUpdateComplete(uint32 questId) : m_questId(questId) {};
+    uint32 m_questId = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_QUEST_UPDATE_COMPLETE;
+    }
+};
+
+struct SniffedEvent_QuestUpdateFailed : SniffedEvent
+{
+    SniffedEvent_QuestUpdateFailed(uint32 questId) : m_questId(questId) {};
+    uint32 m_questId = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_QUEST_UPDATE_FAILED;
     }
 };
 

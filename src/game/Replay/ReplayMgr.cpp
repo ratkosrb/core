@@ -315,18 +315,22 @@ void ReplayMgr::LoadCharacterMovements()
         Field* fields = result->Fetch();
         bar.step();
 
-        uint32 guid = fields[0].GetUInt32();
         std::string opcodeName = fields[1].GetCppString();
         uint16 opcode = ConvertMovementOpcode(opcodeName);
         if (!opcode)
             continue;
 
+        uint32 mapId = fields[4].GetUInt32();
+        if (!sMapStorage.LookupEntry<MapEntry>(mapId))
+            continue;
+
+        uint32 guid = fields[0].GetUInt32();
         uint64 unixtimems = fields[9].GetUInt64();
         CharacterMovementEntry& moveData = m_characterMovements[guid][unixtimems];
         moveData.opcode = opcode;
         moveData.moveTime = fields[2].GetUInt32();
         moveData.moveFlags = ConvertMovementFlags(fields[3].GetUInt32());
-        moveData.position.mapId = fields[4].GetUInt32();
+        moveData.position.mapId = mapId;
         moveData.position.x = fields[5].GetFloat();
         moveData.position.y = fields[6].GetFloat();
         moveData.position.z = fields[7].GetFloat();
@@ -355,6 +359,10 @@ void ReplayMgr::LoadCreatureClientSideMovement()
         std::string opcodeName = fields[1].GetCppString();
         uint16 opcode = ConvertMovementOpcode(opcodeName);
         if (!opcode)
+            continue;
+
+        uint32 mapId = fields[4].GetUInt32();
+        if (!sMapStorage.LookupEntry<MapEntry>(mapId))
             continue;
 
         uint64 unixtimems = fields[9].GetUInt64();
@@ -696,8 +704,33 @@ void ReplayMgr::ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntr
 
     ObjectGuid summonGuid;
     if (!initialState.summonGuid.IsEmpty())
+    {
         if (WorldObject* pObject = GetStoredObject(initialState.summonGuid))
+        {
             summonGuid = pObject->GetObjectGuid();
+
+            // Assign creator and summoner to pet when updating player,
+            // since the players take a second to spawn, and it won't
+            // be able to find the owner at the first creature update.
+            if (Creature* pCreature = pObject->ToCreature())
+            {
+                if (CreatureData const* pData = pCreature->GetCreatureData())
+                {
+                    if (pData->summonerGuid.m_type == TYPEID_PLAYER &&
+                        pData->summonerGuid.m_guid == initialState.guid)
+                    {
+                        pCreature->SetGuidValue(UNIT_FIELD_SUMMONEDBY, pPlayer->GetObjectGuid());
+                    }
+                    if (pData->creatorGuid.m_type == TYPEID_PLAYER &&
+                        pData->creatorGuid.m_guid == initialState.guid)
+                    {
+                        pCreature->SetGuidValue(UNIT_FIELD_CREATEDBY, pPlayer->GetObjectGuid());
+                    }
+                }
+            }
+        }
+            
+    }
     pPlayer->SetGuidValue(UNIT_FIELD_SUMMON, summonGuid);
 
     ObjectGuid charmerGuid;
@@ -1155,7 +1188,11 @@ void ReplayMgr::SetPlayTime(uint32 unixtime, bool updateObjectsState)
         return;
     }
     else
-        sLog.outInfo("[ReplayMgr] Sniff time has been set to %u", unixtime);
+    {
+        std::string message = "[ReplayMgr] Sniff time has been set to " + std::to_string(unixtime);
+        sLog.outInfo(message.c_str());
+        sWorld.SendGlobalText(message.c_str(), nullptr);
+    }
 
     m_startTimeSniff = unixtime;
     m_currentSniffTime = unixtime;

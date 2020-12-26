@@ -194,6 +194,8 @@ class ReplayMgr
         void LoadReclaimCorpseTimes();
         void LoadReleaseSpiritTimes();
         void LoadWorldStateUpdates();
+        void LoadQuestUpdateComplete();
+        void LoadQuestUpdateFailed();
 
         void Update(uint32 const diff);
         void SpawnCharacters();

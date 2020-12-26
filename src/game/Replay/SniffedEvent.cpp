@@ -142,7 +142,9 @@ void ReplayMgr::LoadSniffedEvents()
     LoadItemUseTimes();
     LoadReclaimCorpseTimes();
     LoadReleaseSpiritTimes();
-    
+    LoadQuestUpdateComplete();
+    LoadQuestUpdateFailed();
+
     sLog.outString(">> Loaded %u sniffed events", (uint32)m_eventsMap.size());
     sLog.outString();
 }
@@ -160,6 +162,9 @@ void ReplayMgr::LoadWeatherUpdates()
             uint32 weatherState = fields[2].GetUInt32();
             float grade = fields[3].GetFloat();
             uint64 unixtimems = fields[4].GetUInt64();
+
+            if (grade > 1.0f)
+                grade = 1.0f;
 
             switch (weatherState)
             {
@@ -347,8 +352,7 @@ void SniffedEvent_UnitCreate1::Execute() const
         sLog.outError("SniffedEvent_UnitCreate1: Cannot find source unit!");
         return;
     }
-
-    if (pUnit->IsInWorld())
+    if (pUnit->IsInWorld() && (pUnit->GetDistance(m_x, m_y, m_z) > 1.0f))
         pUnit->NearTeleportTo(m_x, m_y, m_z, m_o);
     pUnit->SetVisibility(VISIBILITY_ON);
 }
@@ -385,7 +389,7 @@ void SniffedEvent_UnitCreate2::Execute() const
         sLog.outError("SniffedEvent_UnitCreate2: Cannot find source unit!");
         return;
     }
-    if (pUnit->IsInWorld())
+    if (pUnit->IsInWorld() && (pUnit->GetDistance(m_x, m_y, m_z) > 1.0f))
         pUnit->NearTeleportTo(m_x, m_y, m_z, m_o);
     pUnit->SetVisibility(VISIBILITY_ON);
 }
@@ -423,7 +427,7 @@ void SniffedEvent_UnitDestroy::Execute() const
 
 void ReplayMgr::LoadServerSideMovement(char const* tableName, TypeID typeId, SplinesMap const& splinesMap)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `point`, `spline_count`, `move_time`, `start_position_x`, `start_position_y`, `start_position_z`, `end_position_x`, `end_position_y`, `end_position_z`, `orientation`, `unixtime` FROM `%s` ORDER BY `unixtime`", tableName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `point`, `move_time`, `spline_flags`, `spline_count`, `start_position_x`, `start_position_y`, `start_position_z`, `end_position_x`, `end_position_y`, `end_position_z`, `orientation`, `unixtime` FROM `%s` ORDER BY `unixtime`", tableName))
     {
         do
         {
@@ -432,16 +436,17 @@ void ReplayMgr::LoadServerSideMovement(char const* tableName, TypeID typeId, Spl
             uint32 guid = fields[0].GetUInt32();
             uint32 point = fields[1].GetUInt32();
             uint32 creatureId = typeId == TYPEID_UNIT ? GetCreatureEntryFromGuid(guid) : 0;
-            uint32 spline_count = fields[2].GetUInt32();
-            uint32 moveTime = fields[3].GetUInt32();
-            float startX = fields[4].GetFloat();
-            float startY = fields[5].GetFloat();
-            float startZ = fields[6].GetFloat();
-            float endX = fields[7].GetFloat();
-            float endY = fields[8].GetFloat();
-            float endZ = fields[9].GetFloat();
-            float orientation = fields[10].GetFloat();
-            uint64 unixtime = fields[11].GetUInt32();
+            uint32 moveTime = fields[2].GetUInt32();
+            uint32 splineFlags = fields[3].GetUInt32();
+            uint32 spline_count = fields[4].GetUInt32();
+            float startX = fields[5].GetFloat();
+            float startY = fields[6].GetFloat();
+            float startZ = fields[7].GetFloat();
+            float endX = fields[8].GetFloat();
+            float endY = fields[9].GetFloat();
+            float endZ = fields[10].GetFloat();
+            float orientation = fields[11].GetFloat();
+            uint64 unixtime = fields[12].GetUInt32();
 
             if (spline_count == 0 && orientation != 100)
             {
@@ -465,7 +470,7 @@ void ReplayMgr::LoadServerSideMovement(char const* tableName, TypeID typeId, Spl
                 float x = spline_count ? endX : startX;
                 float y = spline_count ? endY : startY;
                 float z = spline_count ? endZ : startZ;
-                std::shared_ptr<SniffedEvent_ServerSideMovement> newEvent = std::make_shared<SniffedEvent_ServerSideMovement>(guid, creatureId, typeId, moveTime, x, y, z, orientation, pSplines);
+                std::shared_ptr<SniffedEvent_ServerSideMovement> newEvent = std::make_shared<SniffedEvent_ServerSideMovement>(guid, creatureId, typeId, moveTime, splineFlags, x, y, z, orientation, pSplines);
                 m_eventsMap.insert(std::make_pair(unixtime * IN_MILLISECONDS, newEvent));
             }
         } while (result->NextRow());
@@ -521,9 +526,10 @@ void SniffedEvent_ServerSideMovement::Execute() const
             return;
     }
 
-    // flight path
-    if (pUnit->IsPlayer() && (m_moveTime >= (MINUTE * IN_MILLISECONDS)) && m_splines && m_splines->size() >= 15)
+    if (m_splineFlags & uint32(ClassicSplineFlag::Flying))
         pUnit->AddUnitMovementFlag(MOVEFLAG_FLYING);
+    else if (m_splineFlags != 0)
+        pUnit->RemoveUnitMovementFlag(MOVEFLAG_FLYING);
 
     Movement::MoveSplineInit init(*pUnit, "MovementReplay");
     if (m_splines)
@@ -635,6 +641,9 @@ void ReplayMgr::LoadUnitEmote(char const* tableName, TypeID typeId)
             uint32 emoteId = fields[1].GetUInt32();
             uint32 guid = fields[2].GetUInt32();
             uint32 creatureId = typeId == TYPEID_UNIT ? GetCreatureEntryFromGuid(guid) : 0;
+
+            if (!sEmotesStore.LookupEntry(emoteId))
+                continue;
 
             std::shared_ptr<SniffedEvent_UnitEmote> newEvent = std::make_shared<SniffedEvent_UnitEmote>(guid, creatureId, typeId, emoteId);
             m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
@@ -1289,6 +1298,9 @@ void ReplayMgr::LoadUnitAurasUpdate(char const* tableName, uint32 typeId)
             if (slot >= MAX_AURAS)
                 continue;
 
+            if (spellId && !sSpellMgr.GetSpellEntry(spellId))
+                continue;
+
             std::shared_ptr<SniffedEvent_UnitUpdate_auras> newEvent = std::make_shared<SniffedEvent_UnitUpdate_auras>(guid, creatureId, typeId, updateId, slot, spellId, level, charges);
             m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
 
@@ -1567,7 +1579,6 @@ void ReplayMgr::LoadGameObjectCustomAnim()
             uint32 guid = fields[0].GetUInt32();
             uint32 entry = GetGameObjectEntryFromGuid(guid);
             uint32 animId = fields[1].GetUInt32();
-
             uint64 unixtimems = fields[2].GetUInt64();
 
             std::shared_ptr<SniffedEvent_GameObjectCustomAnim> newEvent = std::make_shared<SniffedEvent_GameObjectCustomAnim>(guid, entry, animId);
@@ -1709,7 +1720,7 @@ void ReplayMgr::LoadSpellCastFailed()
             std::string casterType = fields[3].GetCppString();
             uint32 spellId = fields[4].GetUInt32();
 
-            if (casterType == "Pet")
+            if (!sSpellMgr.GetSpellEntry(spellId))
                 continue;
 
             std::shared_ptr<SniffedEvent_SpellCastFailed> newEvent = std::make_shared<SniffedEvent_SpellCastFailed>(spellId, casterGuid, casterId, GetKnownObjectTypeId(casterType));
@@ -1765,7 +1776,7 @@ void ReplayMgr::LoadSpellCastStart()
             uint32 targetId = fields[13].GetUInt32();
             std::string targetType = fields[14].GetCppString();
 
-            if (casterType == "Pet")
+            if (!sSpellMgr.GetSpellEntry(spellId))
                 continue;
 
             std::shared_ptr<SniffedEvent_SpellCastStart> newEvent = std::make_shared<SniffedEvent_SpellCastStart>(spellId, castTime, castFlags, ammoDisplayId, ammoInventoryType, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType));
@@ -1858,6 +1869,9 @@ void ReplayMgr::LoadSpellCastGo()
             uint32 missTargetsListId = fields[17].GetUInt32();
             uint32 srcPositionId = fields[18].GetUInt32();
             uint32 dstPositionId = fields[19].GetUInt32();
+
+            if (!sSpellMgr.GetSpellEntry(spellId))
+                continue;
 
             std::shared_ptr<SniffedEvent_SpellCastGo> newEvent = std::make_shared<SniffedEvent_SpellCastGo>(spellId, castFlags, ammoDisplayId, ammoInventoryType, casterGuid, casterId, GetKnownObjectTypeId(casterType), targetGuid, targetId, GetKnownObjectTypeId(targetType), hitTargetsCount, hitTargetsListId, missTargetsCount, missTargetsListId, srcPositionId, dstPositionId);
             m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
@@ -1952,38 +1966,6 @@ void SniffedEvent_SpellCastGo::Execute() const
                 {
                     targetsCount++;
                     data << pHitTarget->GetObjectGuid();
-
-                    /*
-                    // uncomment code to fake aura application
-                    if (SpellEntry const* pSpellInfo = sSpellMgr.GetSpellEntry(m_spellId))
-                    {
-                        if (pSpellInfo->HasEffect(SPELL_EFFECT_APPLY_AURA) && !pSpellInfo->IsChanneledSpell())
-                        {
-                            if (Unit* pUnitTarget = pHitTarget->ToUnit())
-                            {
-                                if (!pUnitTarget->HasAura(m_spellId))
-                                {
-                                    Unit* pUnitCaster = pCaster->IsUnit() ? pCaster->ToUnit() : pUnitTarget;
-                                    SpellAuraHolder* holder = CreateSpellAuraHolder(pSpellInfo, pUnitTarget, pUnitCaster, pCaster);
-
-                                    for (uint32 i = 0; i < MAX_EFFECT_INDEX; ++i)
-                                    {
-                                        uint8 eff = pSpellInfo->Effect[i];
-                                        if (eff >= TOTAL_SPELL_EFFECTS)
-                                            continue;
-                                        if (eff == SPELL_EFFECT_APPLY_AURA)
-                                        {
-                                            Aura* aur = CreateAura(pSpellInfo, SpellEffectIndex(i), nullptr, holder, pUnitTarget, pUnitCaster);
-                                            holder->AddAura(aur, SpellEffectIndex(i));
-                                        }
-                                    }
-                                    if (!pUnitTarget->AddSpellAuraHolder(holder))
-                                        holder = nullptr;
-                                }
-                            }
-                        }
-                    }
-                    */
                 }
             }
         }
@@ -2057,7 +2039,7 @@ void ReplayMgr::LoadSpellChannelStart()
             uint32 spellId = fields[4].GetUInt32();
             int32 duration = fields[5].GetInt32();
 
-            if (casterType == "Pet")
+            if (!sSpellMgr.GetSpellEntry(spellId))
                 continue;
 
             std::shared_ptr<SniffedEvent_SpellChannelStart> newEvent = std::make_shared<SniffedEvent_SpellChannelStart>(spellId, duration, casterGuid, casterId, GetKnownObjectTypeId(casterType));
@@ -2098,9 +2080,6 @@ void ReplayMgr::LoadSpellChannelUpdate()
             uint32 casterId = fields[2].GetUInt32();
             std::string casterType = fields[3].GetCppString();
             int32 duration = fields[4].GetInt32();
-
-            if (casterType == "Pet")
-                continue;
 
             std::shared_ptr<SniffedEvent_SpellChannelUpdate> newEvent = std::make_shared<SniffedEvent_SpellChannelUpdate>(duration, casterGuid, casterId, GetKnownObjectTypeId(casterType));
             m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
@@ -2500,6 +2479,66 @@ void SniffedEvent_ReleaseSpirit::Execute() const
         return;
     }
     pPlayer->MonsterSay("Client releases spirit.");
+}
+
+void ReplayMgr::LoadQuestUpdateComplete()
+{
+    if (auto result = SniffDatabase.Query("SELECT `quest_id`, `unixtimems` FROM `quest_update_complete` ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 questId = fields[0].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
+
+            std::shared_ptr<SniffedEvent_QuestUpdateComplete> newEvent = std::make_shared<SniffedEvent_QuestUpdateComplete>(questId);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+    }
+}
+
+void SniffedEvent_QuestUpdateComplete::Execute() const
+{
+    Player* pPlayer = sReplayMgr.GetActivePlayer();
+    if (!pPlayer)
+    {
+        sLog.outError("SniffedEvent_QuestUpdateComplete: Cannot find active player!");
+        return;
+    }
+    std::string txt = "Quest " + sReplayMgr.GetQuestName(m_questId) + " (Entry: " + std::to_string(m_questId) + ") marked as completed.";
+    pPlayer->MonsterSay(txt.c_str());
+}
+
+void ReplayMgr::LoadQuestUpdateFailed()
+{
+    if (auto result = SniffDatabase.Query("SELECT `quest_id`, `unixtimems` FROM `quest_update_failed` ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 questId = fields[0].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
+
+            std::shared_ptr<SniffedEvent_QuestUpdateFailed> newEvent = std::make_shared<SniffedEvent_QuestUpdateFailed>(questId);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+    }
+}
+
+void SniffedEvent_QuestUpdateFailed::Execute() const
+{
+    Player* pPlayer = sReplayMgr.GetActivePlayer();
+    if (!pPlayer)
+    {
+        sLog.outError("SniffedEvent_QuestUpdateFailed: Cannot find active player!");
+        return;
+    }
+    std::string txt = "Quest " + sReplayMgr.GetQuestName(m_questId) + " (Entry: " + std::to_string(m_questId) + ") marked as failed.";
+    pPlayer->MonsterSay(txt.c_str());
 }
 
 std::shared_ptr<WaypointPath> ReplayMgr::GetOrCreateWaypoints(uint32 guid, bool useStartPosition)
