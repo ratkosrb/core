@@ -15,6 +15,7 @@
 */
 
 #include "Policies/SingletonImp.h"
+#include "ClassicDefines.h"
 #include "ReplayMgr.h"
 #include "WorldSession.h"
 #include "Player.h"
@@ -288,83 +289,6 @@ uint16 ConvertMovementOpcode(std::string const& opcodeName)
         return MSG_MOVE_STOP_TURN;
 
     return MSG_MOVE_HEARTBEAT;
-}
-
-enum class ModernMovementFlag : uint32
-{
-    None = 0x00000000,
-    Forward = 0x00000001,
-    Backward = 0x00000002,
-    StrafeLeft = 0x00000004,
-    StrafeRight = 0x00000008,
-    Left = 0x00000010,
-    Right = 0x00000020,
-    PitchUp = 0x00000040,
-    PitchDown = 0x00000080,
-    Walking = 0x00000100,
-    DisableGravity = 0x00000200,
-    Root = 0x00000400,
-    Falling = 0x00000800,
-    FallingFar = 0x00001000,
-    PendingStop = 0x00002000,
-    PendingStrafeStop = 0x00004000,
-    PendingForward = 0x00008000,
-    PendingBackward = 0x00010000,
-    PendingStrafeLeft = 0x00020000,
-    PendingStrafeRight = 0x00040000,
-    PendingRoot = 0x00080000,
-    Swimming = 0x00100000,
-    Ascending = 0x00200000,
-    Descending = 0x00400000,
-    CanFly = 0x00800000,
-    Flying = 0x01000000,
-    SplineElevation = 0x02000000,
-    Waterwalking = 0x04000000,
-    FallingSlow = 0x08000000,
-    Hover = 0x10000000,
-    DisableCollision = 0x20000000,
-};
-
-uint32 ConvertMovementFlags(uint32 flags)
-{
-    uint32 newFlags = 0;
-    if (flags & (uint32)ModernMovementFlag::Forward)
-        newFlags |= MOVEFLAG_FORWARD;
-    if (flags & (uint32)ModernMovementFlag::Backward)
-        newFlags |= MOVEFLAG_BACKWARD;
-    if (flags & (uint32)ModernMovementFlag::StrafeLeft)
-        newFlags |= MOVEFLAG_STRAFE_LEFT;
-    if (flags & (uint32)ModernMovementFlag::StrafeRight)
-        newFlags |= MOVEFLAG_STRAFE_RIGHT;
-    if (flags & (uint32)ModernMovementFlag::Left)
-        newFlags |= MOVEFLAG_TURN_LEFT;
-    if (flags & (uint32)ModernMovementFlag::Right)
-        newFlags |= MOVEFLAG_TURN_RIGHT;
-    if (flags & (uint32)ModernMovementFlag::PitchUp)
-        newFlags |= MOVEFLAG_PITCH_UP;
-    if (flags & (uint32)ModernMovementFlag::PitchDown)
-        newFlags |= MOVEFLAG_PITCH_DOWN;
-    if (flags & (uint32)ModernMovementFlag::Walking)
-        newFlags |= MOVEFLAG_WALK_MODE;
-    if (flags & (uint32)ModernMovementFlag::Root)
-        newFlags |= MOVEFLAG_ROOT;
-    if (flags & (uint32)ModernMovementFlag::Falling)
-        newFlags |= MOVEFLAG_JUMPING;
-    if (flags & (uint32)ModernMovementFlag::FallingFar)
-        newFlags |= MOVEFLAG_FALLINGFAR;
-    if (flags & (uint32)ModernMovementFlag::Swimming)
-        newFlags |= MOVEFLAG_SWIMMING;
-    if (flags & (uint32)ModernMovementFlag::CanFly)
-        newFlags |= MOVEFLAG_CAN_FLY;
-    if (flags & (uint32)ModernMovementFlag::Flying)
-        newFlags |= MOVEFLAG_FLYING;
-    if (flags & (uint32)ModernMovementFlag::Waterwalking)
-        newFlags |= MOVEFLAG_WATERWALKING;
-    if (flags & (uint32)ModernMovementFlag::FallingSlow)
-        newFlags |= MOVEFLAG_SAFE_FALL;
-    if (flags & (uint32)ModernMovementFlag::Hover)
-        newFlags |= MOVEFLAG_HOVER;
-    return newFlags;
 }
 
 void ReplayMgr::LoadCharacterMovements()

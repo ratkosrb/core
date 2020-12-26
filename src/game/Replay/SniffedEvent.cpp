@@ -14,7 +14,7 @@
 * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#include "Policies/SingletonImp.h"
+#include "ClassicDefines.h"
 #include "ReplayMgr.h"
 #include "WorldSession.h"
 #include "Player.h"
@@ -23,7 +23,6 @@
 #include "WorldPacket.h"
 #include "Log.h"
 #include "Util.h"
-#include "ProgressBar.h"
 #include "ReplayBotAI.h"
 #include "PlayerBotMgr.h"
 #include "Chat.h"
@@ -34,7 +33,6 @@
 #include "MoveSplineInit.h"
 #include "MoveSpline.h"
 #include "DynamicObject.h"
-#include "ClassicDefines.h"
 
 void ReplayMgr::LoadSniffedEvents()
 {
@@ -552,15 +550,6 @@ void SniffedEvent_UnitUpdate_orientation::Execute() const
     pUnit->SetOrientation(m_o);
 }
 
-enum ChatMessageType
-{
-    SNIFF_CHAT_TYPE_MONSTERSAY           = 12,
-    SNIFF_CHAT_TYPE_MONSTERPARTY         = 13,
-    SNIFF_CHAT_TYPE_MONSTERYELL          = 14,
-    SNIFF_CHAT_TYPE_MONSTERWHISPER       = 15,
-    SNIFF_CHAT_TYPE_MONSTEREMOTE         = 16,
-};
-
 void ReplayMgr::LoadCreatureTextTemplate()
 {
     if (auto result = SniffDatabase.Query("SELECT `creature_id`, `group_id`, `text`, `chat_type` FROM `creature_text_template`"))
@@ -615,20 +604,19 @@ void SniffedEvent_CreatureText::Execute() const
         return;
     }
 
-    switch (m_chatType)
+    switch (ClassicChatMessageType(m_chatType))
     {
-        case SNIFF_CHAT_TYPE_MONSTERYELL:
+        case ClassicChatMessageType::MonsterYell:
             pCreature->MonsterYell(m_text.c_str());
             break;
-        case SNIFF_CHAT_TYPE_MONSTERWHISPER:
+        case ClassicChatMessageType::MonsterWhisper:
             for (const auto& itr : pCreature->GetMap()->GetPlayers())
                 pCreature->MonsterWhisper(m_text.c_str(), itr.getSource());
             break;
-        case SNIFF_CHAT_TYPE_MONSTEREMOTE:
+        case ClassicChatMessageType::MonsterEmote:
             pCreature->MonsterTextEmote(m_text.c_str());
             break;
-        case SNIFF_CHAT_TYPE_MONSTERSAY:
-        case SNIFF_CHAT_TYPE_MONSTERPARTY:
+        case ClassicChatMessageType::MonsterSay:
         default:
             pCreature->MonsterSay(m_text.c_str());
             break;
@@ -666,86 +654,6 @@ void SniffedEvent_UnitEmote::Execute() const
     }
 
     pUnit->HandleEmote(m_emoteId);
-}
-
-enum SpellHitInfo
-{
-    CLASSIC_HITINFO_UNK0 = 0x00000001, // unused - debug flag, probably debugging visuals, no effect in non-ptr client
-    CLASSIC_HITINFO_AFFECTS_VICTIM = 0x00000002,
-    CLASSIC_HITINFO_OFFHAND = 0x00000004,
-    CLASSIC_HITINFO_UNK3 = 0x00000008, // unused (3.3.5a)
-    CLASSIC_HITINFO_MISS = 0x00000010,
-    CLASSIC_HITINFO_FULL_ABSORB = 0x00000020,
-    CLASSIC_HITINFO_PARTIAL_ABSORB = 0x00000040,
-    CLASSIC_HITINFO_FULL_RESIST = 0x00000080,
-    CLASSIC_HITINFO_PARTIAL_RESIST = 0x00000100,
-    CLASSIC_HITINFO_CRITICALHIT = 0x00000200,
-    CLASSIC_HITINFO_UNK10 = 0x00000400,
-    CLASSIC_HITINFO_UNK11 = 0x00000800,
-    CLASSIC_HITINFO_UNK12 = 0x00001000,
-    CLASSIC_HITINFO_BLOCK = 0x00002000,
-    CLASSIC_HITINFO_UNK14 = 0x00004000, // set only if meleespellid is present//  no world text when victim is hit for 0 dmg(HideWorldTextForNoDamage?)
-    CLASSIC_HITINFO_UNK15 = 0x00008000, // player victim?// something related to blod sprut visual (BloodSpurtInBack?)
-    CLASSIC_HITINFO_GLANCING = 0x00010000,
-    CLASSIC_HITINFO_CRUSHING = 0x00020000,
-    CLASSIC_HITINFO_NO_ANIMATION = 0x00040000, // set always for melee spells and when no hit animation should be displayed
-    CLASSIC_HITINFO_UNK19 = 0x00080000,
-    CLASSIC_HITINFO_UNK20 = 0x00100000,
-    CLASSIC_HITINFO_UNK21 = 0x00200000, // unused (3.3.5a)
-    CLASSIC_HITINFO_UNK22 = 0x00400000,
-    CLASSIC_HITINFO_RAGE_GAIN = 0x00800000,
-    CLASSIC_HITINFO_FAKE_DAMAGE = 0x01000000, // enables damage animation even if no damage done, set only if no damage
-    CLASSIC_HITINFO_UNK25 = 0x02000000,
-    CLASSIC_HITINFO_UNK26 = 0x04000000
-};
-
-uint32 ConvertClassicHitInfoFlagToVanilla(uint32 flag)
-{
-    switch (flag)
-    {
-        case CLASSIC_HITINFO_UNK0:
-            return HITINFO_UNK0;
-        case CLASSIC_HITINFO_AFFECTS_VICTIM:
-            return HITINFO_AFFECTS_VICTIM;
-        case CLASSIC_HITINFO_OFFHAND:
-            return HITINFO_LEFTSWING;
-        case CLASSIC_HITINFO_UNK3:
-            return HITINFO_UNK3;
-        case CLASSIC_HITINFO_MISS:
-            return HITINFO_MISS;
-        case CLASSIC_HITINFO_FULL_ABSORB:
-            return HITINFO_ABSORB;
-        case CLASSIC_HITINFO_PARTIAL_ABSORB:
-            return HITINFO_ABSORB;
-        case CLASSIC_HITINFO_FULL_RESIST:
-            return HITINFO_RESIST;
-        case CLASSIC_HITINFO_PARTIAL_RESIST:
-            return HITINFO_RESIST;
-        case CLASSIC_HITINFO_CRITICALHIT:
-            return HITINFO_CRITICALHIT;
-        case CLASSIC_HITINFO_GLANCING:
-            return HITINFO_GLANCING;
-        case CLASSIC_HITINFO_CRUSHING:
-            return HITINFO_CRUSHING;
-        case CLASSIC_HITINFO_NO_ANIMATION:
-            return HITINFO_NOACTION;
-    }
-
-    return 0;
-}
-
-inline uint32 ConvertClassicHitInfoFlagsToVanilla(uint32 flags)
-{
-    uint32 newFlags = 0;
-    for (uint32 i = 0; i < 32; i++)
-    {
-        uint32 flag = (uint32)pow(2, i);
-        if (flags & flag)
-        {
-            newFlags |= ConvertClassicHitInfoFlagToVanilla(flag);
-        }
-    }
-    return newFlags;
 }
 
 void ReplayMgr::LoadUnitAttackLog(char const* tableName, uint32 typeId)
@@ -2243,134 +2151,6 @@ void ReplayMgr::LoadPlayerChat()
         } while (result->NextRow());
         delete result;
     }
-}
-
-enum class ChatMessageTypeNew : uint8
-{
-    System = 0,
-    Say = 1,
-    Party = 2,
-    Raid = 3,
-    Guild = 4,
-    Officer = 5,
-    Yell = 6,
-    Whisper = 7,
-    Whisper2 = 8,
-    WhisperInform = 9,
-    Emote = 10,
-    TextEmote = 11,
-    MonsterSay = 12,
-    MonsterParty = 13,
-    MonsterYell = 14,
-    MonsterWhisper = 15,
-    MonsterEmote = 16,
-    Channel = 17,
-    ChannelJoin = 18,
-    ChannelLeave = 19,
-    ChannelList = 20,
-    ChannelNotice = 21,
-    ChannelNoticeUser = 22,
-    Afk = 23,
-    Dnd = 24,
-    Ignored = 25,
-    Skill = 26,
-    Loot = 27,
-    Money = 28,
-    Opening = 29,
-    Tradeskills = 30,
-    PetInfo = 31,
-    CombatMiscInfo = 32,
-    CombatXpGain = 33,
-    CombatHonorGain = 34,
-    CombatFactionChange = 35,
-    BgSystemNeutral = 36,
-    BgSystemAlliance = 37,
-    BgSystemHorde = 38,
-    RaidLeader = 39,
-    RaidWarning = 40,
-    RaidBossEmote = 41,
-    RaidBossWhisper = 42,
-    Filtered = 43,
-    Restricted = 44,
-    //unused1 = 45,
-    Achievement = 46,
-    GuildAchievement = 47,
-    //unused2 = 48,
-    PartyLeader = 49,
-    Targeticons = 50,
-    BnWhisper = 51,
-    BnWhisperInform = 52,
-    BnConversation = 53,
-    BnConversationNotice = 54,
-    BnConversationList = 55,
-    BnInlineToastAlert = 56,
-    BnInlineToastBroadcast = 57,
-    BnInlineToastBroadcastInform = 58,
-    BnInlineToastConversation = 59,
-    BnWhisperPlayerOffline = 60,
-    CombatGuildXpGain = 61,
-    Battleground = 62,
-    BattlegroundLeader = 63,
-    PetBattleCombatLog = 64,
-    PetBattleInfo = 65,
-    InstanceChat = 66,
-    InstanceChatLeader = 67,
-};
-
-ChatMsg ConvertClassicChatTypeToVanilla(uint8 chatType)
-{
-    switch (ChatMessageTypeNew(chatType))
-    {
-        case ChatMessageTypeNew::Say:
-            return CHAT_MSG_SAY;
-        case ChatMessageTypeNew::Party:
-            return CHAT_MSG_PARTY;
-        case ChatMessageTypeNew::Raid:
-            return CHAT_MSG_RAID;
-        case ChatMessageTypeNew::Guild:
-            return CHAT_MSG_GUILD;
-        case ChatMessageTypeNew::Officer:
-            return CHAT_MSG_OFFICER;
-        case ChatMessageTypeNew::Yell:
-            return CHAT_MSG_YELL;
-        case ChatMessageTypeNew::Whisper:
-            return CHAT_MSG_WHISPER;
-        case ChatMessageTypeNew::Whisper2:
-            return CHAT_MSG_WHISPER;
-        case ChatMessageTypeNew::WhisperInform:
-            return CHAT_MSG_WHISPER_INFORM;
-        case ChatMessageTypeNew::Emote:
-            return CHAT_MSG_EMOTE;
-        case ChatMessageTypeNew::TextEmote:
-            return CHAT_MSG_TEXT_EMOTE;
-        case ChatMessageTypeNew::Channel:
-            return CHAT_MSG_CHANNEL;
-        case ChatMessageTypeNew::BgSystemNeutral:
-            return CHAT_MSG_BG_SYSTEM_NEUTRAL;
-        case ChatMessageTypeNew::BgSystemAlliance:
-            return CHAT_MSG_BG_SYSTEM_ALLIANCE;
-        case ChatMessageTypeNew::BgSystemHorde:
-            return CHAT_MSG_BG_SYSTEM_HORDE;
-        case ChatMessageTypeNew::RaidLeader:
-            return CHAT_MSG_RAID_LEADER;
-        case ChatMessageTypeNew::RaidWarning:
-            return CHAT_MSG_RAID_WARNING;
-        case ChatMessageTypeNew::PartyLeader:
-            return CHAT_MSG_PARTY;
-        case ChatMessageTypeNew::BnWhisper:
-            return CHAT_MSG_WHISPER;
-        case ChatMessageTypeNew::BnWhisperInform:
-            return CHAT_MSG_WHISPER_INFORM;
-        case ChatMessageTypeNew::Battleground:
-            return CHAT_MSG_BATTLEGROUND;
-        case ChatMessageTypeNew::BattlegroundLeader:
-            return CHAT_MSG_BATTLEGROUND_LEADER;
-        case ChatMessageTypeNew::InstanceChat:
-            return CHAT_MSG_PARTY;
-        case ChatMessageTypeNew::InstanceChatLeader:
-            return CHAT_MSG_PARTY;
-    }
-    return CHAT_MSG_SAY;
 }
 
 void SniffedEvent_PlayerChat::Execute() const

@@ -52,7 +52,7 @@
 #include "InstanceData.h"
 #include "CharacterDatabaseCache.h"
 #include "HardcodedEvents.h"
-#include "Replay/ReplayMgr.h"
+#include "Replay/ClassicDefines.h"
 
 #include <limits>
 
