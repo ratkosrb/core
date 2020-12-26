@@ -54,6 +54,7 @@ void ReplayMgr::LoadSniffedEvents()
     LoadServerSideMovement("creature_movement_server_combat", TYPEID_UNIT, m_creatureMovementCombatSplines);
     LoadCreatureTextTemplate();
     LoadCreatureText();
+    LoadCreatureEquipmentUpdate();
     LoadUnitEmote("creature_emote", TYPEID_UNIT);
     LoadUnitEmote("player_emote", TYPEID_PLAYER);
     LoadUnitGuidValuesUpdate("creature_guid_values_update", TYPEID_UNIT);
@@ -132,6 +133,7 @@ void ReplayMgr::LoadSniffedEvents()
     LoadSpellChannelStart();
     LoadSpellChannelUpdate();
     LoadPlayerChat();
+    LoadPlayerEquipmentUpdate();
     LoadPlayMusic();
     LoadPlaySound();
     LoadPlaySpellVisualKit();
@@ -626,6 +628,103 @@ void SniffedEvent_CreatureText::Execute() const
         default:
             pCreature->MonsterSay(m_text.c_str());
             break;
+    }
+}
+
+void ReplayMgr::LoadCreatureEquipmentUpdate()
+{
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `slot`, `item_id` FROM `creature_equipment_values_update` ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
+            uint32 slot = fields[2].GetUInt32();
+            uint32 itemId = fields[3].GetUInt32();
+            uint32 creatureId = GetCreatureEntryFromGuid(guid);
+
+            if (slot > VIRTUAL_ITEM_SLOT_2)
+                continue;
+
+            if (itemId && !sObjectMgr.GetItemPrototype(itemId))
+                continue;
+
+            std::shared_ptr<SniffedEvent_CreatureEquipmentUpdate> newEvent = std::make_shared<SniffedEvent_CreatureEquipmentUpdate>(guid, creatureId, slot, itemId);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_CreatureEquipmentUpdate::Execute() const
+{
+    Creature* pCreature = sReplayMgr.GetCreature(m_guid);
+    if (!pCreature)
+    {
+        sLog.outError("SniffedEvent_CreatureEquipmentUpdate: Cannot find source creature!");
+        return;
+    }
+
+    pCreature->SetVirtualItem(VirtualItemSlot(m_slot), m_itemId);
+}
+
+void ReplayMgr::LoadPlayerEquipmentUpdate()
+{
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `unixtimems`, `slot`, `item_id` FROM `player_equipment_values_update` ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 guid = fields[0].GetUInt32();
+            uint64 unixtimems = fields[1].GetUInt64();
+            uint32 slot = fields[2].GetUInt32();
+            uint32 itemId = fields[3].GetUInt32();
+
+            if (slot >= EQUIPMENT_SLOT_END)
+                continue;
+
+            if (itemId && !sObjectMgr.GetItemPrototype(itemId))
+                continue;
+
+            std::shared_ptr<SniffedEvent_PlayerEquipmentUpdate> newEvent = std::make_shared<SniffedEvent_PlayerEquipmentUpdate>(guid, slot, itemId);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_PlayerEquipmentUpdate::Execute() const
+{
+    Player* pPlayer = sReplayMgr.GetPlayer(m_guid);
+    if (!pPlayer)
+    {
+        sLog.outError("SniffedEvent_PlayerEquipmentUpdate: Cannot find source player!");
+        return;
+    }
+
+    uint32 currentItemId = 0;
+    if (Item* pItem = pPlayer->GetItemByPos(INVENTORY_SLOT_BAG_0, m_slot))
+        currentItemId = pItem->GetEntry();
+
+    if (currentItemId == m_itemId)
+        return;
+
+    if (currentItemId)
+        pPlayer->DestroyItem(INVENTORY_SLOT_BAG_0, m_slot, true);
+
+    if (!m_itemId)
+        return;
+
+    if (ItemPrototype const* pItem = sObjectMgr.GetItemPrototype(m_itemId))
+    {
+        pPlayer->SatisfyItemRequirements(pItem);
+        uint16 eDest = ((INVENTORY_SLOT_BAG_0 << 8) | m_slot);
+        pPlayer->EquipNewItem(eDest, m_itemId, true);
     }
 }
 

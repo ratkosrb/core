@@ -30,6 +30,7 @@ enum SniffedEventType : uint8
     SE_WORLD_STATE_UPDATE,
     SE_CREATURE_TEXT,
     SE_CREATURE_CLIENTSIDE_MOVEMENT,
+    SE_CREATURE_EQUIPMENT_UPDATE,
     SE_UNIT_ATTACK_LOG,
     SE_UNIT_ATTACK_START,
     SE_UNIT_ATTACK_STOP,
@@ -73,6 +74,7 @@ enum SniffedEventType : uint8
     SE_GAMEOBJECT_UPDATE_FLAGS,
     SE_GAMEOBJECT_UPDATE_STATE,
     SE_PLAYER_CHAT,
+    SE_PLAYER_EQUIPMENT_UPDATE,
     SE_PLAY_MUSIC,
     SE_PLAY_SOUND,
     SE_PLAY_SPELL_VISUAL_KIT,
@@ -110,6 +112,10 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "Unit Destroy";
         case SE_CREATURE_TEXT:
             return "Creature Text";
+        case SE_CREATURE_CLIENTSIDE_MOVEMENT:
+            return "Creature Client Movement";
+        case SE_CREATURE_EQUIPMENT_UPDATE:
+            return "Creature Equipment Update";
         case SE_UNIT_EMOTE:
             return "Unit Emote";
         case SE_UNIT_ATTACK_LOG:
@@ -190,6 +196,8 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "GameObject Update State";
         case SE_PLAYER_CHAT:
             return "Player Chat";
+        case SE_PLAYER_EQUIPMENT_UPDATE:
+            return "Player Equipment Update";
         case SE_PLAY_MUSIC:
             return "Play Music";
         case SE_PLAY_SOUND:
@@ -419,6 +427,25 @@ struct SniffedEvent_CreatureText : SniffedEvent
     SniffedEventType GetType() const final
     {
         return SE_CREATURE_TEXT;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_UNIT);
+    }
+};
+
+struct SniffedEvent_CreatureEquipmentUpdate : SniffedEvent
+{
+    SniffedEvent_CreatureEquipmentUpdate(uint32 guid, uint32 entry, uint32 slot, uint32 itemId) :
+        m_guid(guid), m_entry(entry), m_slot(slot), m_itemId(itemId) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_slot = 0;
+    uint32 m_itemId = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_CREATURE_EQUIPMENT_UPDATE;
     }
     KnownObject GetSourceObject() const final
     {
@@ -1309,6 +1336,24 @@ struct SniffedEvent_PlayerChat : SniffedEvent
     SniffedEventType GetType() const final
     {
         return SE_PLAYER_CHAT;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, 0, TYPEID_PLAYER);
+    }
+};
+
+struct SniffedEvent_PlayerEquipmentUpdate : SniffedEvent
+{
+    SniffedEvent_PlayerEquipmentUpdate(uint32 guid, uint32 slot, uint32 itemId) :
+        m_guid(guid), m_slot(slot), m_itemId(itemId) {};
+    uint32 m_guid = 0;
+    uint32 m_slot = 0;
+    uint32 m_itemId = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_PLAYER_EQUIPMENT_UPDATE;
     }
     KnownObject GetSourceObject() const final
     {

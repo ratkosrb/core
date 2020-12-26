@@ -149,6 +149,7 @@ class ReplayMgr
         void LoadServerSideMovementSplines(char const* tableName, SplinesMap& splinesMap);
         void LoadCreatureTextTemplate();
         void LoadCreatureText();
+        void LoadCreatureEquipmentUpdate();
         void LoadUnitEmote(char const* tableName, TypeID typeId);
         void LoadUnitAttackLog(char const* tableName, uint32 typeId);
         template <class T>
@@ -181,6 +182,7 @@ class ReplayMgr
         void LoadSpellChannelStart();
         void LoadSpellChannelUpdate();
         void LoadPlayerChat();
+        void LoadPlayerEquipmentUpdate();
         void LoadPlayMusic();
         void LoadPlaySound();
         void LoadPlaySpellVisualKit();

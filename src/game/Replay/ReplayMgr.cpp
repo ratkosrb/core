@@ -647,6 +647,23 @@ void ReplayMgr::ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntr
     for (int i = UNIT_FIELD_AURA; i <= UNIT_FIELD_AURASTATE; ++i)
         pPlayer->SetUInt32Value(i, 0);
 
+    // equip initial gear
+    for (uint32 i = EQUIPMENT_SLOT_START; i < EQUIPMENT_SLOT_END; ++i)
+    {
+        if (Item* pItem = pPlayer->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+            pPlayer->DestroyItem(INVENTORY_SLOT_BAG_0, i, true);
+
+        if (uint32 itemId = initialState.equipment[i].itemId)
+        {
+            if (ItemPrototype const* pItem = sObjectMgr.GetItemPrototype(itemId))
+            {
+                pPlayer->SatisfyItemRequirements(pItem);
+                uint16 eDest = ((INVENTORY_SLOT_BAG_0 << 8) | i);
+                pPlayer->EquipNewItem(eDest, itemId, true);
+            }
+        }
+    }
+
     pPlayer->SetUInt32Value(UNIT_FIELD_LEVEL, initialState.level);
 
     if (initialState.native_display_id)

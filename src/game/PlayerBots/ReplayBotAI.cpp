@@ -198,23 +198,6 @@ void ReplayBotAI::UpdateAI(uint32 const diff)
             me->SetUInt32Value(PLAYER_XP, 0);
         }
 
-        // Unequip starting gear
-        for (int i = EQUIPMENT_SLOT_START; i < EQUIPMENT_SLOT_END; ++i)
-            me->AutoUnequipItemFromSlot(i);
-
-        // Equip gear from db
-        for (uint32 i = EQUIPMENT_SLOT_START; i < EQUIPMENT_SLOT_END; ++i)
-        {
-            if (uint32 itemId = m_template->equipment[i].itemId)
-            {
-                if (ItemPrototype const* pItem = sObjectMgr.GetItemPrototype(itemId))
-                {
-                    me->SatisfyItemRequirements(pItem);
-                    me->StoreNewItemInBestSlots(itemId, 1, m_template->equipment[i].enchantId);
-                }
-            }  
-        }
-
         // Fix zone in who window
         uint32 newzone, newarea;
         me->GetZoneAndAreaId(newzone, newarea);
