@@ -279,6 +279,7 @@ class ReplayMgr
         void LoadPlayMusic();
         void LoadPlaySound();
         void LoadPlaySpellVisualKit();
+        void LoadWeatherUpdates();
         void LoadWorldText();
         void LoadQuestAcceptTimes();
         void LoadQuestCompleteTimes();

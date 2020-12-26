@@ -25,17 +25,18 @@
 
 enum SniffedEventType : uint8
 {
+    SE_WEATHER_UPDATE,
     SE_WORLD_TEXT,
     SE_WORLD_STATE_UPDATE,
-    SE_UNIT_CREATE1,
-    SE_UNIT_CREATE2,
-    SE_UNIT_DESTROY,
     SE_CREATURE_TEXT,
-    SE_UNIT_EMOTE,
     SE_CREATURE_CLIENTSIDE_MOVEMENT,
     SE_UNIT_ATTACK_LOG,
     SE_UNIT_ATTACK_START,
     SE_UNIT_ATTACK_STOP,
+    SE_UNIT_CREATE1,
+    SE_UNIT_CREATE2,
+    SE_UNIT_DESTROY,
+    SE_UNIT_EMOTE,
     SE_UNIT_SERVERSIDE_MOVEMENT,
     SE_UNIT_UPDATE_ORIENTATION,
     SE_UNIT_UPDATE_ENTRY,
@@ -93,6 +94,8 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
 {
     switch (eventType)
     {
+        case SE_WEATHER_UPDATE:
+            return "Weather Update";
         case SE_WORLD_TEXT:
             return "World Text";
         case SE_WORLD_STATE_UPDATE:
@@ -225,6 +228,21 @@ struct SniffedEvent
     virtual SniffedEventType GetType() const = 0;
     virtual KnownObject GetSourceObject() const { return KnownObject(); };
     virtual KnownObject GetTargetObject() const { return KnownObject(); };
+};
+
+struct SniffedEvent_WeatherUpdate : SniffedEvent
+{
+    SniffedEvent_WeatherUpdate(uint32 mapId, uint32 zoneId, uint32 weatherType, float grade) :
+        m_mapId(mapId), m_zoneId(zoneId), m_weatherType(weatherType), m_grade(grade) {};
+    uint32 m_mapId;
+    uint32 m_zoneId;
+    uint32 m_weatherType;
+    float m_grade;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_WEATHER_UPDATE;
+    }
 };
 
 struct SniffedEvent_WorldText : SniffedEvent

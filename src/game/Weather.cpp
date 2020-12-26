@@ -394,7 +394,7 @@ uint32 Weather::GetSound()
     switch (m_type)
     {
         case WEATHER_TYPE_RAIN:                                             //rain
-            if (m_grade < 0.3f)
+            if (m_grade < 0.25f)
                 sound = WEATHER_NOSOUND;
             else if (m_grade < 0.6f)
                 sound = WEATHER_RAINLIGHT;
@@ -404,7 +404,7 @@ uint32 Weather::GetSound()
                 sound = WEATHER_RAINHEAVY;
             break;
         case WEATHER_TYPE_SNOW:                                             //snow
-            if (m_grade < 0.3f)
+            if (m_grade < 0.25f)
                 sound = WEATHER_NOSOUND;
             else if (m_grade < 0.6f)
                 sound = WEATHER_SNOWLIGHT;
@@ -414,7 +414,7 @@ uint32 Weather::GetSound()
                 sound = WEATHER_SNOWHEAVY;
             break;
         case WEATHER_TYPE_STORM:                                             //storm
-            if (m_grade < 0.3f)
+            if (m_grade < 0.25f)
                 sound = WEATHER_NOSOUND;
             else if (m_grade < 0.6f)
                 sound = WEATHER_SANDSTORMLIGHT;

@@ -34,9 +34,11 @@
 #include "MoveSplineInit.h"
 #include "MoveSpline.h"
 #include "DynamicObject.h"
+#include "ClassicDefines.h"
 
 void ReplayMgr::LoadSniffedEvents()
 {
+    LoadWeatherUpdates();
     LoadWorldText();
     LoadWorldStateUpdates();
     LoadUnitCreate1("creature_create1_time", TYPEID_UNIT);
@@ -145,6 +147,97 @@ void ReplayMgr::LoadSniffedEvents()
     
     sLog.outString(">> Loaded %u sniffed events", (uint32)m_eventsMap.size());
     sLog.outString();
+}
+
+void ReplayMgr::LoadWeatherUpdates()
+{
+    if (auto result = SniffDatabase.Query("SELECT `map_id`, `zone_id`, `weather_state`, `grade`, `unixtimems` FROM `weather_update` ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 mapId = fields[0].GetUInt32();
+            uint32 zoneId = fields[1].GetUInt32();
+            uint32 weatherState = fields[2].GetUInt32();
+            float grade = fields[3].GetFloat();
+            uint64 unixtimems = fields[4].GetUInt64();
+
+            switch (weatherState)
+            {
+                case WEATHER_STATE_FINE:
+                    weatherState = WEATHER_TYPE_FINE;
+                    grade = 0.0f;
+                    break;
+                case WEATHER_STATE_FOG:
+                    weatherState = WEATHER_TYPE_FINE;
+                    break;
+                case WEATHER_STATE_DRIZZLE:
+                    weatherState = WEATHER_TYPE_RAIN;
+                    grade = 0.25f;
+                    break;
+                case WEATHER_STATE_LIGHT_RAIN:
+                    weatherState = WEATHER_TYPE_RAIN;
+                    grade = 0.3f;
+                    break;
+                case WEATHER_STATE_MEDIUM_RAIN:
+                    weatherState = WEATHER_TYPE_RAIN;
+                    grade = 0.6f;
+                    break;
+                case WEATHER_STATE_HEAVY_RAIN:
+                    weatherState = WEATHER_TYPE_RAIN;
+                    grade = 1.0f;
+                    break;
+                case WEATHER_STATE_LIGHT_SNOW:
+                    weatherState = WEATHER_TYPE_SNOW;
+                    grade = 0.3f;
+                    break;
+                case WEATHER_STATE_MEDIUM_SNOW:
+                    weatherState = WEATHER_TYPE_SNOW;
+                    grade = 0.6f;
+                    break;
+                case WEATHER_STATE_HEAVY_SNOW:
+                    weatherState = WEATHER_TYPE_SNOW;
+                    grade = 1.0f;
+                    break;
+                case WEATHER_STATE_LIGHT_SANDSTORM:
+                    weatherState = WEATHER_TYPE_STORM;
+                    grade = 0.3f;
+                    break;
+                case WEATHER_STATE_MEDIUM_SANDSTORM:
+                    weatherState = WEATHER_TYPE_STORM;
+                    grade = 0.6f;
+                    break;
+                case WEATHER_STATE_HEAVY_SANDSTORM:
+                    weatherState = WEATHER_TYPE_STORM;
+                    grade = 1.0f;
+                    break;
+                case WEATHER_STATE_THUNDERS:
+                    weatherState = WEATHER_TYPE_STORM;
+                    grade = 0.25f;
+                    break;
+                default:
+                    continue;
+            }
+
+            std::shared_ptr<SniffedEvent_WeatherUpdate> newEvent = std::make_shared<SniffedEvent_WeatherUpdate>(mapId, zoneId, weatherState, grade);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+        delete result;
+    }
+}
+
+void SniffedEvent_WeatherUpdate::Execute() const
+{
+    Map* pMap = sMapMgr.FindMap(m_mapId, 0);
+    if (!pMap)
+    {
+        sLog.outError("SniffedEvent_WeatherUpdate: Cannot find map %u!", m_mapId);
+        return;
+    }
+
+    pMap->SetWeather(m_zoneId, WeatherType(m_weatherType), m_grade, true);
 }
 
 void ReplayMgr::LoadWorldText()
