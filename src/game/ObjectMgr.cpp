@@ -9537,8 +9537,8 @@ void ObjectMgr::LoadGossipMenu()
 {
     m_GossipMenusMap.clear();
 
-    //                                                               0        1          2
-    std::unique_ptr<QueryResult> result(WorldDatabase.Query("SELECT `entry`, `text_id`, `condition_id` FROM `gossip_menu`"));
+    //                                                               0        1
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `entry`, `text_id` FROM `gossip_menu`"));
 
     if (!result)
     {
@@ -9562,7 +9562,7 @@ void ObjectMgr::LoadGossipMenu()
 
         gMenu.entry             = fields[0].GetUInt32();
         gMenu.text_id           = fields[1].GetUInt32();
-        gMenu.conditionId       = fields[2].GetUInt16();
+        gMenu.conditionId       = 0;
 
         if (!GetNpcText(gMenu.text_id))
         {
@@ -9606,10 +9606,9 @@ void ObjectMgr::LoadGossipMenuItems()
 {
     m_GossipMenuItemsMap.clear();
 
-    std::unique_ptr<QueryResult> result(WorldDatabase.Query(
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query(
                               "SELECT `menu_id`, `id`, `option_icon`, `option_text`, `option_broadcast_text`, `option_id`, `npc_option_npcflag`, "
-                              "`action_menu_id`, `action_poi_id`, `action_script_id`, `box_coded`, `box_money`, `box_text`, `box_broadcast_text`, "
-                              "`condition_id` "
+                              "`action_menu_id`, `action_poi_id`, `box_coded`, `box_money`, `box_text`, `box_broadcast_text` "
                               "FROM `gossip_menu_option` ORDER BY `menu_id`, `id`"));
 
     if (!result)
@@ -9669,12 +9668,12 @@ void ObjectMgr::LoadGossipMenuItems()
         gMenuItem.npc_option_npcflag    = fields[6].GetUInt32();
         gMenuItem.action_menu_id        = fields[7].GetInt32();
         gMenuItem.action_poi_id         = fields[8].GetUInt32();
-        gMenuItem.action_script_id      = fields[9].GetUInt32();
-        gMenuItem.box_coded             = fields[10].GetUInt8() != 0;
-        //gMenuItem.box_money             = fields[11].GetUInt32();
-        gMenuItem.box_text              = fields[12].GetCppString();
-        gMenuItem.box_broadcast_text    = fields[13].GetUInt32();
-        gMenuItem.condition_id          = fields[14].GetUInt16();
+        gMenuItem.action_script_id      = 0;
+        gMenuItem.box_coded             = fields[9].GetUInt8() != 0;
+        //gMenuItem.box_money             = fields[10].GetUInt32();
+        gMenuItem.box_text              = fields[11].GetCppString();
+        gMenuItem.box_broadcast_text    = fields[12].GetUInt32();
+        gMenuItem.condition_id          = 0;
 
         if (gMenuItem.menu_id)                              // == 0 id is special and not have menu_id data
         {
