@@ -429,7 +429,7 @@ void SniffedEvent_UnitDestroy::Execute() const
 
 void ReplayMgr::LoadServerSideMovement(char const* tableName, TypeID typeId, SplinesMap const& splinesMap)
 {
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `point`, `move_time`, `spline_flags`, `spline_count`, `start_position_x`, `start_position_y`, `start_position_z`, `end_position_x`, `end_position_y`, `end_position_z`, `orientation`, `unixtime` FROM `%s` ORDER BY `unixtime`", tableName))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `point`, `move_time`, `spline_flags`, `spline_count`, `start_position_x`, `start_position_y`, `start_position_z`, `end_position_x`, `end_position_y`, `end_position_z`, `orientation`, `unixtimems` FROM `%s` ORDER BY `unixtimems`", tableName))
     {
         do
         {
@@ -448,12 +448,12 @@ void ReplayMgr::LoadServerSideMovement(char const* tableName, TypeID typeId, Spl
             float endY = fields[9].GetFloat();
             float endZ = fields[10].GetFloat();
             float orientation = fields[11].GetFloat();
-            uint64 unixtime = fields[12].GetUInt32();
+            uint64 unixtimems = fields[12].GetUInt64();
 
             if (spline_count == 0 && orientation != 100)
             {
                 std::shared_ptr<SniffedEvent_UnitUpdate_orientation> newEvent = std::make_shared<SniffedEvent_UnitUpdate_orientation>(guid, creatureId, typeId, orientation);
-                m_eventsMap.insert(std::make_pair(unixtime * IN_MILLISECONDS, newEvent));
+                m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
             }
             else
             {
@@ -473,7 +473,7 @@ void ReplayMgr::LoadServerSideMovement(char const* tableName, TypeID typeId, Spl
                 float y = spline_count ? endY : startY;
                 float z = spline_count ? endZ : startZ;
                 std::shared_ptr<SniffedEvent_ServerSideMovement> newEvent = std::make_shared<SniffedEvent_ServerSideMovement>(guid, creatureId, typeId, moveTime, splineFlags, x, y, z, orientation, pSplines);
-                m_eventsMap.insert(std::make_pair(unixtime * IN_MILLISECONDS, newEvent));
+                m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
             }
         } while (result->NextRow());
         delete result;
@@ -2650,7 +2650,7 @@ std::shared_ptr<WaypointPath> ReplayMgr::GetOrCreateWaypoints(uint32 guid, bool 
     uint32 firstMoveTime = 0;
     std::shared_ptr<WaypointPath> path = std::make_shared<WaypointPath>();
     //                                              0       1        2            3               4               5                   6                   7                   8                 9                 10                11             12
-    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `point`, `move_time`, `spline_flags`, `spline_count`, `start_position_x`, `start_position_y`, `start_position_z`, `end_position_x`, `end_position_y`, `end_position_z`, `orientation`, `unixtime` FROM `creature_movement_server` WHERE `guid`=%u", guid))
+    if (auto result = SniffDatabase.PQuery("SELECT `guid`, `point`, `move_time`, `spline_flags`, `spline_count`, `start_position_x`, `start_position_y`, `start_position_z`, `end_position_x`, `end_position_y`, `end_position_z`, `orientation`, `unixtimems` FROM `creature_movement_server` WHERE `guid`=%u", guid))
     {
         uint32 pointCounter = 0;
         WaypointNode* lastPoint = nullptr;
@@ -2677,7 +2677,7 @@ std::shared_ptr<WaypointPath> ReplayMgr::GetOrCreateWaypoints(uint32 guid, bool 
             float const end_position_z = fields[10].GetFloat();
             float const final_orientation = fields[11].GetFloat();
 
-            uint32 unixtime = fields[12].GetUInt32();
+            uint32 unixtime = fields[12].GetUInt64() / 1000;
 
             if (point == 1)
                 firstMoveTime = unixtime;

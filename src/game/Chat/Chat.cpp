@@ -987,10 +987,10 @@ ChatCommand * ChatHandler::getCommandTable()
     };
     static ChatCommand sniffCommandTable[] =
     {
-        { "play",           SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffPlayCommand,            "", nullptr },
-        { "stop",           SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffStopCommand,            "", nullptr },
-        { "settime",        SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffSetTimeCommand,         "", nullptr },
-        { "gettime",        SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffGetTimeCommand,         "", nullptr },
+        { "play",           SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleSniffPlayCommand,            "", nullptr },
+        { "stop",           SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleSniffStopCommand,            "", nullptr },
+        { "settime",        SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleSniffSetTimeCommand,         "", nullptr },
+        { "gettime",        SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleSniffGetTimeCommand,         "", nullptr },
         { "gotoclient",     SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffGoToClientCommand,      "", nullptr },
         { nullptr,          0,                  false, nullptr,                                         "", nullptr }
     };
