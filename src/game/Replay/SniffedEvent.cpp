@@ -560,7 +560,7 @@ void SniffedEvent_UnitUpdate_orientation::Execute() const
 
 void ReplayMgr::LoadCreatureTextTemplate()
 {
-    if (auto result = SniffDatabase.Query("SELECT `creature_id`, `group_id`, `text`, `chat_type` FROM `creature_text_template`"))
+    if (auto result = SniffDatabase.Query("SELECT `entry`, `group_id`, `text`, `chat_type` FROM `creature_text_template`"))
     {
         do
         {
@@ -580,7 +580,7 @@ void ReplayMgr::LoadCreatureTextTemplate()
 
 void ReplayMgr::LoadCreatureText()
 {
-    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `guid`, `creature_id`, `group_id` FROM `creature_text` ORDER BY `unixtimems`"))
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `guid`, `entry`, `group_id` FROM `creature_text` ORDER BY `unixtimems`"))
     {
         do
         {
