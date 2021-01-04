@@ -1197,6 +1197,25 @@ void ObjectMgr::CorrectCreatureDisplayIds(uint32 entry, uint32& displayId)
 
 void ObjectMgr::CheckCreatureTemplates()
 {
+    // load gossip menus from sniff
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `entry`, `gossip_menu_id` FROM `creature_template` WHERE `gossip_menu_id` != 0"));
+    if (result)
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+            uint32 entry = fields[0].GetUInt32();
+            uint32 gossip_menu_id = fields[1].GetUInt32();
+
+            CreatureInfo* cInfo = (CreatureInfo*)sCreatureStorage.LookupEntry<CreatureInfo>(entry);
+            if (!cInfo)
+                continue;
+
+            cInfo->gossip_menu_id = gossip_menu_id;
+
+        } while (result->NextRow());
+    }
+
     // check data correctness
     for (uint32 i = 1; i < sCreatureStorage.GetMaxEntry(); ++i)
     {
