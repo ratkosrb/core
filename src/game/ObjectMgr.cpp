@@ -1706,8 +1706,8 @@ void ObjectMgr::LoadCreatureSpells()
 void ObjectMgr::LoadCreatures(bool reload)
 {
     uint32 count = 0;
-    //                                                               0       1     2      3             4             5             6              7                  8                9        10      11              12       13            14                   15                  16         17       18           19            20                21            22              23          24            25             26             27           28              29                 30            31           32                 33              34                  35                    36                     37                    38
-    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `wander_distance`, `movement_type`, `hover`, `temp`, `summon_spell`, `scale`, `display_id`, `native_display_id`, `mount_display_id`, `faction`, `level`, `npc_flags`, `unit_flags`, `current_health`, `max_health`, `current_mana`, `max_mana`, `aura_state`, `emote_state`, `stand_state`, `vis_flags`, `sheath_state`, `shapeshift_form`, `speed_walk`, `speed_run`, `bounding_radius`, `combat_reach`, `base_attack_time`, `ranged_attack_time`, `main_hand_slot_item`, `off_hand_slot_item`, `ranged_slot_item` FROM `creature`"));
+    //                                                               0       1     2      3             4             5             6              7                  8                9              10              11              12       13            14                   15                  16         17       18           19            20                21            22              23          24            25             26             27           28              29                 30            31           32                 33              34                       35                      36                     37                    38
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `wander_distance`, `movement_type`, `is_hovering`, `is_temporary`, `summon_spell`, `scale`, `display_id`, `native_display_id`, `mount_display_id`, `faction`, `level`, `npc_flags`, `unit_flags`, `current_health`, `max_health`, `current_mana`, `max_mana`, `aura_state`, `emote_state`, `stand_state`, `vis_flags`, `sheath_state`, `shapeshift_form`, `speed_walk`, `speed_run`, `bounding_radius`, `combat_reach`, `main_hand_attack_time`, `off_hand_attack_time`, `main_hand_slot_item`, `off_hand_slot_item`, `ranged_slot_item` FROM `creature`"));
 
     if (!result)
     {
@@ -1775,8 +1775,8 @@ void ObjectMgr::LoadCreatures(bool reload)
         data.speed_run          = fields[31].GetFloat();
         data.bounding_radius    = fields[32].GetFloat();
         data.combat_reach       = fields[33].GetFloat();
-        data.base_attack_time   = fields[34].GetUInt32();
-        data.ranged_attack_time = fields[35].GetUInt32();
+        data.main_hand_attack_time = fields[34].GetUInt32();
+        data.off_hand_attack_time = fields[35].GetUInt32();
         data.main_hand_slot_item = fields[36].GetUInt32();
         data.off_hand_slot_item = fields[37].GetUInt32();
         data.ranged_slot_item   = fields[38].GetUInt32();

@@ -220,8 +220,8 @@ struct CreatureData
     float speed_run = 0.0f;
     float bounding_radius = 0.0f;
     float combat_reach = 0.0f;
-    uint32 base_attack_time = 0;
-    uint32 ranged_attack_time = 0;
+    uint32 main_hand_attack_time = 0;
+    uint32 off_hand_attack_time = 0;
     uint32 main_hand_slot_item = 0;
     uint32 off_hand_slot_item = 0;
     uint32 ranged_slot_item = 0;

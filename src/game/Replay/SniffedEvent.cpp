@@ -85,8 +85,8 @@ void ReplayMgr::LoadSniffedEvents()
     LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_current_mana>("current_mana");
     LoadCreatureValuesUpdate_float<SniffedEvent_UnitUpdate_bounding_radius>("bounding_radius");
     LoadCreatureValuesUpdate_float<SniffedEvent_UnitUpdate_combat_reach>("combat_reach");
-    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_base_attack_time>("base_attack_time");
-    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_ranged_attack_time>("ranged_attack_time");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_main_hand_attack_time>("main_hand_attack_time");
+    LoadCreatureValuesUpdate<SniffedEvent_UnitUpdate_off_hand_attack_time>("off_hand_attack_time");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_entry>("entry");
     LoadPlayerValuesUpdate_float<SniffedEvent_UnitUpdate_scale>("scale");
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_display_id>("display_id");
@@ -107,8 +107,8 @@ void ReplayMgr::LoadSniffedEvents()
     LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_current_mana>("current_mana");
     LoadPlayerValuesUpdate_float<SniffedEvent_UnitUpdate_bounding_radius>("bounding_radius");
     LoadPlayerValuesUpdate_float<SniffedEvent_UnitUpdate_combat_reach>("combat_reach");
-    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_base_attack_time>("base_attack_time");
-    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_ranged_attack_time>("ranged_attack_time");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_main_hand_attack_time>("main_hand_attack_time");
+    LoadPlayerValuesUpdate<SniffedEvent_UnitUpdate_off_hand_attack_time>("off_hand_attack_time");
     LoadCreatureSpeedUpdate(MOVE_WALK);
     LoadCreatureSpeedUpdate(MOVE_RUN);
     LoadCreatureSpeedUpdate(MOVE_SWIM);
@@ -1233,28 +1233,28 @@ void SniffedEvent_UnitUpdate_combat_reach::Execute() const
     pUnit->SetFloatValue(UNIT_FIELD_COMBATREACH, m_value);
 }
 
-void SniffedEvent_UnitUpdate_base_attack_time::Execute() const
+void SniffedEvent_UnitUpdate_main_hand_attack_time::Execute() const
 {
     Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
     if (!pUnit)
     {
-        sLog.outError("SniffedEvent_UnitUpdate_base_attack_time: Cannot find source unit!");
+        sLog.outError("SniffedEvent_UnitUpdate_main_hand_attack_time: Cannot find source unit!");
         return;
     }
 
     pUnit->SetFloatValue(UNIT_FIELD_BASEATTACKTIME, m_value);
 }
 
-void SniffedEvent_UnitUpdate_ranged_attack_time::Execute() const
+void SniffedEvent_UnitUpdate_off_hand_attack_time::Execute() const
 {
     Unit* pUnit = sReplayMgr.GetUnit(GetSourceObject());
     if (!pUnit)
     {
-        sLog.outError("SniffedEvent_UnitUpdate_ranged_attack_time: Cannot find source unit!");
+        sLog.outError("SniffedEvent_UnitUpdate_off_hand_attack_time: Cannot find source unit!");
         return;
     }
 
-    pUnit->SetUInt32Value(UNIT_FIELD_RANGEDATTACKTIME, m_value);
+    pUnit->SetUInt32Value(UNIT_FIELD_OFFHANDATTACKTIME, m_value);
 }
 
 void ReplayMgr::LoadUnitGuidValuesUpdate(char const* tableName, uint32 typeId)

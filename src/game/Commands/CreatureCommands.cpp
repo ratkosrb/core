@@ -66,8 +66,8 @@ bool ChatHandler::HandleNpcSpawnInfoCommand(char* /*args*/)
     PSendSysMessage("Mana: %u / %u", pData->current_mana, pData->max_mana);
     PSendSysMessage("Speed Walk: %g", pData->speed_walk);
     PSendSysMessage("Speed Run: %g", pData->speed_run);
-    PSendSysMessage("Base Attack Time: %u", pData->base_attack_time);
-    PSendSysMessage("Ranged Attack Time: %u", pData->ranged_attack_time);
+    PSendSysMessage("Main Hand Attack Time: %u", pData->main_hand_attack_time);
+    PSendSysMessage("Off Hand Attack Time: %u", pData->off_hand_attack_time);
     PSendSysMessage("NPC Flags: %u", pData->npc_flags);
     PSendSysMessage("Unit Flags: %u", pData->unit_flags);
     std::string movementType;

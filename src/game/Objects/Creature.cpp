@@ -390,8 +390,8 @@ bool Creature::UpdateEntry(uint32 Entry, Team team, CreatureData const* data /*=
     if (data)
     {
         SetUInt32Value(UNIT_NPC_FLAGS, data->npc_flags);
-        SetFloatValue(UNIT_FIELD_BASEATTACKTIME, data->base_attack_time);
-        SetFloatValue(UNIT_FIELD_RANGEDATTACKTIME, data->ranged_attack_time);
+        SetFloatValue(UNIT_FIELD_BASEATTACKTIME, data->main_hand_attack_time);
+        SetFloatValue(UNIT_FIELD_OFFHANDATTACKTIME, data->off_hand_attack_time);
         SetUInt32Value(UNIT_FIELD_FLAGS, data->unit_flags);
         SetSpeedRateReal(MOVE_WALK, data->speed_walk);
         SetSpeedRateReal(MOVE_RUN, data->speed_run);
@@ -1478,8 +1478,8 @@ bool Creature::LoadFromDB(uint32 guidlow, Map* map)
     SetFactionTemplateId(data->faction);
     SetSpeedRateReal(MOVE_WALK, data->speed_walk);
     SetSpeedRateReal(MOVE_RUN, data->speed_run);
-    SetUInt32Value(UNIT_FIELD_BASEATTACKTIME, data->base_attack_time);
-    SetUInt32Value(UNIT_FIELD_RANGEDATTACKTIME, data->ranged_attack_time);
+    SetUInt32Value(UNIT_FIELD_BASEATTACKTIME, data->main_hand_attack_time);
+    SetUInt32Value(UNIT_FIELD_OFFHANDATTACKTIME, data->off_hand_attack_time);
     SetUInt32Value(UNIT_NPC_FLAGS, data->npc_flags);
     SetUInt32Value(UNIT_FIELD_FLAGS, data->unit_flags);
 

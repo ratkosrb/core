@@ -60,8 +60,8 @@ enum SniffedEventType : uint8
     SE_UNIT_UPDATE_MAX_MANA,
     SE_UNIT_UPDATE_BOUNDING_RADIUS,
     SE_UNIT_UPDATE_COMBAT_REACH,
-    SE_UNIT_UPDATE_BASE_ATTACK_TIME,
-    SE_UNIT_UPDATE_RANGED_ATTACK_TIME,
+    SE_UNIT_UPDATE_MAIN_HAND_ATTACK_TIME,
+    SE_UNIT_UPDATE_OFF_HAND_ATTACK_TIME,
     SE_UNIT_UPDATE_GUID_VALUE,
     SE_UNIT_UPDATE_SPEED,
     SE_UNIT_UPDATE_AURAS,
@@ -168,10 +168,10 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "Unit Update Bounding Radius";
         case SE_UNIT_UPDATE_COMBAT_REACH:
             return "Unit Update Combat Reach";
-        case SE_UNIT_UPDATE_BASE_ATTACK_TIME:
-            return "Unit Update Melee Speed";
-        case SE_UNIT_UPDATE_RANGED_ATTACK_TIME:
-            return "Unit Update Ranged Speed";
+        case SE_UNIT_UPDATE_MAIN_HAND_ATTACK_TIME:
+            return "Unit Update Main Hand Speed";
+        case SE_UNIT_UPDATE_OFF_HAND_ATTACK_TIME:
+            return "Unit Update Off Hand Speed";
         case SE_UNIT_UPDATE_GUID_VALUE:
             return "Unit Update GUID Value";
         case SE_UNIT_UPDATE_SPEED:
@@ -934,9 +934,9 @@ struct SniffedEvent_UnitUpdate_combat_reach : SniffedEvent
     }
 };
 
-struct SniffedEvent_UnitUpdate_base_attack_time : SniffedEvent
+struct SniffedEvent_UnitUpdate_main_hand_attack_time : SniffedEvent
 {
-    SniffedEvent_UnitUpdate_base_attack_time(uint32 guid, uint32 entry, uint32 type, uint32 value) :
+    SniffedEvent_UnitUpdate_main_hand_attack_time(uint32 guid, uint32 entry, uint32 type, uint32 value) :
         m_guid(guid), m_entry(entry), m_type(type), m_value(value) {};
     uint32 m_guid = 0;
     uint32 m_entry = 0;
@@ -945,7 +945,7 @@ struct SniffedEvent_UnitUpdate_base_attack_time : SniffedEvent
     void Execute() const final;
     SniffedEventType GetType() const final
     {
-        return SE_UNIT_UPDATE_BASE_ATTACK_TIME;
+        return SE_UNIT_UPDATE_MAIN_HAND_ATTACK_TIME;
     }
     KnownObject GetSourceObject() const final
     {
@@ -953,9 +953,9 @@ struct SniffedEvent_UnitUpdate_base_attack_time : SniffedEvent
     }
 };
 
-struct SniffedEvent_UnitUpdate_ranged_attack_time : SniffedEvent
+struct SniffedEvent_UnitUpdate_off_hand_attack_time : SniffedEvent
 {
-    SniffedEvent_UnitUpdate_ranged_attack_time(uint32 guid, uint32 entry, uint32 type, uint32 value) :
+    SniffedEvent_UnitUpdate_off_hand_attack_time(uint32 guid, uint32 entry, uint32 type, uint32 value) :
         m_guid(guid), m_entry(entry), m_type(type), m_value(value) {};
     uint32 m_guid = 0;
     uint32 m_entry = 0;
@@ -964,7 +964,7 @@ struct SniffedEvent_UnitUpdate_ranged_attack_time : SniffedEvent
     void Execute() const final;
     SniffedEventType GetType() const final
     {
-        return SE_UNIT_UPDATE_RANGED_ATTACK_TIME;
+        return SE_UNIT_UPDATE_OFF_HAND_ATTACK_TIME;
     }
     KnownObject GetSourceObject() const final
     {

@@ -63,7 +63,8 @@ struct CharacterTemplateEntry
     float combat_reach = 1;
     float mod_melee_haste = 1;
     float mod_ranged_haste = 1;
-    uint32 base_attack_time = 0;
+    uint32 main_hand_attack_time = 0;
+    uint32 off_hand_attack_time = 0;
     uint32 ranged_attack_time = 0;
     KnownObject charmGuid;
     KnownObject summonGuid;

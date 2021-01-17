@@ -36,8 +36,8 @@ void ReplayMgr::LoadPlayers()
 {
     uint32 count = 0;
 
-    //                                                               0       1      2             3             4             5              6       7       8        9         10       11    12       13               14               15              16       17            18                   19                  20         21            22                23            24              25          26            27             28             29                   30           31           32              33           34           35                 36            37           38                 39              40                 41                  42                  43                    44                 45
-    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `name`, `race`, `class`, `gender`, `level`, `xp`, `money`, `player_bytes1`, `player_bytes2`, `player_flags`, `scale`, `display_id`, `native_display_id`, `mount_display_id`, `faction`, `unit_flags`, `current_health`, `max_health`, `current_mana`, `max_mana`, `aura_state`, `emote_state`, `stand_state`, `pet_talent_points`, `vis_flags`, `anim_tier`, `sheath_state`, `pvp_flags`, `pet_flags`, `shapeshift_form`, `speed_walk`, `speed_run`, `bounding_radius`, `combat_reach`, `mod_melee_haste`, `mod_ranged_haste`, `base_attack_time`, `ranged_attack_time`, `equipment_cache`, `auras` FROM `player`"));
+    //                                                               0       1      2             3             4             5              6       7       8        9         10       11    12       13               14               15              16       17            18                   19                  20         21            22                23            24              25          26            27             28             29                   30           31           32              33           34           35                 36            37           38                 39              40                 41                  42                       43                      44                    45                 46
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `name`, `race`, `class`, `gender`, `level`, `xp`, `money`, `player_bytes1`, `player_bytes2`, `player_flags`, `scale`, `display_id`, `native_display_id`, `mount_display_id`, `faction`, `unit_flags`, `current_health`, `max_health`, `current_mana`, `max_mana`, `aura_state`, `emote_state`, `stand_state`, `pet_talent_points`, `vis_flags`, `anim_tier`, `sheath_state`, `pvp_flags`, `pet_flags`, `shapeshift_form`, `speed_walk`, `speed_run`, `bounding_radius`, `combat_reach`, `mod_melee_haste`, `mod_ranged_haste`, `main_hand_attack_time`, `off_hand_attack_time`, `ranged_attack_time`, `equipment_cache`, `auras` FROM `player`"));
 
     if (!result)
     {
@@ -151,9 +151,10 @@ void ReplayMgr::LoadPlayers()
         character.combat_reach = fields[39].GetFloat();
         character.mod_melee_haste = fields[40].GetFloat();
         character.mod_ranged_haste = fields[41].GetFloat();
-        character.base_attack_time = fields[42].GetUInt32();
-        character.ranged_attack_time = fields[43].GetUInt32();
-        std::string equipmentCache = fields[44].GetCppString();
+        character.main_hand_attack_time = fields[42].GetUInt32();
+        character.off_hand_attack_time = fields[43].GetUInt32();
+        character.ranged_attack_time = fields[44].GetUInt32();
+        std::string equipmentCache = fields[45].GetCppString();
         std::string temp;
         bool isItemId = true;
         uint32 itemCounter = 0;
@@ -710,7 +711,8 @@ void ReplayMgr::ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntr
 
     pPlayer->SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, initialState.bounding_radius);
     pPlayer->SetFloatValue(UNIT_FIELD_COMBATREACH, initialState.combat_reach);
-    pPlayer->SetFloatValue(UNIT_FIELD_BASEATTACKTIME, initialState.base_attack_time);
+    pPlayer->SetFloatValue(UNIT_FIELD_BASEATTACKTIME, initialState.main_hand_attack_time);
+    pPlayer->SetFloatValue(UNIT_FIELD_OFFHANDATTACKTIME, initialState.off_hand_attack_time);
     pPlayer->SetFloatValue(UNIT_FIELD_RANGEDATTACKTIME, initialState.ranged_attack_time);
 
     ObjectGuid charmGuid;
@@ -824,8 +826,8 @@ void ReplayMgr::UpdatePlayerToCurrentState(Player* pPlayer, CharacterTemplateEnt
             case SE_UNIT_UPDATE_MAX_MANA:
             case SE_UNIT_UPDATE_BOUNDING_RADIUS:
             case SE_UNIT_UPDATE_COMBAT_REACH:
-            case SE_UNIT_UPDATE_BASE_ATTACK_TIME:
-            case SE_UNIT_UPDATE_RANGED_ATTACK_TIME:
+            case SE_UNIT_UPDATE_MAIN_HAND_ATTACK_TIME:
+            case SE_UNIT_UPDATE_OFF_HAND_ATTACK_TIME:
             case SE_UNIT_UPDATE_SPEED:
             case SE_UNIT_UPDATE_GUID_VALUE:
             case SE_UNIT_UPDATE_AURAS:
@@ -955,8 +957,8 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
 
             pCreature->SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, data->bounding_radius);
             pCreature->SetFloatValue(UNIT_FIELD_COMBATREACH, data->combat_reach);
-            pCreature->SetFloatValue(UNIT_FIELD_BASEATTACKTIME, data->base_attack_time);
-            pCreature->SetFloatValue(UNIT_FIELD_RANGEDATTACKTIME, data->ranged_attack_time);
+            pCreature->SetFloatValue(UNIT_FIELD_BASEATTACKTIME, data->main_hand_attack_time);
+            pCreature->SetFloatValue(UNIT_FIELD_OFFHANDATTACKTIME, data->off_hand_attack_time);
 
             pCreature->SetVirtualItem(VIRTUAL_ITEM_SLOT_0, data->main_hand_slot_item);
             pCreature->SetVirtualItem(VIRTUAL_ITEM_SLOT_1, data->off_hand_slot_item);
@@ -1062,8 +1064,8 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
             case SE_UNIT_UPDATE_MAX_MANA:
             case SE_UNIT_UPDATE_BOUNDING_RADIUS:
             case SE_UNIT_UPDATE_COMBAT_REACH:
-            case SE_UNIT_UPDATE_BASE_ATTACK_TIME:
-            case SE_UNIT_UPDATE_RANGED_ATTACK_TIME:
+            case SE_UNIT_UPDATE_MAIN_HAND_ATTACK_TIME:
+            case SE_UNIT_UPDATE_OFF_HAND_ATTACK_TIME:
             case SE_UNIT_UPDATE_SPEED:
             case SE_UNIT_UPDATE_GUID_VALUE:
             case SE_UNIT_UPDATE_AURAS:
