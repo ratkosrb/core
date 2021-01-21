@@ -1424,9 +1424,7 @@ void LoadLootTemplates_Gameobject()
     {
         if (uint32 lootid = itr->GetLootId())
         {
-            if (ids_set.find(lootid) == ids_set.end())
-                LootTemplates_Gameobject.ReportNotExistedId(lootid);
-            else
+            if (ids_set.find(lootid) != ids_set.end())
                 ids_setUsed.insert(lootid);
         }
     }
