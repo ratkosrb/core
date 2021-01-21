@@ -125,6 +125,7 @@ void ReplayMgr::LoadSniffedEvents()
     LoadGameObjectDestroy();
     LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_flags>("flags");
     LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_state>("state");
+    LoadGameObjectUpdate<SniffedEvent_GameObjectUpdate_artkit>("artkit");
     LoadSpellCastFailed();
     LoadSpellCastStart();
     LoadSpellCastGo();
@@ -1803,6 +1804,17 @@ void SniffedEvent_GameObjectUpdate_state::Execute() const
         return;
     }
     pGo->SetGoState(GOState(m_value));
+}
+
+void SniffedEvent_GameObjectUpdate_artkit::Execute() const
+{
+    GameObject* pGo = sReplayMgr.GetGameObject(m_guid);
+    if (!pGo)
+    {
+        sLog.outError("SniffedEvent_GameObjectUpdate_artkit: Cannot find source gameobject!");
+        return;
+    }
+    pGo->SetGoArtKit(m_value);
 }
 
 void ReplayMgr::LoadSpellCastFailed()

@@ -293,7 +293,7 @@ bool Creature::InitEntry(uint32 Entry, Team team, CreatureData const* data /*=nu
     SetByteValue(UNIT_FIELD_BYTES_0, 0, 0);
 
     // known valid are: CLASS_WARRIOR,CLASS_PALADIN,CLASS_ROGUE,CLASS_MAGE
-    SetByteValue(UNIT_FIELD_BYTES_0, 1, uint8(cinfo->unit_class));
+    SetByteValue(UNIT_FIELD_BYTES_0, 1, data ? data->unit_class : uint8(cinfo->unit_class));
 
     SetInitCreaturePowerType();
 
@@ -323,10 +323,16 @@ bool Creature::InitEntry(uint32 Entry, Team team, CreatureData const* data /*=nu
 
     SetNativeDisplayId(displayId);
     SetDisplayId(displayId);
-    SetByteValue(UNIT_FIELD_BYTES_0, 2, minfo->gender);
+    SetByteValue(UNIT_FIELD_BYTES_0, 2, data ? data->gender : minfo->gender);
 
     // Load creature equipment
-    if (eventData && eventData->equipment_id)
+    if (data)
+    {
+        SetVirtualItem(VIRTUAL_ITEM_SLOT_0, data->main_hand_slot_item);
+        SetVirtualItem(VIRTUAL_ITEM_SLOT_1, data->off_hand_slot_item);
+        SetVirtualItem(VIRTUAL_ITEM_SLOT_2, data->ranged_slot_item);
+    }
+    else if (eventData && eventData->equipment_id)
     {
         LoadEquipment(eventData->equipment_id);             // use event equipment if any for active event
     }

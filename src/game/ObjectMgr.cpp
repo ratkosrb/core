@@ -1706,8 +1706,8 @@ void ObjectMgr::LoadCreatureSpells()
 void ObjectMgr::LoadCreatures(bool reload)
 {
     uint32 count = 0;
-    //                                                               0       1     2      3             4             5             6              7                  8                9              10              11              12       13            14                   15                  16         17       18           19            20                21            22              23          24            25             26             27           28              29                 30            31           32                 33              34                       35                      36                     37                    38
-    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `wander_distance`, `movement_type`, `is_hovering`, `is_temporary`, `summon_spell`, `scale`, `display_id`, `native_display_id`, `mount_display_id`, `faction`, `level`, `npc_flags`, `unit_flags`, `current_health`, `max_health`, `current_mana`, `max_mana`, `aura_state`, `emote_state`, `stand_state`, `vis_flags`, `sheath_state`, `shapeshift_form`, `speed_walk`, `speed_run`, `bounding_radius`, `combat_reach`, `main_hand_attack_time`, `off_hand_attack_time`, `main_hand_slot_item`, `off_hand_slot_item`, `ranged_slot_item` FROM `creature`"));
+    //                                                               0       1     2      3             4             5             6              7                  8                9              10              11              12       13            14                   15                  16       17        18         19       20          21             22                23            24              25          26            27             28             29           30              31                 32            33           34                35            36                 37                 38              39                       40                      41                     42                    43
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `wander_distance`, `movement_type`, `is_hovering`, `is_temporary`, `summon_spell`, `scale`, `display_id`, `native_display_id`, `mount_display_id`, `class`, `gender`, `faction`, `level`, `npc_flags`, `unit_flags`, `current_health`, `max_health`, `current_mana`, `max_mana`, `aura_state`, `emote_state`, `stand_state`, `vis_flags`, `sheath_state`, `shapeshift_form`, `speed_walk`, `speed_run`, `speed_run_back`, `speed_swim`, `speed_swim_back`, `bounding_radius`, `combat_reach`, `main_hand_attack_time`, `off_hand_attack_time`, `main_hand_slot_item`, `off_hand_slot_item`, `ranged_slot_item` FROM `creature`"));
 
     if (!result)
     {
@@ -1757,29 +1757,34 @@ void ObjectMgr::LoadCreatures(bool reload)
         data.display_id         = fields[13].GetUInt32();
         data.native_display_id  = fields[14].GetUInt32();
         data.mount_display_id   = fields[15].GetUInt32();
-        data.faction            = fields[16].GetUInt32();
-        data.level              = fields[17].GetUInt32();
-        data.npc_flags          = ConvertClassicNpcFlagsToVanilla(fields[18].GetUInt32());
-        data.unit_flags         = fields[19].GetUInt32();
-        data.current_health     = fields[20].GetUInt32();
-        data.max_health         = fields[21].GetUInt32();
-        data.current_mana       = fields[22].GetUInt32();
-        data.max_mana           = fields[23].GetUInt32();
-        data.aura_state         = fields[24].GetUInt32();
-        data.emote_state        = fields[25].GetUInt32();
-        data.stand_state        = fields[26].GetUInt32();
-        data.vis_flags          = fields[27].GetUInt32();
-        data.sheath_state       = fields[28].GetUInt32();
-        data.shapeshift_form    = fields[29].GetUInt32();
-        data.speed_walk         = fields[30].GetFloat();
-        data.speed_run          = fields[31].GetFloat();
-        data.bounding_radius    = fields[32].GetFloat();
-        data.combat_reach       = fields[33].GetFloat();
-        data.main_hand_attack_time = fields[34].GetUInt32();
-        data.off_hand_attack_time = fields[35].GetUInt32();
-        data.main_hand_slot_item = fields[36].GetUInt32();
-        data.off_hand_slot_item = fields[37].GetUInt32();
-        data.ranged_slot_item   = fields[38].GetUInt32();
+        data.unit_class         = fields[16].GetUInt32();
+        data.gender             = fields[17].GetUInt32();
+        data.faction            = fields[18].GetUInt32();
+        data.level              = fields[19].GetUInt32();
+        data.npc_flags          = ConvertClassicNpcFlagsToVanilla(fields[20].GetUInt32());
+        data.unit_flags         = fields[21].GetUInt32();
+        data.current_health     = fields[22].GetUInt32();
+        data.max_health         = fields[23].GetUInt32();
+        data.current_mana       = fields[24].GetUInt32();
+        data.max_mana           = fields[25].GetUInt32();
+        data.aura_state         = fields[26].GetUInt32();
+        data.emote_state        = fields[27].GetUInt32();
+        data.stand_state        = fields[28].GetUInt32();
+        data.vis_flags          = fields[29].GetUInt32();
+        data.sheath_state       = fields[30].GetUInt32();
+        data.shapeshift_form    = fields[31].GetUInt32();
+        data.speed_walk         = fields[32].GetFloat();
+        data.speed_run          = fields[33].GetFloat();
+        data.speed_run_back     = fields[34].GetFloat();
+        data.speed_swim         = fields[35].GetFloat();
+        data.speed_swim_back    = fields[36].GetFloat();
+        data.bounding_radius    = fields[37].GetFloat();
+        data.combat_reach       = fields[38].GetFloat();
+        data.main_hand_attack_time = fields[39].GetUInt32();
+        data.off_hand_attack_time = fields[40].GetUInt32();
+        data.main_hand_slot_item = fields[41].GetUInt32();
+        data.off_hand_slot_item = fields[42].GetUInt32();
+        data.ranged_slot_item   = fields[43].GetUInt32();
 
         if (data.current_health == 0)
             data.spawn_flags |= SPAWN_FLAG_DEAD;
@@ -1937,10 +1942,10 @@ void ObjectMgr::LoadGameobjects(bool reload)
 
     //                                                               0       1     2      3             4             5             6
     std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, "
-    //                      7            8            9            10           11      12              13            14              15
-                          "`rotation0`, `rotation1`, `rotation2`, `rotation3`, `temp`, `creator_guid`, `creator_id`, `creator_type`, `display_id`, "
-    //                      16       17         18       19       20
-                          "`level`, `faction`, `flags`, `state`, `animprogress` FROM `gameobject`"));
+    //                      7            8            9            10           11              12              13            14              15
+                          "`rotation0`, `rotation1`, `rotation2`, `rotation3`, `is_temporary`, `creator_guid`, `creator_id`, `creator_type`, `display_id`, "
+    //                      16       17         18       19       20      21
+                          "`level`, `faction`, `flags`, `state`, `type`, `artkit` FROM `gameobject`"));
 
     if (!result)
     {
@@ -1998,6 +2003,8 @@ void ObjectMgr::LoadGameobjects(bool reload)
         data.level            = fields[16].GetInt32();
         data.faction          = fields[17].GetUInt32();
         data.flags            = fields[18].GetUInt32();
+        data.type             = fields[20].GetUInt32();
+        data.artkit           = fields[21].GetUInt32();
 
         data.instanciatedContinentInstanceId = sMapMgr.GetContinentInstanceId(data.position.mapId, data.position.x, data.position.y);
 
@@ -2007,8 +2014,6 @@ void ObjectMgr::LoadGameobjects(bool reload)
             sLog.outErrorDb("Table `gameobject` have gameobject (GUID: %u Entry: %u) that spawned at nonexistent map (Id: %u), skip", guid, data.id, data.position.mapId);
             continue;
         }
-
-        data.animprogress   = fields[20].GetUInt32();
 
         uint32 go_state     = fields[19].GetUInt32();
         if (go_state >= MAX_GO_STATE)

@@ -57,12 +57,14 @@ struct CharacterTemplateEntry
     uint8 vis_flags = 0;
     uint8 sheath_state = 0;
     uint8 shapeshift_form = 0;
+    uint32 move_flags = 0;
     float speed_walk = 1;
     float speed_run = 1;
+    float speed_run_back = 1;
+    float speed_swim = 1;
+    float speed_swim_back = 1;
     float bounding_radius = 1;
     float combat_reach = 1;
-    float mod_melee_haste = 1;
-    float mod_ranged_haste = 1;
     uint32 main_hand_attack_time = 0;
     uint32 off_hand_attack_time = 0;
     uint32 ranged_attack_time = 0;

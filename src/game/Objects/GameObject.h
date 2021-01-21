@@ -587,7 +587,9 @@ struct GameObjectData
     uint32 faction = 0;
     uint32 flags = 0;
     GOState go_state = GO_STATE_ACTIVE;
-    uint32 animprogress = 0;
+    uint32 type = 0;
+    uint32 artkit = 0;
+    uint32 animprogress = 100;
 
     // placeholders
     int32  spawntimesecsmin = 1800;

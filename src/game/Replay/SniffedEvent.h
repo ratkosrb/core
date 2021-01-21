@@ -73,6 +73,7 @@ enum SniffedEventType : uint8
     SE_GAMEOBJECT_DESTROY,
     SE_GAMEOBJECT_UPDATE_FLAGS,
     SE_GAMEOBJECT_UPDATE_STATE,
+    SE_GAMEOBJECT_UPDATE_ARTKIT,
     SE_PLAYER_CHAT,
     SE_PLAYER_EQUIPMENT_UPDATE,
     SE_PLAY_MUSIC,
@@ -194,6 +195,8 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "GameObject Update Flags";
         case SE_GAMEOBJECT_UPDATE_STATE:
             return "GameObject Update State";
+        case SE_GAMEOBJECT_UPDATE_ARTKIT:
+            return "GameObject Update ArtKit";
         case SE_PLAYER_CHAT:
             return "Player Chat";
         case SE_PLAYER_EQUIPMENT_UPDATE:
@@ -1193,6 +1196,24 @@ struct SniffedEvent_GameObjectUpdate_state : SniffedEvent
     SniffedEventType GetType() const final
     {
         return SE_GAMEOBJECT_UPDATE_STATE;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_guid, m_entry, TYPEID_GAMEOBJECT);
+    }
+};
+
+struct SniffedEvent_GameObjectUpdate_artkit : SniffedEvent
+{
+    SniffedEvent_GameObjectUpdate_artkit(uint32 guid, uint32 entry, uint32 value) :
+        m_guid(guid), m_entry(entry), m_value(value) {};
+    uint32 m_guid = 0;
+    uint32 m_entry = 0;
+    uint32 m_value = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_GAMEOBJECT_UPDATE_ARTKIT;
     }
     KnownObject GetSourceObject() const final
     {

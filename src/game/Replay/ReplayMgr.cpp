@@ -36,8 +36,8 @@ void ReplayMgr::LoadPlayers()
 {
     uint32 count = 0;
 
-    //                                                               0       1      2             3             4             5              6       7       8        9         10       11    12       13               14               15              16       17            18                   19                  20         21            22                23            24              25          26            27             28             29                   30           31           32              33           34           35                 36            37           38                 39              40                 41                  42                       43                      44                    45                 46
-    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `name`, `race`, `class`, `gender`, `level`, `xp`, `money`, `player_bytes1`, `player_bytes2`, `player_flags`, `scale`, `display_id`, `native_display_id`, `mount_display_id`, `faction`, `unit_flags`, `current_health`, `max_health`, `current_mana`, `max_mana`, `aura_state`, `emote_state`, `stand_state`, `pet_talent_points`, `vis_flags`, `anim_tier`, `sheath_state`, `pvp_flags`, `pet_flags`, `shapeshift_form`, `speed_walk`, `speed_run`, `bounding_radius`, `combat_reach`, `mod_melee_haste`, `mod_ranged_haste`, `main_hand_attack_time`, `off_hand_attack_time`, `ranged_attack_time`, `equipment_cache`, `auras` FROM `player`"));
+    //                                                               0       1      2             3             4             5              6       7       8        9         10       11    12       13               14               15              16       17            18                   19                  20         21            22                23            24              25          26            27             28             29           30              31           32                 33            34            35           36                37            38                 39                 40              41                       42                      43                     44                45
+    std::unique_ptr<QueryResult> result(SniffDatabase.Query("SELECT `guid`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `name`, `race`, `class`, `gender`, `level`, `xp`, `money`, `player_bytes1`, `player_bytes2`, `player_flags`, `scale`, `display_id`, `native_display_id`, `mount_display_id`, `faction`, `unit_flags`, `current_health`, `max_health`, `current_mana`, `max_mana`, `aura_state`, `emote_state`, `stand_state`, `vis_flags`, `sheath_state`, `pvp_flags`, `shapeshift_form`, `move_flags`, `speed_walk`, `speed_run`, `speed_run_back`, `speed_swim`, `speed_swim_back`, `bounding_radius`, `combat_reach`, `main_hand_attack_time`, `off_hand_attack_time`, `ranged_attack_time`, `equipment_cache`, `auras` FROM `player`"));
 
     if (!result)
     {
@@ -135,26 +135,28 @@ void ReplayMgr::LoadPlayers()
             character.stand_state = UNIT_STAND_STATE_STAND;
         }
 
-        character.vis_flags = fields[30].GetUInt8();
+        character.vis_flags = fields[29].GetUInt8();
 
-        character.sheath_state = fields[32].GetUInt8();
+        character.sheath_state = fields[30].GetUInt8();
         if (character.sheath_state >= MAX_SHEATH_STATE)
         {
             sLog.outError("ReplayMgr::LoadPlayers - Invalid sheath state for character %s (GUID %u)", character.name.c_str(), guid);
             character.sheath_state = SHEATH_STATE_UNARMED;
         }
 
-        character.shapeshift_form = fields[35].GetUInt8();
-        character.speed_walk = fields[36].GetFloat();
-        character.speed_run = fields[37].GetFloat();
-        character.bounding_radius = fields[38].GetFloat();
-        character.combat_reach = fields[39].GetFloat();
-        character.mod_melee_haste = fields[40].GetFloat();
-        character.mod_ranged_haste = fields[41].GetFloat();
-        character.main_hand_attack_time = fields[42].GetUInt32();
-        character.off_hand_attack_time = fields[43].GetUInt32();
-        character.ranged_attack_time = fields[44].GetUInt32();
-        std::string equipmentCache = fields[45].GetCppString();
+        character.shapeshift_form = fields[32].GetUInt8();
+        character.move_flags = ConvertMovementFlags(fields[33].GetUInt32());
+        character.speed_walk = fields[34].GetFloat();
+        character.speed_run = fields[35].GetFloat();
+        character.speed_run_back = fields[36].GetFloat();
+        character.speed_swim = fields[37].GetFloat();
+        character.speed_swim_back = fields[38].GetFloat();
+        character.bounding_radius = fields[39].GetFloat();
+        character.combat_reach = fields[40].GetFloat();
+        character.main_hand_attack_time = fields[41].GetUInt32();
+        character.off_hand_attack_time = fields[42].GetUInt32();
+        character.ranged_attack_time = fields[43].GetUInt32();
+        std::string equipmentCache = fields[44].GetCppString();
         std::string temp;
         bool isItemId = true;
         uint32 itemCounter = 0;
@@ -703,11 +705,18 @@ void ReplayMgr::ResetPlayerToInitialState(Player* pPlayer, CharacterTemplateEntr
     pPlayer->SetByteValue(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_VIS_FLAG, initialState.vis_flags);
     pPlayer->SetSheath(SheathState(initialState.sheath_state));
     pPlayer->SetByteValue(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_SHAPESHIFT_FORM, initialState.shapeshift_form);
+    pPlayer->SetUnitMovementFlags(initialState.move_flags);
 
     if (pPlayer->GetSpeedRate(MOVE_WALK) != initialState.speed_walk)
         pPlayer->SetSpeedRateDirect(MOVE_WALK, initialState.speed_walk);
     if (pPlayer->GetSpeedRate(MOVE_RUN) != initialState.speed_run)
         pPlayer->SetSpeedRateDirect(MOVE_RUN, initialState.speed_run);
+    if (pPlayer->GetSpeedRate(MOVE_RUN_BACK) != initialState.speed_run_back)
+        pPlayer->SetSpeedRateDirect(MOVE_RUN_BACK, initialState.speed_run_back);
+    if (pPlayer->GetSpeedRate(MOVE_SWIM) != initialState.speed_swim)
+        pPlayer->SetSpeedRateDirect(MOVE_SWIM, initialState.speed_swim);
+    if (pPlayer->GetSpeedRate(MOVE_SWIM_BACK) != initialState.speed_swim_back)
+        pPlayer->SetSpeedRateDirect(MOVE_SWIM_BACK, initialState.speed_swim_back);
 
     pPlayer->SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, initialState.bounding_radius);
     pPlayer->SetFloatValue(UNIT_FIELD_COMBATREACH, initialState.combat_reach);
@@ -954,6 +963,12 @@ void ReplayMgr::UpdateCreaturesForCurrentTime()
                 pCreature->SetSpeedRateDirect(MOVE_WALK, data->speed_walk);
             if (pCreature->GetSpeedRate(MOVE_RUN) != data->speed_run)
                 pCreature->SetSpeedRateDirect(MOVE_RUN, data->speed_run);
+            if (pCreature->GetSpeedRate(MOVE_RUN_BACK) != data->speed_run_back)
+                pCreature->SetSpeedRateDirect(MOVE_RUN_BACK, data->speed_run_back);
+            if (pCreature->GetSpeedRate(MOVE_SWIM) != data->speed_swim)
+                pCreature->SetSpeedRateDirect(MOVE_SWIM, data->speed_swim);
+            if (pCreature->GetSpeedRate(MOVE_SWIM_BACK) != data->speed_swim_back)
+                pCreature->SetSpeedRateDirect(MOVE_SWIM_BACK, data->speed_swim_back);
 
             pCreature->SetFloatValue(UNIT_FIELD_BOUNDINGRADIUS, data->bounding_radius);
             pCreature->SetFloatValue(UNIT_FIELD_COMBATREACH, data->combat_reach);
@@ -1109,6 +1124,8 @@ void ReplayMgr::ResetGameObjectToInitialState(GameObject* pGo)
             pGo->SetUInt32Value(GAMEOBJECT_DISPLAYID, data->display_id);
         if (pGo->GetUInt32Value(GAMEOBJECT_LEVEL) != data->level)
             pGo->SetUInt32Value(GAMEOBJECT_LEVEL, data->level);
+        if (pGo->GetGoArtKit() != data->artkit)
+            pGo->SetGoArtKit(data->artkit);
 
         ObjectGuid creatorGuid;
         if (!data->creatorGuid.IsEmpty())

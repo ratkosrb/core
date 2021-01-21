@@ -202,6 +202,8 @@ struct CreatureData
     uint32 display_id = 0;
     uint32 native_display_id = 0;
     uint32 mount_display_id = 0;
+    uint8 unit_class = 0;
+    uint8 gender = 0;
     uint32 faction = 0;
     uint32 level = 0;
     uint32 npc_flags = 0;
@@ -218,6 +220,9 @@ struct CreatureData
     uint8 shapeshift_form = 0;
     float speed_walk = 0.0f;
     float speed_run = 0.0f;
+    float speed_run_back = 0.0f;
+    float speed_swim = 0.0f;
+    float speed_swim_back = 0.0f;
     float bounding_radius = 0.0f;
     float combat_reach = 0.0f;
     uint32 main_hand_attack_time = 0;
