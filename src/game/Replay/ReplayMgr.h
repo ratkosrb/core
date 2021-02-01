@@ -201,6 +201,8 @@ class ReplayMgr
         void LoadWorldStateUpdates();
         void LoadQuestUpdateComplete();
         void LoadQuestUpdateFailed();
+        void LoadXPGainLog();
+        void LoadFactionStandingUpdates();
 
         void Update(uint32 const diff);
         void SpawnCharacters();
@@ -312,7 +314,7 @@ class ReplayMgr
 
         std::shared_ptr<WaypointPath> GetOrCreateWaypoints(uint32 guid, bool useStartPosition);
         uint32 GetTotalMovementPointsForCreature(uint32 guid);
-        std::string ListSniffedEventsForObject(KnownObject object);
+        std::string ListSniffedEventsForObject(KnownObject object, int32 sniffedEventType);
 
     protected:
         bool m_enabled = false;

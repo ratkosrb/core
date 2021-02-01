@@ -93,6 +93,8 @@ enum SniffedEventType : uint8
     SE_CLIENT_RELEASE_SPIRIT,
     SE_QUEST_UPDATE_COMPLETE,
     SE_QUEST_UPDATE_FAILED,
+    SE_XP_GAIN_LOG,
+    SE_FACTION_STANDING_UPDATE,
 };
 
 inline char const* GetSniffedEventName(SniffedEventType eventType)
@@ -235,6 +237,10 @@ inline char const* GetSniffedEventName(SniffedEventType eventType)
             return "Quest Completed";
         case SE_QUEST_UPDATE_FAILED:
             return "Quest Failed";
+        case SE_XP_GAIN_LOG:
+            return "XP Gain Log";
+        case SE_FACTION_STANDING_UPDATE:
+            return "Faction Standing Update";
     }
     return "Unknown Event";
 }
@@ -1539,6 +1545,40 @@ struct SniffedEvent_QuestUpdateFailed : SniffedEvent
     SniffedEventType GetType() const final
     {
         return SE_QUEST_UPDATE_FAILED;
+    }
+};
+
+struct SniffedEvent_XPGainLog : SniffedEvent
+{
+    SniffedEvent_XPGainLog(uint32 victimGuid, uint32 victimId, uint32 victimType, uint32 originalAmount, uint32 amount, float groupBonus) :
+        m_victimGuid(victimGuid), m_victimId(victimId), m_victimType(victimType), m_originalAmount(originalAmount), m_amount(amount), m_groupBonus(groupBonus) {};
+    uint32 m_victimGuid = 0;
+    uint32 m_victimId = 0;
+    uint32 m_victimType = 0;
+    uint32 m_originalAmount = 0;
+    uint32 m_amount = 0;
+    float m_groupBonus = 0.0f;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_XP_GAIN_LOG;
+    }
+    KnownObject GetSourceObject() const final
+    {
+        return KnownObject(m_victimGuid, m_victimId, TypeID(m_victimType));
+    }
+};
+
+struct SniffedEvent_FactionStandingUpdate : SniffedEvent
+{
+    SniffedEvent_FactionStandingUpdate(uint32 reputationListId, uint32 standing) :
+        m_reputationListId(reputationListId), m_standing(standing) {};
+    uint32 m_reputationListId = 0;
+    uint32 m_standing = 0;
+    void Execute() const final;
+    SniffedEventType GetType() const final
+    {
+        return SE_FACTION_STANDING_UPDATE;
     }
 };
 

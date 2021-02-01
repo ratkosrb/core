@@ -147,6 +147,8 @@ void ReplayMgr::LoadSniffedEvents()
     LoadReleaseSpiritTimes();
     LoadQuestUpdateComplete();
     LoadQuestUpdateFailed();
+    LoadXPGainLog();
+    LoadFactionStandingUpdates();
 
     sLog.outString(">> Loaded %u sniffed events", (uint32)m_eventsMap.size());
     sLog.outString();
@@ -2650,6 +2652,73 @@ void SniffedEvent_QuestUpdateFailed::Execute() const
     }
     std::string txt = "Quest " + sReplayMgr.GetQuestName(m_questId) + " (Entry: " + std::to_string(m_questId) + ") marked as failed.";
     pPlayer->MonsterSay(txt.c_str());
+}
+
+void ReplayMgr::LoadXPGainLog()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `victim_guid`, `victim_id`, `victim_type`, `original_amount`, `amount`, `group_bonus` FROM `xp_gain_log` ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint64 unixtimems = fields[0].GetUInt64();
+            uint32 victimGuid = fields[1].GetUInt32();
+            uint32 victimId = fields[2].GetUInt32();
+            std::string victimType = fields[3].GetCppString();
+            uint32 originalAmount = fields[4].GetUInt32();
+            uint32 amount = fields[5].GetUInt32();
+            float groupBonus = fields[6].GetUInt32();
+
+            std::shared_ptr<SniffedEvent_XPGainLog> newEvent = std::make_shared<SniffedEvent_XPGainLog>(victimGuid, victimId, GetKnownObjectTypeId(victimType), originalAmount, amount, groupBonus);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+    }
+}
+
+void SniffedEvent_XPGainLog::Execute() const
+{
+    Unit* pVictim = GetSourceObject().IsEmpty() ? nullptr : sReplayMgr.GetUnit(GetSourceObject());
+
+    WorldPacket data(SMSG_LOG_XPGAIN, 21);
+    data << (pVictim ? pVictim->GetObjectGuid() : ObjectGuid());
+    data << uint32(m_originalAmount);
+    data << uint8(pVictim ? 0 : 1);
+    if (pVictim)
+    {
+        data << uint32(m_amount);
+        data << float(m_groupBonus);
+    }
+    sWorld.SendGlobalMessage(&data);
+}
+
+void ReplayMgr::LoadFactionStandingUpdates()
+{
+    if (auto result = SniffDatabase.Query("SELECT `unixtimems`, `reputation_list_id`, `standing` FROM `faction_standing_update` ORDER BY `unixtimems`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint64 unixtimems = fields[0].GetUInt64();
+            uint32 reputatonListId = fields[1].GetUInt32();
+            uint32 standing = fields[2].GetUInt32();
+
+            std::shared_ptr<SniffedEvent_FactionStandingUpdate> newEvent = std::make_shared<SniffedEvent_FactionStandingUpdate>(reputatonListId, standing);
+            m_eventsMap.insert(std::make_pair(unixtimems, newEvent));
+
+        } while (result->NextRow());
+    }
+}
+
+void SniffedEvent_FactionStandingUpdate::Execute() const
+{
+    WorldPacket data(SMSG_SET_FACTION_STANDING, (16));
+    data << uint32(1);
+    data << uint32(m_reputationListId);
+    data << uint32(m_standing);
+    sWorld.SendGlobalMessage(&data);
 }
 
 std::shared_ptr<WaypointPath> ReplayMgr::GetOrCreateWaypoints(uint32 guid, bool useStartPosition)

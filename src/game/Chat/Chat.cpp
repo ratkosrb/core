@@ -992,6 +992,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { "settime",        SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleSniffSetTimeCommand,         "", nullptr },
         { "gettime",        SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleSniffGetTimeCommand,         "", nullptr },
         { "gotoclient",     SEC_ADMINISTRATOR,  false, &ChatHandler::HandleSniffGoToClientCommand,      "", nullptr },
+        { "listmaps",       SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleSniffListMapsCommand,        "", nullptr },
         { nullptr,          0,                  false, nullptr,                                         "", nullptr }
     };
     static ChatCommand replayCommandTable[] =

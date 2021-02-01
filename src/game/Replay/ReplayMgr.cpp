@@ -1311,7 +1311,9 @@ bool ChatHandler::HandleSniffSetTimeCommand(char* args)
 
 bool ChatHandler::HandleSniffGetTimeCommand(char* args)
 {
-    PSendSysMessage("Current sniff time: %u", sReplayMgr.GetCurrentSniffTime());
+    time_t unixtime = sReplayMgr.GetCurrentSniffTime();
+    struct tm* ptime = gmtime(&unixtime);
+    PSendSysMessage("Current sniff time: %u (%02d:%02d:%02d)", sReplayMgr.GetCurrentSniffTime(), ptime->tm_hour, ptime->tm_min, ptime->tm_sec);
     return true;
 }
 
@@ -1325,20 +1327,99 @@ bool ChatHandler::HandleSniffGoToClientCommand(char* args)
     return true;
 }
 
-std::string ReplayMgr::ListSniffedEventsForObject(KnownObject object)
+bool ChatHandler::HandleSniffListMapsCommand(char* args)
+{
+    std::set<uint32> maps;
+    if (auto result = SniffDatabase.Query("SELECT DISTINCT `map` FROM `creature`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 mapId = fields[0].GetUInt32();
+            maps.insert(mapId);
+
+        } while (result->NextRow());
+    }
+    if (auto result = SniffDatabase.Query("SELECT DISTINCT `map` FROM `gameobject`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 mapId = fields[0].GetUInt32();
+            maps.insert(mapId);
+
+        } while (result->NextRow());
+    }
+    if (auto result = SniffDatabase.Query("SELECT DISTINCT `map` FROM `player`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 mapId = fields[0].GetUInt32();
+            maps.insert(mapId);
+
+        } while (result->NextRow());
+    }
+    if (auto result = SniffDatabase.Query("SELECT DISTINCT `map` FROM `dynamicobject`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 mapId = fields[0].GetUInt32();
+            maps.insert(mapId);
+
+        } while (result->NextRow());
+    }
+    if (auto result = SniffDatabase.Query("SELECT DISTINCT `map` FROM `creature_movement_client`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 mapId = fields[0].GetUInt32();
+            maps.insert(mapId);
+
+        } while (result->NextRow());
+    }
+    if (auto result = SniffDatabase.Query("SELECT DISTINCT `map` FROM `player_movement_client`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 mapId = fields[0].GetUInt32();
+            maps.insert(mapId);
+
+        } while (result->NextRow());
+    }
+    SendSysMessage("Maps involved in sniff:");
+    for (auto mapId : maps)
+    {
+        MapEntry const* pEntry = sMapStorage.LookupEntry<MapEntry>(mapId);
+        PSendSysMessage("%u - %s", mapId, pEntry ? pEntry->name : "Unknown");
+    }
+    return true;
+}
+
+std::string ReplayMgr::ListSniffedEventsForObject(KnownObject object, int32 sniffedEventType)
 {
     std::stringstream eventsList;
     for (const auto& itr : m_eventsMap)
     {
         if (itr.second->GetSourceObject() == object)
         {
-            eventsList << itr.first << " - " << GetSniffedEventName(itr.second->GetType()) << "\n";
+            if (sniffedEventType < 0 || itr.second->GetType() == sniffedEventType)
+                eventsList << itr.first << " - " << GetSniffedEventName(itr.second->GetType()) << "\n";
         }
     }
     return eventsList.str();
 }
 
-bool ChatHandler::HandleUnitListEventsCommand(char* /*args*/)
+bool ChatHandler::HandleUnitListEventsCommand(char* args)
 {
     Unit* pUnit = GetSelectedUnit();
     if (!pUnit)
@@ -1347,6 +1428,9 @@ bool ChatHandler::HandleUnitListEventsCommand(char* /*args*/)
         SetSentErrorMessage(true);
         return false;
     }
+
+    int32 sniffedEventType = -1;
+    ExtractInt32(&args, sniffedEventType);
 
     uint32 guid = 0;
     uint32 entry = 0;
@@ -1374,7 +1458,7 @@ bool ChatHandler::HandleUnitListEventsCommand(char* /*args*/)
     }
 
     KnownObject objectGuid = KnownObject(guid, entry, TypeID(pUnit->GetTypeId()));
-    std::string eventsList = sReplayMgr.ListSniffedEventsForObject(objectGuid);
+    std::string eventsList = sReplayMgr.ListSniffedEventsForObject(objectGuid, sniffedEventType);
     if (eventsList.empty())
         SendSysMessage("No events for target.");
     else
