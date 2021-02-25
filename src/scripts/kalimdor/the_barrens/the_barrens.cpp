@@ -17,98 +17,18 @@
 /* ScriptData
 SDName: The_Barrens
 SD%Complete: 90
-SDComment: Quest support: 863, 898, 1719, 2458, 4921, 6981
+SDComment: Quest support: 863, 898, 1719, 2458, 6981
 SDCategory: Barrens
 EndScriptData */
 
 /* ContentData
-npc_beaten_corpse
 npc_gilthares
-npc_taskmaster_fizzule
 npc_twiggy_flathead
 at_twiggy_flathead
 npc_wizzlecrank_shredder
 EndContentData */
 
 #include "scriptPCH.h"
-
-/*######
-## npc_beaten_corpse
-######*/
-
-enum
-{
-    QUEST_LOST_IN_BATTLE    = 4921
-};
-
-bool GossipHello_npc_beaten_corpse(Player* pPlayer, Creature* pCreature)
-{
-    if (pPlayer->GetQuestStatus(QUEST_LOST_IN_BATTLE) == QUEST_STATUS_INCOMPLETE ||
-            pPlayer->GetQuestStatus(QUEST_LOST_IN_BATTLE) == QUEST_STATUS_COMPLETE)
-        pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Examine corpse in detail...", GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 1);
-
-    pPlayer->SEND_GOSSIP_MENU(3557, pCreature->GetGUID());
-    return true;
-}
-
-bool GossipSelect_npc_beaten_corpse(Player* pPlayer, Creature* pCreature, uint32 uiSender, uint32 uiAction)
-{
-    if (uiAction == GOSSIP_ACTION_INFO_DEF + 1)
-    {
-        pPlayer->SEND_GOSSIP_MENU(3558, pCreature->GetGUID());
-        pPlayer->TalkedToCreature(pCreature->GetEntry(), pCreature->GetGUID());
-    }
-    return true;
-}
-bool GossipHello_npc_Gizmotronic(Player* pPlayer, Creature* pCreature)
-{
-    if ((pPlayer->GetQuestStatus(2381) == QUEST_STATUS_INCOMPLETE))
-    {
-        pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT,
-                                 "Give me what I need stupid machine !",
-                                 GOSSIP_SENDER_MAIN,
-                                 GOSSIP_ACTION_INFO_DEF + 10);
-        pPlayer->SEND_GOSSIP_MENU(pPlayer->GetGossipTextId(pCreature),
-                                  pCreature->GetObjectGuid());
-    }
-    return true;
-}
-
-bool GossipSelect_npc_Gizmotronic(Player* pPlayer, Creature* pCreature, uint32 uiSender, uint32 uiAction)
-{
-    if (uiAction >= GOSSIP_ACTION_INFO_DEF + 10)
-    {
-        pPlayer->CLOSE_GOSSIP_MENU();
-        if (!pPlayer->HasItemCount(5060, 1, true))
-        {
-            uint32 noSpaceForCount = 0;
-            ItemPosCountVec dest;
-            uint8 msg = pPlayer->CanStoreNewItem(NULL_BAG, NULL_SLOT,
-                                                 dest, 5060, 1, &noSpaceForCount);
-
-            if (msg == EQUIP_ERR_OK)
-            {
-                Item* pItem = pPlayer->StoreNewItem(dest, 5060,
-                                                    true, Item::GenerateItemRandomPropertyId(5060));
-                pPlayer->SendNewItem(pItem, 1, true, false);
-            }
-        }
-        if (!pPlayer->HasItemCount(7970, 1, true))
-        {
-            uint32 noSpaceForCount = 0;
-            ItemPosCountVec dest;
-            uint8 msg = pPlayer->CanStoreNewItem(NULL_BAG, NULL_SLOT,
-                                                 dest, 7970, 1, &noSpaceForCount);
-            if (msg == EQUIP_ERR_OK)
-            {
-                Item* pItem = pPlayer->StoreNewItem(dest, 7970,
-                                                    true, Item::GenerateItemRandomPropertyId(7970));
-                pPlayer->SendNewItem(pItem, 1, true, false);
-            }
-        }
-    }
-    return true;
-}
 
 struct npc_pollyAI : public ScriptedAI
 {
@@ -171,6 +91,12 @@ struct npc_giltharesAI : public npc_escortAI
     }
 
     void Reset() override { }
+
+    void JustRespawned() override
+    {
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+        npc_escortAI::JustRespawned();
+    }
 
     void WaypointReached(uint32 uiPointId) override
     {
@@ -242,6 +168,7 @@ bool QuestAccept_npc_gilthares(Player* pPlayer, Creature* pCreature, Quest const
     if (pQuest->GetQuestId() == QUEST_FREE_FROM_HOLD)
     {
         pCreature->SetFactionTemplateId(FACTION_ESCORT_H_NEUTRAL_ACTIVE);
+        pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
         pCreature->SetStandState(UNIT_STAND_STATE_STAND);
 
         DoScriptText(SAY_GIL_START, pCreature, pPlayer);
@@ -252,112 +179,27 @@ bool QuestAccept_npc_gilthares(Player* pPlayer, Creature* pCreature, Quest const
     return true;
 }
 
-/*######
-## npc_taskmaster_fizzule
-######*/
-
-enum
-{
-    FACTION_FRIENDLY_F  = 35,
-    SPELL_FLARE         = 10113,
-    SPELL_FOLLY         = 10137,
-};
-
-struct npc_taskmaster_fizzuleAI : public ScriptedAI
-{
-    npc_taskmaster_fizzuleAI(Creature* pCreature) : ScriptedAI(pCreature)
-    {
-        factionNorm = pCreature->GetFactionTemplateId();
-        Reset();
-    }
-
-    uint32 factionNorm;
-    bool IsFriend;
-    uint32 Reset_Timer;
-    uint8 FlareCount;
-
-    void Reset() override
-    {
-        IsFriend = false;
-        Reset_Timer = 120000;
-        FlareCount = 0;
-        m_creature->SetFactionTemplateId(factionNorm);
-    }
-
-    void DoFriend()
-    {
-        m_creature->RemoveAllAuras();
-        m_creature->DeleteThreatList();
-        m_creature->CombatStop(true);
-
-        m_creature->StopMoving();
-        m_creature->GetMotionMaster()->MoveIdle();
-
-        m_creature->SetFactionTemplateId(FACTION_FRIENDLY_F);
-        m_creature->HandleEmoteCommand(EMOTE_ONESHOT_SALUTE);
-    }
-
-    void SpellHit(Unit *caster, SpellEntry const* spell) override
-    {
-        if (spell->Id == SPELL_FLARE || spell->Id == SPELL_FOLLY)
-        {
-            ++FlareCount;
-
-            if (FlareCount >= 2)
-                IsFriend = true;
-        }
-    }
-
-    void UpdateAI(uint32 const diff) override
-    {
-        if (IsFriend)
-        {
-            if (Reset_Timer < diff)
-                EnterEvadeMode();
-            else Reset_Timer -= diff;
-        }
-
-        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
-            return;
-
-        DoMeleeAttackIfReady();
-    }
-
-    void ReceiveEmote(Player* pPlayer, uint32 emote) override
-    {
-        if (emote == TEXTEMOTE_SALUTE)
-        {
-            if (FlareCount >= 2)
-            {
-                if (m_creature->GetFactionTemplateId() == FACTION_FRIENDLY_F)
-                    return;
-
-                DoFriend();
-            }
-        }
-    }
-};
-
-CreatureAI* GetAI_npc_taskmaster_fizzule(Creature* pCreature)
-{
-    return new npc_taskmaster_fizzuleAI(pCreature);
-}
-
 /*#####
 ## npc_twiggy_flathead
 #####*/
 
-#define SAY_BIG_WILL_READY                  -1000123
-#define SAY_TWIGGY_BEGIN                    -1000124
-#define SAY_TWIGGY_FRAY                     -1000125
-#define SAY_TWIGGY_DOWN                     -1000126
-#define SAY_TWIGGY_OVER                     -1000127
+enum
+{
+    SAY_BIG_WILL_READY = -1000123,
+    SAY_TWIGGY_BEGIN = -1000124,
+    SAY_TWIGGY_FRAY = -1000125,
+    SAY_TWIGGY_DOWN = -1000126,
+    SAY_TWIGGY_OVER = -1000127,
 
-#define NPC_TWIGGY                          6248
-#define NPC_BIG_WILL                        6238
-#define NPC_AFFRAY_CHALLENGER               6240
-#define NPC_AFFRAY_SPECTATOR                6249
-#define QUEST_AFFRAY                        1719
+    NPC_TWIGGY = 6248,
+    NPC_BIG_WILL = 6238,
+    NPC_AFFRAY_CHALLENGER = 6240,
+    NPC_AFFRAY_SPECTATOR = 6249,
+    QUEST_AFFRAY = 1719,
+    FACTION_FRIENDLY = 35,
+    FACTION_MONSTER = 16,
+    FACTION_CREATURE = 7
+};
 
 float AffrayChallengerLoc[6][4] =
 {
@@ -430,7 +272,7 @@ struct npc_twiggy_flatheadAI : public ScriptedAI
                 continue;
             }
 
-            pCreature->SetFactionTemplateId(35);
+            pCreature->SetFactionTemplateId(FACTION_FRIENDLY);
             pCreature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
             pCreature->HandleEmoteCommand(EMOTE_ONESHOT_ROAR);
             AffrayChallenger[i] = pCreature->GetGUID();
@@ -442,7 +284,7 @@ struct npc_twiggy_flatheadAI : public ScriptedAI
         pUnit->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
         pUnit->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
         pUnit->HandleEmoteCommand(EMOTE_ONESHOT_ROAR);
-        pUnit->SetFactionTemplateId(14);
+        pUnit->SetFactionTemplateId(FACTION_MONSTER);
     }
 
     void UpdateAI(uint32 const diff) override
@@ -498,7 +340,7 @@ struct npc_twiggy_flatheadAI : public ScriptedAI
                     if (Unit *temp = m_creature->SummonCreature(NPC_BIG_WILL, -1713.79f, -4342.09f, 6.05f, 6.15f, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 300000))
                     {
                         BigWillGUID = temp->GetGUID();
-                        temp->SetFactionTemplateId(35);
+                        temp->SetFactionTemplateId(FACTION_FRIENDLY);
                         temp->GetMotionMaster()->MovePoint(0, -1682.31f, -4329.68f, 2.78f);
                     }
                     Event_Timer = 15000;
@@ -507,7 +349,7 @@ struct npc_twiggy_flatheadAI : public ScriptedAI
                 case 3:
                     if (Unit *will = m_creature->GetMap()->GetUnit(BigWillGUID))
                     {
-                        will->SetFactionTemplateId(32);
+                        will->SetFactionTemplateId(FACTION_CREATURE);
                         DoScriptText(SAY_BIG_WILL_READY, will, pPlayer);
                     }
                     Event_Timer = 5000;
@@ -698,10 +540,9 @@ struct npc_wizzlecranks_shredderAI : public npc_escortAI
                             break;
                         case 3:
                             if (Player* pPlayer = GetPlayerForEscort())
-                            {
                                 pPlayer->GroupEventHappens(QUEST_ESCAPE, m_creature);
-                                m_creature->SummonCreature(NPC_PILOT_WIZZ, 0.0f, 0.0f, 0.0f, 0.0f, TEMPSUMMON_TIMED_DESPAWN, 180000);
-                            }
+                            m_creature->SummonCreature(NPC_PILOT_WIZZ, 0.0f, 0.0f, 0.0f, 0.0f, TEMPSUMMON_TIMED_DESPAWN, 180000);
+                            m_creature->ResetHomePosition();
                             break;
                     }
 
@@ -749,15 +590,18 @@ enum
 
     GOSSIP_ITEM_START       = 4793,
 
-    SAY_BEWARE              = -1780211,
-    SAY_DEFENDER_FALLEN     = -1780212,
-    EMOTE_CHARGE            = -1780213,
-    YELL_HALF_WAY           = -1780214,
-    SAY_DEFEND              = -1780215,
-    SAY_FOES                = -1780216,
-    SAY_HORDE               = -1780217,
-    YELL_KOLKAR_STRONGEST   = -1780218,
-    YELL_RETREATING         = -1780219,
+    SAY_BEWARE              = 4926,
+    SAY_DEFENDER_FALLEN     = 4757,
+    EMOTE_CHARGE            = 1254,
+    YELL_HALF_WAY           = 8439,
+    SAY_DEFEND              = 4922,
+    SAY_AGGRO_FOES          = 4925,
+    SAY_AGGRO_FOR_HORDE     = 8283,
+    SAY_AGGRO_BEWARE        = 4924,
+    YELL_WARLORD_KROMZAR    = 4919,
+    YELL_RETREATING         = 8897,
+
+    SOUND_HORDE_DEFENDER_AGGRO = 7120,
 
     QUEST_COUNTERATTACK     = 4021,
     GO_KOLKAR_BANNER        = 164690
@@ -1008,7 +852,7 @@ struct npc_regthar_deathgateAI : public ScriptedAI
                             c->SetRespawnDelay(120);
                         }
                     }
-                    DoScriptText(YELL_KOLKAR_STRONGEST, kromzar);
+                    DoScriptText(YELL_WARLORD_KROMZAR, kromzar);
                 }
                 else
                 {
@@ -1230,9 +1074,31 @@ struct npc_axe_throwerAI : public ScriptedAI
     }
     void Aggro(Unit *who) override
     {
-        if (urand(0, 1))
-            DoScriptText(urand(0, 1) ? SAY_HORDE : SAY_FOES, m_creature);
+        /*
+         
+        TODO: Not sure when these texts are acutally broadcasted
+
+        uint32 aggroText = 0;
+        switch (urand(0, 3))
+        {
+        case 0:
+            aggroText = SAY_AGGRO_FOR_HORDE;
+            break;
+        case 1:
+            aggroText = SAY_AGGRO_FOES;
+            break;
+        case 2:
+            aggroText = SAY_AGGRO_BEWARE;
+            break;
+        }
+        DoScriptText(aggroText, m_creature);
+
+        */
+
+        if(urand(0, 1)) // not always play aggro sound, TODO: npc=9457/horde-defender should have this as aggro sound as well
+        m_creature->PlayDirectSound(SOUND_HORDE_DEFENDER_AGGRO);
     }
+
     uint32 throwTimer;
     void UpdateAI(uint32 const uiDiff) override
     {
@@ -1292,53 +1158,6 @@ struct npc_warlord_kromzarAI : public ScriptedAI
 CreatureAI* GetAI_npc_warlord_kromzar(Creature* pCreature)
 {
     return new npc_warlord_kromzarAI(pCreature);
-}
-
-/*######
-## npc_razormane_stalker
-######*/
-
-#define SPELL_STEALTH                1784
-#define SPELL_SINISTERSTRIKE         15667
-#define NPC_RAZORMANE_STALKER        3457
-
-struct npc_razormane_stalkerAI : public ScriptedAI
-{
-    npc_razormane_stalkerAI(Creature* pCreature) : ScriptedAI(pCreature) { Reset(); }
-
-    uint32 SinisterStrike_Timer;
-    uint32 SinisterStrike_Counter;
-
-    void Reset() override
-    {
-        SinisterStrike_Timer = 8000;
-        SinisterStrike_Counter = 0;
-        DoCastSpellIfCan(m_creature, SPELL_STEALTH);
-    }
-
-    void UpdateAI(uint32 const diff) override
-    {
-
-        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
-            return;
-
-        if (SinisterStrike_Timer < diff)
-        {
-            DoCastSpellIfCan(m_creature->GetVictim(), SPELL_SINISTERSTRIKE);
-            SinisterStrike_Counter += 1;
-            if (SinisterStrike_Counter == 1) SinisterStrike_Timer = 15000;
-            else if (SinisterStrike_Counter == 2) SinisterStrike_Timer = 12000;
-            else SinisterStrike_Timer = 15000;
-        }
-        else SinisterStrike_Timer -= diff;
-
-        DoMeleeAttackIfReady();
-    }
-};
-
-CreatureAI* GetAI_npc_razormane_stalker(Creature* pCreature)
-{
-    return new npc_razormane_stalkerAI(pCreature);
 }
 
 /*
@@ -1530,33 +1349,15 @@ void AddSC_the_barrens()
     Script* newscript;
 
     newscript = new Script;
-    newscript->Name = "npc_beaten_corpse";
-    newscript->pGossipHello = &GossipHello_npc_beaten_corpse;
-    newscript->pGossipSelect = &GossipSelect_npc_beaten_corpse;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
     newscript->Name = "npc_gilthares";
     newscript->GetAI = &GetAI_npc_gilthares;
     newscript->pQuestAcceptNPC = &QuestAccept_npc_gilthares;
     newscript->RegisterSelf();
 
     newscript = new Script;
-    newscript->Name = "npc_gizmotronic";
-    newscript->pGossipHello = &GossipHello_npc_Gizmotronic;
-    newscript->pGossipSelect = &GossipSelect_npc_Gizmotronic;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
-    newscript->Name = "npc_taskmaster_fizzule";
-    newscript->GetAI = &GetAI_npc_taskmaster_fizzule;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
     newscript->Name = "npc_polly";
     newscript->GetAI = &GetAI_npc_polly;
     newscript->RegisterSelf();
-
 
     newscript = new Script;
     newscript->Name = "npc_twiggy_flathead";
@@ -1600,11 +1401,6 @@ void AddSC_the_barrens()
     newscript = new Script;
     newscript->Name = "npc_warlord_kromzar";
     newscript->GetAI = &GetAI_npc_warlord_kromzar;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
-    newscript->Name = "npc_razormane_stalker";
-    newscript->GetAI = &GetAI_npc_razormane_stalker;
     newscript->RegisterSelf();
 
     newscript = new Script;

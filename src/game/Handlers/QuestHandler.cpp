@@ -100,13 +100,13 @@ void WorldSession::HandleQuestgiverHelloOpcode(WorldPacket& recv_data)
         GetPlayer()->RemoveSpellsCausingAura(SPELL_AURA_FEIGN_DEATH);
 
     // Stop the npc if moving
-    if (!pCreature->IsStopped())
+    if (!pCreature->IsStopped() && !pCreature->HasExtraFlag(CREATURE_FLAG_EXTRA_NO_MOVEMENT_PAUSE))
         pCreature->StopMoving();
 
     if (sScriptMgr.OnGossipHello(_player, pCreature))
         return;
 
-    _player->PrepareGossipMenu(pCreature, pCreature->GetCreatureInfo()->gossip_menu_id);
+    _player->PrepareGossipMenu(pCreature, pCreature->GetDefaultGossipMenuId());
     _player->SendPreparedGossip(pCreature);
 }
 

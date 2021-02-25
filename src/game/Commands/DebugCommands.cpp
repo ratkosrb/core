@@ -316,6 +316,28 @@ bool ChatHandler::HandleDebugSendEquipErrorCommand(char* args)
     return true;
 }
 
+bool ChatHandler::HandleDebugSendMailErrorCommand(char* args)
+{
+    if (!*args)
+        return false;
+
+    uint32 mailId;
+    if (!ExtractUInt32(&args, mailId))
+        return false;
+
+    uint32 mailAction;
+    if (!ExtractUInt32(&args, mailAction))
+        return false;
+
+    uint32 mailError;
+    if (!ExtractUInt32(&args, mailError))
+        return false;
+
+    uint8 msg = atoi(args);
+    m_session->SendMailResult(mailId, MailResponseType(mailAction), MailResponseResult(mailError));
+    return true;
+}
+
 bool ChatHandler::HandleDebugSendSellErrorCommand(char* args)
 {
     if (!*args)
@@ -1345,8 +1367,6 @@ bool ChatHandler::HandleDebugSpellCoefsCommand(char* args)
     if (!spellEntry)
         return false;
 
-    SpellBonusEntry const* bonus = sSpellMgr.GetSpellBonusData(spellid);
-
     float direct_calc = spellEntry->CalculateDefaultCoefficient(SPELL_DIRECT_DAMAGE);
     float dot_calc = spellEntry->CalculateDefaultCoefficient(DOT);
 
@@ -1379,9 +1399,9 @@ bool ChatHandler::HandleDebugSpellCoefsCommand(char* args)
     char const* dotDamageStr = GetMangosString(LANG_DOT_DAMAGE);
 
     PSendSysMessage(LANG_SPELLCOEFS, spellid, isDirectHeal ? directHealStr : directDamageStr,
-                    direct_calc, direct_calc * 1.88f, bonus ? bonus->direct_damage : 0.0f, bonus ? bonus->ap_bonus : 0.0f);
+                    direct_calc, direct_calc * 1.88f, spellEntry->EffectBonusCoefficient[0], 0.0f);
     PSendSysMessage(LANG_SPELLCOEFS, spellid, isDotHeal ? dotHealStr : dotDamageStr,
-                    dot_calc, dot_calc * 1.88f, bonus ? bonus->dot_damage : 0.0f, bonus ? bonus->ap_dot_bonus : 0.0f);
+                    dot_calc, dot_calc * 1.88f, spellEntry->EffectBonusCoefficient[0], 0.0f);
 
     return true;
 }
@@ -2148,6 +2168,23 @@ bool ChatHandler::HandleDebugMoveToCommand(char* args)
     return true;
 }
 
+bool ChatHandler::HandleDebugMoveDistanceCommand(char* args)
+{
+    Player* player = m_session->GetPlayer();
+    Unit* target = GetSelectedUnit();
+    if (!player || !target || player == target)
+    {
+        SendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
+        return true;
+    }
+
+    float distance = 10.0f;
+    ExtractFloat(&args, distance);
+    target->GetMotionMaster()->MoveDistance(player, distance);
+    PSendSysMessage("%s is moving %g yards away from you.", target->GetName(), distance);
+    return true;
+}
+
 bool ChatHandler::HandleDebugFaceMeCommand(char* args)
 {
     Player* player = m_session->GetPlayer();
@@ -2560,5 +2597,57 @@ bool ChatHandler::HandleMmapLoad(char* args)
     gy = 32 - pl->GetPositionY() / SIZE_OF_GRIDS;
     PSendSysMessage("* Load tile [%u:%u]", gx, gy);
     MMAP::MMapFactory::createOrGetMMapManager()->loadMap(pl->GetMapId(), gx, gy);
+    return true;
+}
+
+bool ChatHandler::HandleDebugUnitBytes1Command(char *args)
+{
+    Unit* target = GetSelectedUnit();
+    if (!target)
+    {
+        SendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    uint32 offset;
+    if (!ExtractUInt32(&args, offset))
+        return false;
+
+    if (offset > 3)
+        return false;
+
+    uint32 value;
+    if (!ExtractUInt32(&args, value))
+        return false;
+
+    target->SetByteValue(UNIT_FIELD_BYTES_1, offset, value);
+
+    return true;
+}
+
+bool ChatHandler::HandleDebugUnitBytes2Command(char *args)
+{
+    Unit* target = GetSelectedUnit();
+    if (!target)
+    {
+        SendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    uint32 offset;
+    if (!ExtractUInt32(&args, offset))
+        return false;
+
+    if (offset > 3)
+        return false;
+
+    uint32 value;
+    if (!ExtractUInt32(&args, value))
+        return false;
+
+    target->SetByteValue(UNIT_FIELD_BYTES_2, offset, value);
+
     return true;
 }

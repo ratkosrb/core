@@ -46,6 +46,25 @@
 #include "ZoneScript.h"
 #include "DynamicTree.h"
 #include "vmap/GameObjectModel.h"
+#include <G3D/Box.h>
+#include <G3D/CoordinateFrame.h>
+#include <G3D/Quat.h>
+
+bool QuaternionData::isUnit() const
+{
+    return fabs(x * x + y * y + z * z + w * w - 1.0f) < 1e-5f;
+}
+
+void QuaternionData::toEulerAnglesZYX(float& Z, float& Y, float& X) const
+{
+    G3D::Matrix3(G3D::Quat(x, y, z, w)).toEulerAnglesZYX(Z, Y, X);
+}
+
+QuaternionData QuaternionData::fromEulerAnglesZYX(float Z, float Y, float X)
+{
+    G3D::Quat quat(G3D::Matrix3::fromEulerAnglesZYX(Z, Y, X));
+    return QuaternionData(quat.x, quat.y, quat.z, quat.w);
+}
 
 GameObject::GameObject() : WorldObject(),
     loot(this),
@@ -272,6 +291,8 @@ void GameObject::Update(uint32 update_diff, uint32 /*p_time*/)
         return;
     }
 
+    UpdateCooldowns(sWorld.GetCurrentClockTime());
+
     m_Events.Update(update_diff);
 
     // remove finished spells from current pointers
@@ -488,17 +509,8 @@ void GameObject::Update(uint32 update_diff, uint32 /*p_time*/)
 
                         // TODO: all traps can be activated, also those without spell.
                         // Some may have have animation and/or are expected to despawn.
-                        switch (GetDisplayId())
-                        {
-                            case 3073:
-                            case 4392:
-                            case 4472:
-                            case 4491:
-                            case 6785:
-                            case 6747: //sapphiron birth
-                                SendGameObjectCustomAnim();
-                                break;
-                        }
+                        if (HasCustomAnim())
+                            SendGameObjectCustomAnim();
                     }
                 }
 
@@ -517,19 +529,11 @@ void GameObject::Update(uint32 update_diff, uint32 /*p_time*/)
         {
             switch (GetGoType())
             {
-                case GAMEOBJECT_TYPE_DOOR: // Ustaag <Nostalrius>
-                {
-                    if ((m_cooldownTime < time(nullptr)) && (GetGOInfo()->GetAutoCloseTime() != 0))
-                        ResetDoorOrButton();
-                    break;
-                }
+                case GAMEOBJECT_TYPE_DOOR:
                 case GAMEOBJECT_TYPE_BUTTON:
-                {
-                    if ((m_cooldownTime < time(nullptr)) && (GetGOInfo()->GetAutoCloseTime() != 0))  // Ustaag <Nostalrius>
-                        //if (m_respawnDelayTime && (m_cooldownTime < time(nullptr)))
+                    if (GetGOInfo()->GetAutoCloseTime() && (m_cooldownTime < time(nullptr)))
                         ResetDoorOrButton();
                     break;
-                }
                 case GAMEOBJECT_TYPE_GOOBER:
                     if (m_cooldownTime < time(nullptr))
                     {
@@ -661,7 +665,7 @@ void GameObject::Refresh()
 
 void GameObject::AddUniqueUse(Player* player)
 {
-    ACE_Guard <ACE_Thread_Mutex> guard(m_UniqueUsers_lock);
+    std::unique_lock<std::mutex> guard(m_UniqueUsers_lock);
 
     AddUse();
 
@@ -673,7 +677,7 @@ void GameObject::AddUniqueUse(Player* player)
 
     m_UniqueUsers.insert(player->GetObjectGuid());
 
-    guard.release();
+    guard.unlock();
 
     if (GameObjectInfo const* info = GetGOInfo())
         if (info->type == GAMEOBJECT_TYPE_SUMMONING_RITUAL &&
@@ -696,7 +700,7 @@ void GameObject::AddUniqueUse(Player* player)
 
 void GameObject::RemoveUniqueUse(Player* player)
 {
-    ACE_Guard <ACE_Thread_Mutex> guard(m_UniqueUsers_lock);
+    const std::lock_guard<std::mutex> guard(m_UniqueUsers_lock);
 
     auto itr = m_UniqueUsers.find(player->GetObjectGuid());
     if (itr == m_UniqueUsers.end())
@@ -725,14 +729,14 @@ void GameObject::RemoveUniqueUse(Player* player)
 
 void GameObject::FinishRitual()
 {
-    ACE_Guard <ACE_Thread_Mutex> guard(m_UniqueUsers_lock);
+    std::unique_lock<std::mutex> guard(m_UniqueUsers_lock);
 
     if (GameObjectInfo const* info = GetGOInfo())
     {
         // take spell cooldown
         if (GetOwner() && GetOwner()->IsPlayer())
             if (SpellEntry const* createBySpell = sSpellMgr.GetSpellEntry(GetSpellId()))
-                GetOwner()->CooldownEvent(createBySpell);
+                GetOwner()->AddCooldown(*createBySpell);
         if (!info->summoningRitual.ritualPersistent)
             SetLootState(GO_JUST_DEACTIVATED);
         // Only ritual of doom deals a second spell
@@ -744,7 +748,7 @@ void GameObject::FinishRitual()
             {
                 std::advance(it, urand(0, m_UniqueUsers.size() - 1));
 
-                guard.release();
+                guard.unlock();
 
                 if (Player* target = GetMap()->GetPlayer(*it))
                     target->CastSpell(target, spellid, true);
@@ -755,13 +759,13 @@ void GameObject::FinishRitual()
 
 bool GameObject::HasUniqueUser(Player* player)
 {
-    ACE_Guard <ACE_Thread_Mutex> guard(m_UniqueUsers_lock);
+    const std::lock_guard<std::mutex> guard(m_UniqueUsers_lock);
     return m_UniqueUsers.find(player->GetObjectGuid()) != m_UniqueUsers.end();
 }
 
 uint32 GameObject::GetUniqueUseCount()
 {
-    ACE_Guard <ACE_Thread_Mutex> guard(m_UniqueUsers_lock);
+    const std::lock_guard<std::mutex> guard(m_UniqueUsers_lock);
     return m_UniqueUsers.size();
 }
 
@@ -1025,6 +1029,17 @@ Unit* GameObject::GetOwner() const
     return FindMap()->GetUnit(GetOwnerGuid());
 }
 
+Player* GameObject::GetAffectingPlayer() const
+{
+    if (!GetOwnerGuid())
+        return nullptr;
+
+    if (Unit* owner = GetOwner())
+        return owner->GetCharmerOrOwnerPlayerOrPlayerItself();
+
+    return nullptr;
+}
+
 void GameObject::SaveRespawnTime()
 {
     if (m_respawnTime > time(nullptr) && m_spawnedByDefault)
@@ -1057,6 +1072,9 @@ bool GameObject::IsVisibleForInState(WorldObject const* pDetector, WorldObject c
 
         // despawned and then not visible for non-GM in GM-mode
         if (!isSpawned())
+            return false;
+
+        if (GetGOInfo()->IsServerOnly())
             return false;
 
         // special invisibility cases
@@ -1414,6 +1432,9 @@ void GameObject::Use(Unit* user)
                 else
                     CastSpell(user, spellId, true, nullptr, nullptr, GetObjectGuid());
             }
+
+            if (HasCustomAnim())
+                SendGameObjectCustomAnim();
 
             if (uint32 max_charges = GetGOInfo()->GetCharges())
             {
@@ -2328,6 +2349,26 @@ GameObjectData const* GameObject::GetGOData() const
     return sObjectMgr.GetGOData(GetGUIDLow());
 }
 
+bool GameObject::HasCustomAnim() const
+{
+    switch (GetDisplayId())
+    {
+        case 3071: // freezing trap
+        case 3072: // explosive trap
+        case 3073: // frost trap, fixed trap
+        case 3074: // immolation trap
+        case 4392: // lava fissure
+        case 4472: // lava fissure
+        case 4491: // mortar in dun morogh
+        case 6785: // plague fissure
+        case 6747: // sapphiron birth
+        case 6871: // Silithyst bring in
+            return true;
+    }
+
+    return false;
+}
+
 void GameObject::SendGameObjectCustomAnim(uint32 animId /*= 0*/)
 {
     WorldPacket data(SMSG_GAMEOBJECT_CUSTOM_ANIM, 8 + 4);
@@ -2388,54 +2429,84 @@ uint32 GameObject::GetLevel() const
     return level > 0 ? level : PLAYER_MAX_LEVEL;
 }
 
-// function based on function Unit::CanAttack from 13850 client
-bool GameObject::IsValidAttackTarget(Unit const* target) const
+bool GameObject::IsAtInteractDistance(Player const* player, uint32 maxRange) const
 {
-    ASSERT(target);
-
-    if (FindMap() != target->FindMap())
-        return false;
-
-    // can't attack unattackable units or GMs
-    if (target->GetTypeId() == TYPEID_PLAYER && target->ToPlayer()->IsGameMaster())
-        return false;
-
-    // check flags
-    if (target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_TAXI_FLIGHT | UNIT_FLAG_NOT_ATTACKABLE_1 | UNIT_FLAG_NON_ATTACKABLE_2))
-        return false;
-
-    // CvC case - can attack each other only when one of them is hostile
-    if (!target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED))
-        return GetReactionTo(target) <= REP_HOSTILE || target->GetReactionTo(this) <= REP_HOSTILE;
-
-    // PvP, PvC, CvP case
-    // can't attack friendly targets
-    if (GetReactionTo(target) > REP_NEUTRAL
-        || target->GetReactionTo(this) > REP_NEUTRAL)
-        return false;
-
-    Player const* playerAffectingTarget = target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED) ? target->GetAffectingPlayer() : nullptr;
-
-    // Not all neutral creatures can be attacked
-    if (GetReactionTo(target) == REP_NEUTRAL &&
-        target->GetReactionTo(this) == REP_NEUTRAL)
+    SpellEntry const* spellInfo;
+    if (maxRange || (spellInfo = GetSpellForLock(player)))
     {
-        if (playerAffectingTarget)
+        if (maxRange == 0.f)
         {
-            Player const* player = playerAffectingTarget;
-            WorldObject const* non_player = this;
-
-            if (FactionTemplateEntry const* factionTemplate = non_player->getFactionTemplateEntry())
-            {
-                if (!(player->GetReputationMgr().GetForcedRankIfAny(factionTemplate)))
-                    if (FactionEntry const* factionEntry = sObjectMgr.GetFactionEntry(factionTemplate->faction))
-                        if (FactionState const* repState = player->GetReputationMgr().GetState(factionEntry))
-                            if (!(repState->Flags & FACTION_FLAG_AT_WAR))
-                                return false;
-
-            }
+            SpellRangeEntry const* srange = sSpellRangeStore.LookupEntry(spellInfo->rangeIndex);
+            maxRange = srange ? srange->maxRange : 0;
         }
+
+        if (GetGoType() == GAMEOBJECT_TYPE_SPELL_FOCUS)
+            return maxRange * maxRange >= GetDistance3dToCenter(player);
+
+        if (sGameObjectDisplayInfoStore.LookupEntry(GetGOInfo()->displayId))
+            return IsAtInteractDistance(player->GetPosition(), maxRange);
     }
 
-    return true;
+    return IsAtInteractDistance(player->GetPosition(), GetGOInfo()->GetInteractionDistance());
+}
+
+bool GameObject::IsAtInteractDistance(Position const& pos, float radius) const
+{
+    if (GameObjectDisplayInfoAddon const* displayInfo = sGameObjectDisplayInfoAddonStorage.LookupEntry<GameObjectDisplayInfoAddon>(GetDisplayId()))
+    {
+        float scale = GetObjectScale();
+
+        float minX = displayInfo->min_x * scale - radius;
+        float minY = displayInfo->min_y * scale - radius;
+        float minZ = displayInfo->min_z * scale - radius;
+        float maxX = displayInfo->max_x * scale + radius;
+        float maxY = displayInfo->max_y * scale + radius;
+        float maxZ = displayInfo->max_z * scale + radius;
+
+        QuaternionData worldRotation = GetLocalRotation();
+        G3D::Quat worldRotationQuat(worldRotation.x, worldRotation.y, worldRotation.z, worldRotation.w);
+
+        return G3D::CoordinateFrame{ { worldRotationQuat },{ GetPositionX(), GetPositionY(), GetPositionZ() } }
+            .toWorldSpace(G3D::Box{ { minX, minY, minZ },{ maxX, maxY, maxZ } })
+            .contains({ pos.x, pos.y, pos.z });
+    }
+
+    return GetDistance3dToCenter(pos) <= (radius * radius);
+}
+
+SpellEntry const* GameObject::GetSpellForLock(Player const* player) const
+{
+    if (!player)
+        return nullptr;
+
+    uint32 lockId = GetGOInfo()->GetLockId();
+    if (!lockId)
+        return nullptr;
+
+    LockEntry const* lock = sLockStore.LookupEntry(lockId);
+    if (!lock)
+        return nullptr;
+
+    for (uint8 i = 0; i < MAX_LOCK_CASE; ++i)
+    {
+        if (!lock->Type[i])
+            continue;
+
+        if (lock->Type[i] != LOCK_KEY_SKILL)
+            break;
+
+        for (auto&& playerSpell : player->GetSpellMap())
+            if (SpellEntry const* spellInfo = sSpellMgr.GetSpellEntry(playerSpell.first))
+                for (uint32 i = 0; i < MAX_EFFECT_INDEX; ++i)
+                    if (spellInfo->Effect[i] == SPELL_EFFECT_OPEN_LOCK && ((uint32)spellInfo->EffectMiscValue[i]) == lock->Index[i])
+                        if (player->CalculateSpellEffectValue(nullptr, spellInfo, SpellEffectIndex(i), nullptr) >= int32(lock->Skill[i]))
+                            return spellInfo;
+    }
+
+    return nullptr;
+}
+
+const QuaternionData GameObject::GetLocalRotation() const
+{
+    return QuaternionData(GetFloatValue(GAMEOBJECT_ROTATION), GetFloatValue(GAMEOBJECT_ROTATION + 1), GetFloatValue(GAMEOBJECT_ROTATION + 2), GetFloatValue(GAMEOBJECT_ROTATION + 3));
 }

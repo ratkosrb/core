@@ -70,8 +70,8 @@ void PlayerBotMgr::Load()
 
     // 3- Load usable account ID
     QueryResult* result = LoginDatabase.PQuery(
-                              "SELECT MAX(id)"
-                              " FROM account");
+                              "SELECT MAX(`id`)"
+                              " FROM `account`");
     if (!result)
     {
         sLog.outError("Playerbot: unable to load max account id.");
@@ -179,7 +179,7 @@ void PlayerBotMgr::OnPlayerInWorld(Player* player)
 {
     if (PlayerBotEntry* e = player->GetSession()->GetBot())
     {
-        player->setAI(e->ai);
+        player->SetAI(e->ai);
         e->ai->SetPlayer(player);
         e->ai->OnPlayerLogin();
     }
@@ -595,15 +595,9 @@ uint8 SelectRandomRaceForClass(uint8 playerClass, Team playerTeam)
         case CLASS_WARRIOR:
         {
             if (playerTeam == ALLIANCE)
-            {
-                std::vector<uint32> races = { RACE_HUMAN, RACE_DWARF, RACE_NIGHTELF, RACE_GNOME };
-                return SelectRandomContainerElement(races);
-            }
+                return PickRandomValue(RACE_HUMAN, RACE_DWARF, RACE_NIGHTELF, RACE_GNOME);
             else
-            {
-                std::vector<uint32> races = { RACE_ORC, RACE_UNDEAD, RACE_TAUREN, RACE_TROLL };
-                return SelectRandomContainerElement(races);
-            }
+                return PickRandomValue(RACE_ORC, RACE_UNDEAD, RACE_TAUREN, RACE_TROLL);
             break;
         }
         case CLASS_PALADIN:
@@ -613,76 +607,45 @@ uint8 SelectRandomRaceForClass(uint8 playerClass, Team playerTeam)
         case CLASS_HUNTER:
         {
             if (playerTeam == ALLIANCE)
-            {
-                std::vector<uint32> races = { RACE_DWARF, RACE_NIGHTELF };
-                return SelectRandomContainerElement(races);
-            }
+                return urand(0, 1) ? RACE_DWARF : RACE_NIGHTELF;
             else
-            {
-                std::vector<uint32> races = { RACE_ORC, RACE_TAUREN, RACE_TROLL };
-                return SelectRandomContainerElement(races);
-            }
+                return PickRandomValue(RACE_ORC, RACE_TAUREN, RACE_TROLL);
             break;
         }
         case CLASS_ROGUE:
         {
             if (playerTeam == ALLIANCE)
-            {
-                std::vector<uint32> races = { RACE_HUMAN, RACE_DWARF, RACE_NIGHTELF, RACE_GNOME };
-                return SelectRandomContainerElement(races);
-            }
+                return PickRandomValue(RACE_HUMAN, RACE_DWARF, RACE_NIGHTELF, RACE_GNOME);
             else
-            {
-                std::vector<uint32> races = { RACE_ORC, RACE_UNDEAD, RACE_TROLL };
-                return SelectRandomContainerElement(races);
-            }
+                return PickRandomValue(RACE_ORC, RACE_UNDEAD, RACE_TROLL);
             break;
         }
         case CLASS_PRIEST:
         {
             if (playerTeam == ALLIANCE)
-            {
-                std::vector<uint32> races = { RACE_HUMAN, RACE_DWARF, RACE_NIGHTELF };
-                return SelectRandomContainerElement(races);
-            }
+                return PickRandomValue(RACE_HUMAN, RACE_DWARF, RACE_NIGHTELF);
             else
-            {
-                std::vector<uint32> races = { RACE_UNDEAD, RACE_TROLL };
-                return SelectRandomContainerElement(races);
-            }
+                return urand(0, 1) ? RACE_UNDEAD : RACE_TROLL;
             break;
         }
         case CLASS_SHAMAN:
         {
-            std::vector<uint32> races = { RACE_ORC, RACE_TAUREN, RACE_TROLL };
-            return SelectRandomContainerElement(races);
+            return PickRandomValue(RACE_ORC, RACE_TAUREN, RACE_TROLL);
         }
         case CLASS_MAGE:
         {
             if (playerTeam == ALLIANCE)
-            {
-                std::vector<uint32> races = { RACE_HUMAN, RACE_GNOME };
-                return SelectRandomContainerElement(races);
-            }
+                return urand(0, 1) ? RACE_HUMAN : RACE_GNOME;
             else
-            {
-                std::vector<uint32> races = { RACE_UNDEAD, RACE_TROLL };
-                return SelectRandomContainerElement(races);
-            }
+                return urand(0, 1) ? RACE_UNDEAD : RACE_TROLL;
             break;
         }
         case CLASS_WARLOCK:
         {
             if (playerTeam == ALLIANCE)
-            {
-                std::vector<uint32> races = { RACE_HUMAN, RACE_GNOME };
-                return SelectRandomContainerElement(races);
-            }
+                return urand(0, 1) ? RACE_HUMAN : RACE_GNOME;
             else
-            {
-                std::vector<uint32> races = { RACE_ORC, RACE_UNDEAD };
-                return SelectRandomContainerElement(races);
-            }
+                return urand(0, 1) ? RACE_ORC : RACE_UNDEAD;
             break;
         }
         case CLASS_DRUID:
@@ -798,49 +761,54 @@ bool ChatHandler::HandlePartyBotAddCommand(char* args)
     }
 
     uint8 botClass = 0;
+    uint32 botLevel = sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL);
     CombatBotRoles botRole = ROLE_INVALID;
 
-    std::string option = args;
-    if (option == "warrior")
-        botClass = CLASS_WARRIOR;
-    else if (option == "paladin" && pPlayer->GetTeam() == ALLIANCE)
-        botClass = CLASS_PALADIN;
-    else if (option == "hunter")
-        botClass = CLASS_HUNTER;
-    else if (option == "rogue")
-        botClass = CLASS_ROGUE;
-    else if (option == "priest")
-        botClass = CLASS_PRIEST;
-    else if (option == "shaman" && pPlayer->GetTeam() == HORDE)
-        botClass = CLASS_SHAMAN;
-    else if (option == "mage")
-        botClass = CLASS_MAGE;
-    else if (option == "warlock")
-        botClass = CLASS_WARLOCK;
-    else if (option == "druid")
-        botClass = CLASS_DRUID;
-    else if (option == "hunter")
-        botClass = CLASS_HUNTER;
-    else if (option == "dps")
+    if (char* arg1 = ExtractArg(&args))
     {
-        std::vector<uint32> dpsClasses = { CLASS_WARRIOR, CLASS_HUNTER, CLASS_ROGUE, CLASS_MAGE, CLASS_WARLOCK };
-        botClass = SelectRandomContainerElement(dpsClasses);
-        botRole = CombatBotBaseAI::IsMeleeDamageClass(botClass) ? ROLE_MELEE_DPS : ROLE_RANGE_DPS;
-    }
-    else if (option == "healer")
-    {
-        std::vector<uint32> dpsClasses = { CLASS_PRIEST, CLASS_DRUID };
-        if (pPlayer->GetTeam() == HORDE)
-            dpsClasses.push_back(CLASS_SHAMAN);
-        else
-            dpsClasses.push_back(CLASS_PALADIN);
-        botClass = SelectRandomContainerElement(dpsClasses);
-        botRole = ROLE_HEALER;
-    }
-    else if (option == "tank")
-    {
-        botClass = CLASS_WARRIOR;
-        botRole = ROLE_TANK;
+        std::string option = arg1;
+        if (option == "warrior")
+            botClass = CLASS_WARRIOR;
+        else if (option == "paladin" && pPlayer->GetTeam() == ALLIANCE)
+            botClass = CLASS_PALADIN;
+        else if (option == "hunter")
+            botClass = CLASS_HUNTER;
+        else if (option == "rogue")
+            botClass = CLASS_ROGUE;
+        else if (option == "priest")
+            botClass = CLASS_PRIEST;
+        else if (option == "shaman" && pPlayer->GetTeam() == HORDE)
+            botClass = CLASS_SHAMAN;
+        else if (option == "mage")
+            botClass = CLASS_MAGE;
+        else if (option == "warlock")
+            botClass = CLASS_WARLOCK;
+        else if (option == "druid")
+            botClass = CLASS_DRUID;
+        else if (option == "hunter")
+            botClass = CLASS_HUNTER;
+        else if (option == "dps")
+        {
+            botClass = PickRandomValue(CLASS_WARRIOR, CLASS_HUNTER, CLASS_ROGUE, CLASS_MAGE, CLASS_WARLOCK);
+            botRole = CombatBotBaseAI::IsMeleeDamageClass(botClass) ? ROLE_MELEE_DPS : ROLE_RANGE_DPS;
+        }
+        else if (option == "healer")
+        {
+            std::vector<uint32> dpsClasses = { CLASS_PRIEST, CLASS_DRUID };
+            if (pPlayer->GetTeam() == HORDE)
+                dpsClasses.push_back(CLASS_SHAMAN);
+            else
+                dpsClasses.push_back(CLASS_PALADIN);
+            botClass = SelectRandomContainerElement(dpsClasses);
+            botRole = ROLE_HEALER;
+        }
+        else if (option == "tank")
+        {
+            botClass = CLASS_WARRIOR;
+            botRole = ROLE_TANK;
+        }
+
+        ExtractUInt32(&args, botLevel);
     }
 
     if (!botClass)
@@ -855,7 +823,7 @@ bool ChatHandler::HandlePartyBotAddCommand(char* args)
     float x, y, z;
     pPlayer->GetNearPoint(pPlayer, x, y, z, 0, 5.0f, frand(0.0f, 6.0f));
 
-    PartyBotAI* ai = new PartyBotAI(pPlayer, nullptr, botRole, botRace, botClass, pPlayer->GetMapId(), pPlayer->GetMap()->GetInstanceId(), x, y, z, pPlayer->GetOrientation());
+    PartyBotAI* ai = new PartyBotAI(pPlayer, nullptr, botRole, botRace, botClass, botLevel, pPlayer->GetMapId(), pPlayer->GetMap()->GetInstanceId(), x, y, z, pPlayer->GetOrientation());
     sPlayerBotMgr.AddBot(ai);
     
     SendSysMessage("New party bot added.");
@@ -889,7 +857,7 @@ bool ChatHandler::HandlePartyBotCloneCommand(char* args)
     float x, y, z;
     pPlayer->GetNearPoint(pPlayer, x, y, z, 0, 5.0f, frand(0.0f, 6.0f));
 
-    PartyBotAI* ai = new PartyBotAI(pPlayer, pTarget, ROLE_INVALID, botRace, botClass, pPlayer->GetMapId(), pPlayer->GetMap()->GetInstanceId(), x, y, z, pPlayer->GetOrientation());
+    PartyBotAI* ai = new PartyBotAI(pPlayer, pTarget, ROLE_INVALID, botRace, botClass, pPlayer->GetLevel(), pPlayer->GetMapId(), pPlayer->GetMap()->GetInstanceId(), x, y, z, pPlayer->GetOrientation());
     sPlayerBotMgr.AddBot(ai);
 
     SendSysMessage("New party bot clone added.");
@@ -944,6 +912,514 @@ bool ChatHandler::HandlePartyBotSetRoleCommand(char* args)
     return false;
 }
 
+bool ChatHandler::HandlePartyBotAttackStartCommand(char* args)
+{
+    Player* pPlayer = GetSession()->GetPlayer();
+    Unit* pTarget = GetSelectedUnit();
+    if (!pTarget || (pTarget == pPlayer))
+    {
+        SendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+    
+    Group* pGroup = pPlayer->GetGroup();
+    if (!pGroup)
+    {
+        SendSysMessage("You are not in a group.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
+    {
+        if (Player* pMember = itr->getSource())
+        {
+            if (pMember == pPlayer)
+                continue;
+
+            if (pMember->AI())
+            {
+                if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pMember->AI()))
+                {
+                    if (pMember->IsValidAttackTarget(pTarget))
+                        pAI->AttackStart(pTarget);
+                }
+            }            
+        }
+    }
+    
+    PSendSysMessage("All party bots are now attacking %s.", pTarget->GetName());
+    return true;
+}
+
+void StopPartyBotAttackHelper(PartyBotAI* pAI, Player* pBot)
+{
+    pBot->AttackStop(true);
+    pBot->InterruptNonMeleeSpells(false);
+    if (!pBot->IsStopped())
+        pBot->StopMoving();
+    if (pBot->GetMotionMaster()->GetCurrentMovementGeneratorType() == CHASE_MOTION_TYPE)
+        pBot->GetMotionMaster()->Clear();
+    if (pAI->m_updateTimer.GetExpiry() < 3000)
+        pAI->m_updateTimer.Reset(3000);
+}
+
+bool ChatHandler::HandlePartyBotAttackStopCommand(char* args)
+{
+    Player* pPlayer = GetSession()->GetPlayer();
+    Unit* pTarget = GetSelectedUnit();
+    if (!pTarget || (pTarget == pPlayer))
+    {
+        SendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    Group* pGroup = pPlayer->GetGroup();
+    if (!pGroup)
+    {
+        SendSysMessage("You are not in a group.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
+    {
+        if (Player* pMember = itr->getSource())
+        {
+            if (pMember == pPlayer)
+                continue;
+
+            if (pMember->AI())
+            {
+                if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pMember->AI()))
+                {
+                    if (pMember->GetVictim() == pTarget)
+                        StopPartyBotAttackHelper(pAI, pMember);
+                }
+            }
+        }
+    }
+
+    PSendSysMessage("All party bots have stopped attacking %s.", pTarget->GetName());
+    return true;
+}
+
+static std::map<std::string, RaidTargetIcon> raidTargetIcons =
+{
+    { "star",     RAID_TARGET_ICON_STAR     },
+    { "circle",   RAID_TARGET_ICON_CIRCLE   },
+    { "diamond",  RAID_TARGET_ICON_DIAMOND  },
+    { "triangle", RAID_TARGET_ICON_TRIANGLE },
+    { "moon",     RAID_TARGET_ICON_MOON     },
+    { "square",   RAID_TARGET_ICON_SQUARE   },
+    { "cross",    RAID_TARGET_ICON_CROSS    },
+    { "skull",    RAID_TARGET_ICON_SKULL    },
+};
+
+bool ChatHandler::HandlePartyBotControlMarkCommand(char* args)
+{
+    std::string mark = args;
+    auto itrMark = raidTargetIcons.find(mark);
+    if (itrMark == raidTargetIcons.end())
+    {
+        SendSysMessage("Unknown target mark. Valid names are: star, circle, diamond, triangle, moon, square, cross, skill");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    Player* pPlayer = GetSession()->GetPlayer();
+    Player* pTarget = GetSelectedPlayer();
+
+    if (pTarget && (pTarget != pPlayer))
+    {
+        if (pTarget->AI())
+        {
+            if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pTarget->AI()))
+            {
+                PSendSysMessage("%s will crowd control %s.", pTarget->GetName(), args);
+                pAI->m_marksToCC.push_back(itrMark->second);
+                return true;
+            }
+        }
+        SendSysMessage("Target is not a party bot.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    Group* pGroup = pPlayer->GetGroup();
+    if (!pGroup)
+    {
+        SendSysMessage("You are not in a group.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
+    {
+        if (Player* pMember = itr->getSource())
+        {
+            if (pMember == pPlayer)
+                continue;
+
+            if (pMember->AI())
+            {
+                if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pMember->AI()))
+                {
+                    pAI->m_marksToCC.push_back(itrMark->second);
+                }
+            }
+        }
+    }
+
+    PSendSysMessage("All party bots will crowd control %s.", args);
+    return true;
+}
+
+bool ChatHandler::HandlePartyBotFocusMarkCommand(char* args)
+{
+    std::string mark = args;
+    auto itrMark = raidTargetIcons.find(mark);
+    if (itrMark == raidTargetIcons.end())
+    {
+        SendSysMessage("Unknown target mark. Valid names are: star, circle, diamond, triangle, moon, square, cross, skill");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    Player* pPlayer = GetSession()->GetPlayer();
+    Player* pTarget = GetSelectedPlayer();
+
+    if (pTarget && (pTarget != pPlayer))
+    {
+        if (pTarget->AI())
+        {
+            if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pTarget->AI()))
+            {
+                PSendSysMessage("%s will focus %s.", pTarget->GetName(), args);
+                pAI->m_marksToFocus.push_back(itrMark->second);
+                return true;
+            }
+        }
+        SendSysMessage("Target is not a party bot.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    Group* pGroup = pPlayer->GetGroup();
+    if (!pGroup)
+    {
+        SendSysMessage("You are not in a group.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
+    {
+        if (Player* pMember = itr->getSource())
+        {
+            if (pMember == pPlayer)
+                continue;
+
+            if (pMember->AI())
+            {
+                if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pMember->AI()))
+                {
+                    pAI->m_marksToFocus.push_back(itrMark->second);
+                }
+            }
+        }
+    }
+
+    PSendSysMessage("All party bots will focus %s.", args);
+    return true;
+}
+
+bool ChatHandler::HandlePartyBotClearMarksCommand(char* args)
+{
+    Player* pPlayer = GetSession()->GetPlayer();
+    Player* pTarget = GetSelectedPlayer();
+
+    if (pTarget && (pTarget != pPlayer))
+    {
+        if (pTarget->AI())
+        {
+            if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pTarget->AI()))
+            {
+                PSendSysMessage("All mark assignments cleared for %s.", pTarget->GetName());
+                pAI->m_marksToCC.clear();
+                pAI->m_marksToFocus.clear();
+                return true;
+            }
+        }
+        SendSysMessage("Target is not a party bot.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    Group* pGroup = pPlayer->GetGroup();
+    if (!pGroup)
+    {
+        SendSysMessage("You are not in a group.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
+    {
+        if (Player* pMember = itr->getSource())
+        {
+            if (pMember == pPlayer)
+                continue;
+
+            if (pMember->AI())
+            {
+                if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pMember->AI()))
+                {
+                    pAI->m_marksToCC.clear();
+                    pAI->m_marksToFocus.clear();
+                }
+            }
+        }
+    }
+
+    SendSysMessage("Mark assignments cleared for all bots.");
+    return true;
+}
+
+bool HandlePartyBotComeToMeHelper(Player* pBot, Player* pPlayer)
+{
+    if (pBot->AI() && pBot->IsAlive() && pBot->IsInMap(pPlayer) && !pBot->HasUnitState(UNIT_STAT_NO_FREE_MOVE))
+    {
+        if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pBot->AI()))
+        {
+            if (pBot->GetVictim())
+                StopPartyBotAttackHelper(pAI, pBot);
+
+            if (pBot->GetStandState() != UNIT_STAND_STATE_STAND)
+                pBot->SetStandState(UNIT_STAND_STATE_STAND);
+
+            pBot->InterruptSpellsWithInterruptFlags(SPELL_INTERRUPT_FLAG_MOVEMENT);
+            pBot->MonsterMove(pPlayer->GetPositionX(), pPlayer->GetPositionY(), pPlayer->GetPositionZ());
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool ChatHandler::HandlePartyBotComeToMeCommand(char* args)
+{
+    Player* pPlayer = GetSession()->GetPlayer();
+    Player* pTarget = GetSelectedPlayer();
+
+    bool ok = false;
+
+    if (pTarget && pTarget != pPlayer)
+    {
+        if (ok = HandlePartyBotComeToMeHelper(pTarget, pPlayer))
+            PSendSysMessage("%s is coming to your position.", pTarget->GetName());
+        else
+            PSendSysMessage("%s is not a party bot or it cannot move.", pTarget->GetName());
+        return ok;
+    }
+    else if (Group* pGroup = pPlayer->GetGroup())
+    {
+        bool ok = false;
+        for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
+        {
+            if (Player* pMember = itr->getSource())
+            {
+                if (pMember == pPlayer)
+                    continue;
+
+                ok = HandlePartyBotComeToMeHelper(pMember, pPlayer) || ok;
+            }
+        }
+
+        if (ok)
+            SendSysMessage("All party bots are coming to your position.");
+        else
+            SendSysMessage("There are no party bots in the group or they cannot move.");
+        return ok;
+    }
+
+    SendSysMessage("You are not in a group.");
+    SetSentErrorMessage(true);
+    return false;
+}
+
+bool HandlePartyBotUseGObjectHelper(Player* pTarget, GameObject* pGo)
+{
+    if (pTarget->AI())
+    {
+        if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pTarget->AI()))
+        {
+            if (pTarget->IsWithinDist(pGo, INTERACTION_DISTANCE))
+            {
+                pGo->Use(pTarget);
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool ChatHandler::HandlePartyBotUseGObjectCommand(char* args)
+{
+    Player* pPlayer = GetSession()->GetPlayer();
+    Player* pTarget = GetSelectedPlayer();
+
+    GameObject* pGo = getSelectedGameObject();
+    if (!pGo)
+    {
+        SendSysMessage(LANG_COMMAND_NOGAMEOBJECTFOUND);
+        return false;
+    }
+
+    bool ok = false;
+
+    if (pTarget && pTarget != pPlayer)
+    {
+        if (ok = HandlePartyBotUseGObjectHelper(pTarget, pGo))
+            PSendSysMessage("%s has used the object.", pTarget->GetName());
+        else
+            PSendSysMessage("%s is not in range or is not a party bot.", pTarget->GetName());
+        return ok;
+    }
+    else if (Group* pGroup = pPlayer->GetGroup())
+    {
+        for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
+        {
+            if (Player* pMember = itr->getSource())
+                ok = HandlePartyBotUseGObjectHelper(pMember, pGo) || ok;
+        }
+
+        if (ok)
+            SendSysMessage("All party bots in range have used the object.");
+        else
+            SendSysMessage("There are no party bots in range of the object.");
+        return ok;
+    }
+
+    SendSysMessage("You are not in a group.");
+    SetSentErrorMessage(true);
+    return false;
+}
+
+bool HandlePartyBotPauseApplyHelper(Player* pTarget, uint32 duration)
+{
+    if (pTarget->AI())
+    {
+        if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pTarget->AI()))
+        {
+            pAI->m_updateTimer.Reset(duration);
+
+            if (duration)
+            {
+                pTarget->StopMoving();
+                pTarget->GetMotionMaster()->MoveIdle();
+            }
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool ChatHandler::HandlePartyBotPauseHelper(char* args, bool pause)
+{
+    bool all = false;
+    uint32 duration = 0;
+    if (char* arg1 = ExtractArg(&args))
+    {
+        if (!(all = (strcmp(arg1, "all") == 0)) && pause)
+            duration = atoi(arg1);
+
+        if (char* arg2 = ExtractArg(&args))
+        {
+            if (!duration && pause)
+                duration = atoi(arg2);
+            else if (!all)
+                all = strcmp(arg2, "all") == 0;
+        }
+    }
+
+    if (pause && !duration)
+        duration = 5 * MINUTE * IN_MILLISECONDS;
+
+    if (all)
+    {
+        Player* pPlayer = GetSession()->GetPlayer();
+        Group* pGroup = pPlayer->GetGroup();
+        if (!pGroup)
+        {
+            SendSysMessage("You are not in a group.");
+            SetSentErrorMessage(true);
+            return false;
+        }
+
+        bool success = false;
+        for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
+        {
+            if (Player* pMember = itr->getSource())
+            {
+                if (pMember == pPlayer)
+                    continue;
+
+                if (HandlePartyBotPauseApplyHelper(pMember, duration))
+                    success = true;
+            }
+        }
+
+        if (success)
+        {
+            if (pause)
+                PSendSysMessage("All party bots paused for %u seconds.", (duration / IN_MILLISECONDS));
+            else
+                SendSysMessage("All party bots unpaused.");
+        }
+        else
+            SendSysMessage("No party bots in group.");
+    }
+    else
+    {
+        Player* pTarget = GetSelectedPlayer();
+        if (!pTarget)
+        {
+            SendSysMessage(LANG_NO_CHAR_SELECTED);
+            SetSentErrorMessage(true);
+            return false;
+        }
+
+        if (HandlePartyBotPauseApplyHelper(pTarget, duration))
+        {
+            if (pause)
+                PSendSysMessage("%s paused for %u seconds.", pTarget->GetName(), (duration / IN_MILLISECONDS));
+            else
+                PSendSysMessage("%s unpaused.", pTarget->GetName());
+        }
+            
+        else
+            SendSysMessage("Target is not a party bot.");
+    }
+
+    return true;
+}
+
+bool ChatHandler::HandlePartyBotPauseCommand(char* args)
+{
+    return HandlePartyBotPauseHelper(args, true);
+}
+
+bool ChatHandler::HandlePartyBotUnpauseCommand(char* args)
+{
+    return HandlePartyBotPauseHelper(args, false);
+}
+
 bool ChatHandler::HandlePartyBotRemoveCommand(char* args)
 {
     Player* pTarget = GetSelectedPlayer();
@@ -989,7 +1465,7 @@ bool ChatHandler::HandleBattleBotAddCommand(char* args, uint8 bg)
     if (!pPlayer)
         return false;
 
-    if (!args)
+    if (!*args)
     {
         SendSysMessage("Incorrect syntax. Expected faction");
         SetSentErrorMessage(true);
@@ -997,17 +1473,23 @@ bool ChatHandler::HandleBattleBotAddCommand(char* args, uint8 bg)
     }
 
     Team botTeam = HORDE;
-
-    std::string option = args;
-    if (option == "horde")
-        botTeam = HORDE;
-    else if (option == "alliance")
-        botTeam = ALLIANCE;
-    else
+    uint32 botLevel = sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL);
+    std::string option;
+    if (char* arg1 = ExtractArg(&args))
     {
-        SendSysMessage("Incorrect syntax. Expected faction");
-        SetSentErrorMessage(true);
-        return false;
+        option = arg1;
+        if (option == "horde")
+            botTeam = HORDE;
+        else if (option == "alliance")
+            botTeam = ALLIANCE;
+        else
+        {
+            SendSysMessage("Incorrect syntax. Expected faction");
+            SetSentErrorMessage(true);
+            return false;
+        }
+
+        ExtractUInt32(&args, botLevel);
     }
 
     std::vector<uint32> dpsClasses = { CLASS_WARRIOR, CLASS_HUNTER, CLASS_ROGUE, CLASS_MAGE, CLASS_WARLOCK, CLASS_PRIEST, CLASS_DRUID };
@@ -1019,17 +1501,17 @@ bool ChatHandler::HandleBattleBotAddCommand(char* args, uint8 bg)
     uint8 botRace = SelectRandomRaceForClass(botClass, botTeam);
 
     // Spawn bot on GM Island
-    BattleBotAI* ai = new BattleBotAI(botRace, botClass, 1, 0, 16224.356f, 16284.763f, 13.175f, 4.56f, bg);
+    BattleBotAI* ai = new BattleBotAI(botRace, botClass, botLevel, 1, 0, 16224.356f, 16284.763f, 13.175f, 4.56f, bg);
     sPlayerBotMgr.AddBot(ai);
 
     if (bg == BATTLEGROUND_QUEUE_WS)
-        PSendSysMessage("Added %s battle bot and queuing for WS", args);
+        PSendSysMessage("Added %s battle bot and queuing for WS", option.c_str());
         
     if (bg == BATTLEGROUND_QUEUE_AB)
-        PSendSysMessage("Added %s battle bot and queuing for AB", args);
+        PSendSysMessage("Added %s battle bot and queuing for AB", option.c_str());
     
     if (bg == BATTLEGROUND_QUEUE_AV)
-        PSendSysMessage("Added %s battle bot and queuing for AV", args);
+        PSendSysMessage("Added %s battle bot and queuing for AV", option.c_str());
 
     return true;
 }

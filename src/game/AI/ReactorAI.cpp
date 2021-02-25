@@ -25,7 +25,7 @@
 
 int ReactorAI::Permissible(Creature const* creature)
 {
-    if ((creature->GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_NO_AGGRO) || creature->IsNeutralToAll())
+    if (creature->HasExtraFlag(CREATURE_FLAG_EXTRA_NO_AGGRO) || creature->IsNeutralToAll())
         return PERMIT_BASE_REACTIVE;
 
     return PERMIT_BASE_NO;
@@ -47,7 +47,7 @@ void ReactorAI::MoveInLineOfSight(Unit* pWho)
     if (!m_creature->IsWithinDistInMap(pWho, m_creature->GetDetectionRange()))
         return;
 
-    if (m_creature->IsHostileTo(pWho) && pWho->IsTargetableForAttack() && m_creature->IsWithinLOSInMap(pWho))
+    if (m_creature->IsHostileTo(pWho) && pWho->IsTargetable(true, false) && m_creature->IsWithinLOSInMap(pWho))
         m_bCanSummonGuards = !sGuardMgr.SummonGuard(m_creature, static_cast<Player*>(pWho));
 }
 

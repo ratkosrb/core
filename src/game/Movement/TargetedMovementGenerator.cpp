@@ -60,7 +60,7 @@ void TargetedMovementGeneratorMedium<T, D>::_setTargetLocation(T &owner)
     }
     else if (!m_fOffset)
     {
-        if (owner.IsWithinMeleeRange(i_target.getTarget()))
+        if (owner.CanReachWithMeleeAutoAttack(i_target.getTarget()))
         {
             losResult = owner.IsWithinLOSInMap(i_target.getTarget());
             losChecked = true;
@@ -231,7 +231,7 @@ void TargetedMovementGeneratorMedium<T, D>::UpdateAsync(T &owner, uint32 /*diff*
         return;
 
     // Lock async updates for safety, see Unit::asyncMovesplineLock doc
-    ACE_Guard<ACE_Thread_Mutex> guard(owner.asyncMovesplineLock);
+    std::unique_lock<std::mutex> guard(owner.asyncMovesplineLock);
     _setTargetLocation(owner);
 }
 
@@ -242,6 +242,9 @@ bool ChaseMovementGenerator<T>::Update(T &owner, uint32 const&  time_diff)
         return false;
 
     if (!owner.IsAlive())
+        return true;
+
+    if (owner.movespline->IsUninterruptible() && !owner.movespline->Finalized())
         return true;
 
     if (owner.HasUnitState(UNIT_STAT_CAN_NOT_MOVE | UNIT_STAT_POSSESSED))
@@ -338,7 +341,7 @@ bool ChaseMovementGenerator<T>::Update(T &owner, uint32 const&  time_diff)
         {
             // For players need to actually send the new orientation.
             // Creatures automatically face their target in client.
-            if (!owner.HasInArc(2 * M_PI_F / 3, i_target.getTarget()))
+            if (!owner.HasInArc(i_target.getTarget(), 2 * M_PI_F / 3))
             {
                 owner.SetInFront(i_target.getTarget());
                 owner.SetFacingTo(owner.GetAngle(i_target.getTarget()));
@@ -346,7 +349,7 @@ bool ChaseMovementGenerator<T>::Update(T &owner, uint32 const&  time_diff)
         }
         else
         {
-            if (!owner.HasInArc(0.01f, i_target.getTarget()))
+            if (!owner.HasInArc(i_target.getTarget(), 0.01f))
                 owner.SetInFront(i_target.getTarget());
         }
         
@@ -375,7 +378,7 @@ bool ChaseMovementGenerator<T>::Update(T &owner, uint32 const&  time_diff)
             m_spreadTimer.Reset(urand(2500, 3500));
             if (Creature* creature = owner.ToCreature())
             {
-                if (!(creature->GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_CHASE_GEN_NO_BACKING) && !creature->IsPet() && !i_target.getTarget()->IsMoving())
+                if (!creature->HasExtraFlag(CREATURE_FLAG_EXTRA_CHASE_GEN_NO_BACKING) && !creature->IsPet() && !i_target.getTarget()->IsMoving())
                 {
                     if (m_bRecalculateTravel && TargetDeepInBounds(owner, i_target.getTarget()))
                         DoBackMovement(owner, i_target.getTarget());
@@ -384,10 +387,22 @@ bool ChaseMovementGenerator<T>::Update(T &owner, uint32 const&  time_diff)
                 }
             }
         }
-        
+
+        // Mobs should chase you infinitely if you stop and wait every few seconds.
+        m_leashExtensionTimer.Update(time_diff);
+        if (m_leashExtensionTimer.Passed())
+        {
+            m_leashExtensionTimer.Reset(5000);
+            if (Creature* creature = owner.ToCreature())
+                creature->UpdateLeashExtensionTime();
+        }
     }
     else if (m_bRecalculateTravel)
+    {
+        m_leashExtensionTimer.Reset(5000);
         owner.GetMotionMaster()->SetNeedAsyncUpdate();
+    }
+
     return true;
 }
 
@@ -631,7 +646,7 @@ bool FollowMovementGenerator<T>::Update(T &owner, uint32 const&  time_diff)
     {
         MovementInform(owner);
 
-        if (m_fAngle == 0.f && !owner.HasInArc(0.01f, i_target.getTarget()))
+        if (m_fAngle == 0.f && !owner.HasInArc(i_target.getTarget(), 0.01f))
             owner.SetInFront(i_target.getTarget());
 
         if (!m_bTargetReached)

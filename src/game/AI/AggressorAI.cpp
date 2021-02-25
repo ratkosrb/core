@@ -25,7 +25,7 @@
 int AggressorAI::Permissible(Creature const* creature)
 {
     // have some hostile factions, it will be selected by IsHostileTo check at MoveInLineOfSight
-    if (!(creature->GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_NO_AGGRO) && !creature->IsNeutralToAll())
+    if (!creature->HasExtraFlag(CREATURE_FLAG_EXTRA_NO_AGGRO) && !creature->IsNeutralToAll())
         return PERMIT_BASE_PROACTIVE;
 
     return PERMIT_BASE_NO;
@@ -39,8 +39,8 @@ void AggressorAI::MoveInLineOfSight(Unit* u)
     if (!m_creature->IsWithinDistInMap(u, m_creature->GetAttackDistance(u)))
         return;
 
-    if (m_creature->CanInitiateAttack() && u->IsTargetableForAttack() && m_creature->IsHostileTo(u) &&
-            m_creature->IsWithinLOSInMap(u) && u->IsInAccessablePlaceFor(m_creature))
+    if (m_creature->CanInitiateAttack() && u->IsTargetable(true, false) && m_creature->IsHostileTo(u) &&
+        m_creature->IsWithinLOSInMap(u) && u->IsInAccessablePlaceFor(m_creature))
     {
         if (!m_creature->GetVictim())
             AttackStart(u);

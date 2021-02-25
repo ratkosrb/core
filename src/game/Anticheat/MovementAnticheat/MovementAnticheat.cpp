@@ -8,6 +8,7 @@
 #include "WorldSession.h"
 #include "MoveSpline.h"
 #include "World.h"
+#include "MovementPacketSender.h"
 
 namespace Movement
 {
@@ -250,13 +251,6 @@ void MovementAnticheat::InitNewPlayer(Player* pPlayer)
     m_jumpFlagCount = 0;
     m_jumpFlagTime = 0;
     m_knockBack = false;
-    InitSpeeds(pPlayer);
-}
-
-void MovementAnticheat::InitSpeeds(Unit* unit)
-{
-    for (int i = 0; i < MAX_MOVE_TYPE; ++i)
-        m_clientSpeeds[i] = unit->GetSpeed(UnitMoveType(i));
 }
 
 void MovementAnticheat::ResetJumpCounters()
@@ -360,13 +354,26 @@ float MovementAnticheat::GetSpeedForMovementInfo(MovementInfo const& movementInf
 {
     float speed = 0.0f;
     if (movementInfo.HasMovementFlag(MOVEFLAG_SWIMMING))
-        speed = GetClientSpeed(movementInfo.HasMovementFlag(MOVEFLAG_BACKWARD) ? MOVE_SWIM_BACK : MOVE_SWIM);
+        speed = me->GetSpeed(movementInfo.HasMovementFlag(MOVEFLAG_BACKWARD) ? MOVE_SWIM_BACK : MOVE_SWIM);
     else if (movementInfo.HasMovementFlag(MOVEFLAG_WALK_MODE))
-        speed = GetClientSpeed(MOVE_WALK);
+        speed = me->GetSpeed(MOVE_WALK);
     else if (movementInfo.HasMovementFlag(MOVEFLAG_MASK_MOVING))
-        speed = GetClientSpeed(movementInfo.HasMovementFlag(MOVEFLAG_BACKWARD) ? MOVE_RUN_BACK : MOVE_RUN);
+        speed = me->GetSpeed(movementInfo.HasMovementFlag(MOVEFLAG_BACKWARD) ? MOVE_RUN_BACK : MOVE_RUN);
 
     return speed;
+}
+
+UnitMoveType MovementAnticheat::GetMoveTypeForMovementInfo(MovementInfo const& movementInfo) const
+{
+    UnitMoveType type = MOVE_RUN;
+    if (movementInfo.HasMovementFlag(MOVEFLAG_SWIMMING))
+        type = movementInfo.HasMovementFlag(MOVEFLAG_BACKWARD) ? MOVE_SWIM_BACK : MOVE_SWIM;
+    else if (movementInfo.HasMovementFlag(MOVEFLAG_WALK_MODE))
+        type = MOVE_WALK;
+    else if (movementInfo.HasMovementFlag(MOVEFLAG_MASK_MOVING))
+        type = movementInfo.HasMovementFlag(MOVEFLAG_BACKWARD) ? MOVE_RUN_BACK : MOVE_RUN;
+
+    return type;
 }
 
 bool IsFlagAckOpcode(uint16 opcode)
@@ -645,6 +652,14 @@ bool MovementAnticheat::HandlePositionTests(Player* pPlayer, MovementInfo& movem
         
         if (sendHeartbeat)
         {
+            if ((cheatFlags & (1 << CHEAT_TYPE_OVERSPEED_JUMP)) &&
+                sWorld.getConfig(CONFIG_BOOL_AC_MOVEMENT_CHEAT_OVERSPEED_JUMP_REJECT))
+            {
+                UnitMoveType moveType = GetMoveTypeForMovementInfo(GetLastMovementInfo());
+                float speedRate = me->GetSpeed(moveType) / baseMoveSpeed[moveType];
+                MovementPacketSender::SendSpeedChangeToAll(me, moveType, speedRate);
+            }
+
             if ((cheatFlags & (1 << CHEAT_TYPE_NO_FALL_TIME)) &&
                 sWorld.getConfig(CONFIG_BOOL_AC_MOVEMENT_CHEAT_NO_FALL_TIME_REJECT))
             {
@@ -664,17 +679,6 @@ bool MovementAnticheat::HandlePositionTests(Player* pPlayer, MovementInfo& movem
 
     return true;
 #undef APPEND_CHEAT
-}
-
-bool MovementAnticheat::HandleSpeedChangeAck(Player* pPlayer, MovementInfo& movementInfo, float speedReceived, UnitMoveType moveType, uint16 opcode)
-{
-    if (me != pPlayer)
-        InitNewPlayer(pPlayer);
-
-    // Compute anticheat generic checks - with old speed.
-    bool result = HandlePositionTests(pPlayer, movementInfo, opcode);
-    m_clientSpeeds[moveType] = speedReceived;
-    return result;
 }
 
 bool MovementAnticheat::HandleFlagTests(Player* pPlayer, MovementInfo& movementInfo, uint16 opcode)
@@ -1083,7 +1087,7 @@ bool MovementAnticheat::ExtrapolateMovement(MovementInfo const& mi, uint32 diffM
         if (mi.moveFlags & MOVEFLAG_MASK_MOVING)
         {
             // Every 2 sec
-            float T = 0.75f * (GetClientSpeed(MOVE_TURN_RATE)) * (diffMs / 1000.0f);
+            float T = 0.75f * (me->GetSpeed(MOVE_TURN_RATE)) * (diffMs / 1000.0f);
             float R = 1.295f * speed / M_PI * cos(mi.s_pitch);
             z += diffMs * speed / 1000.0f * sin(mi.s_pitch);
             // Find the center of the circle we are moving on
@@ -1106,7 +1110,7 @@ bool MovementAnticheat::ExtrapolateMovement(MovementInfo const& mi, uint32 diffM
         }
         else
         {
-            float diffO = GetClientSpeed(MOVE_TURN_RATE) * diffMs / 1000.0f;
+            float diffO = me->GetSpeed(MOVE_TURN_RATE) * diffMs / 1000.0f;
             if (mi.moveFlags & MOVEFLAG_TURN_LEFT)
                 outOrientation += diffO;
             else

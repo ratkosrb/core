@@ -77,7 +77,7 @@ enum
     SPELL_BANISHEMENT_OF_SCALE  = 16404,
     SPELL_NEFARIUS_CORRUPTION   = 23642,
 
-    FACTION_BLACK_DRAGON        = 103,
+    FACTION_MONSTER             = 14,
     FACTION_FRIENDLY            = 35,
 
     MODEL_INVISIBLE             = 11686,
@@ -222,9 +222,9 @@ struct boss_vaelAI : public ScriptedAI
     {
         if (m_pInstance)
             m_pInstance->SetData(TYPE_VAELASTRASZ, FAIL);
-        m_creature->SetFactionTemplateId(FACTION_BLACK_DRAGON);
+        m_creature->SetFactionTemplateId(FACTION_MONSTER);
         m_creature->SetStandState(UNIT_STAND_STATE_STAND);
-        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PASSIVE);
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
         m_creature->RemoveFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_QUESTGIVER | UNIT_NPC_FLAG_GOSSIP);
     }
 
@@ -293,10 +293,10 @@ struct boss_vaelAI : public ScriptedAI
                 }
                 else
                 {
-                    m_creature->SetFactionTemplateId(FACTION_BLACK_DRAGON);
+                    m_creature->SetFactionTemplateId(FACTION_MONSTER);
                     m_creature->SetStandState(UNIT_STAND_STATE_STAND);
                 }
-                m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PASSIVE);
+                m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
                 m_creature->RemoveFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_QUESTGIVER | UNIT_NPC_FLAG_GOSSIP);
                 m_bFlagSet = true;
             }
@@ -337,7 +337,7 @@ struct boss_vaelAI : public ScriptedAI
                         ++m_uiSpeechNum;
                         break;
                     case 2:
-                        m_creature->SetFactionTemplateId(FACTION_BLACK_DRAGON);
+                        m_creature->SetFactionTemplateId(FACTION_MONSTER);
                         if (m_playerGuid)
                         {
                             if (Player* pPlayer = m_creature->GetMap()->GetPlayer(m_playerGuid))
@@ -561,7 +561,7 @@ struct npc_death_talon_CaptainAI : public ScriptedAI
             return;
 
         if (pUnit->IsPlayer() && m_creature->GetDistance2d(pUnit) < 29.0f && m_creature->IsWithinLOSInMap(pUnit)
-          && pUnit->IsTargetableForAttack() && pUnit->IsInAccessablePlaceFor(m_creature))
+          && pUnit->IsTargetable(true, false) && pUnit->IsInAccessablePlaceFor(m_creature))
             AttackStart(pUnit);
     }
 
@@ -709,7 +709,7 @@ struct npc_death_talon_SeetherAI : public ScriptedAI
 
         if (!m_bEngaged)
         {
-            if (m_creature->IsWithinMeleeRange(m_creature->GetVictim()))
+            if (m_creature->CanReachWithMeleeAutoAttack(m_creature->GetVictim()))
                 m_bEngaged = true;
         }
         else

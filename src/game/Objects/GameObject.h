@@ -27,7 +27,6 @@
 #include "Object.h"
 #include "LootMgr.h"
 #include "Database/DatabaseEnv.h"
-#include <ace/Thread_Mutex.h>
 #include "Util.h"
 
 // GCC have alternative #pragma pack(N) syntax and old gcc version not support pack(push,N), also any gcc version not support it at some platform
@@ -536,6 +535,36 @@ struct GameObjectInfo
         }
     }
 
+    bool IsServerOnly() const
+    {
+        switch (type)
+        {
+            case GAMEOBJECT_TYPE_GENERIC: return _generic.serverOnly;
+            case GAMEOBJECT_TYPE_TRAP: return trap.serverOnly;
+            case GAMEOBJECT_TYPE_SPELL_FOCUS: return spellFocus.serverOnly;
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_11_2
+            case GAMEOBJECT_TYPE_AURA_GENERATOR: return auraGenerator.serverOnly;
+#endif
+            default: return false;
+        }
+    }
+
+    float GetInteractionDistance() const
+    {
+        switch (type)
+        {
+            // TODO: find out how the client calculates the maximal usage distance to spellless working
+            // gameobjects like mailboxes - 10.0 is a just an abitrary chosen number
+            case GAMEOBJECT_TYPE_MAILBOX:
+                return 10.0f;
+            case GAMEOBJECT_TYPE_FISHINGHOLE:
+            case GAMEOBJECT_TYPE_FISHINGNODE:
+                return 20.0f + CONTACT_DISTANCE; // max spell range;
+        }
+
+        return INTERACTION_DISTANCE;
+    }
+
     uint32 GetEventScriptId() const
     {
         switch(type)
@@ -591,6 +620,29 @@ struct GameObjectData
     uint32 GetRandomRespawnTime() const { return urand(uint32(spawntimesecsmin), uint32(spawntimesecsmax)); }
 };
 
+struct GameObjectDisplayInfoAddon
+{
+    uint32 display_id;
+    float min_x;
+    float min_y;
+    float min_z;
+    float max_x;
+    float max_y;
+    float max_z;
+};
+
+struct QuaternionData
+{
+    float x, y, z, w;
+
+    QuaternionData() : x(0.0f), y(0.0f), z(0.0f), w(1.0f) { }
+    QuaternionData(float X, float Y, float Z, float W) : x(X), y(Y), z(Z), w(W) { }
+
+    bool isUnit() const;
+    void toEulerAnglesZYX(float& Z, float& Y, float& X) const;
+    static QuaternionData fromEulerAnglesZYX(float Z, float Y, float X);
+};
+
 // For containers:  [GO_NOT_READY]->GO_READY (close)->GO_ACTIVATED (open) ->GO_JUST_DEACTIVATED->GO_READY        -> ...
 // For bobber:      [GO_NOT_READY]->GO_READY (close)->GO_ACTIVATED (open) ->GO_JUST_DEACTIVATED-><deleted>
 // For door(closed):[GO_NOT_READY]->GO_READY (close)->GO_ACTIVATED (open) ->GO_JUST_DEACTIVATED->GO_READY(close) -> ...
@@ -634,6 +686,7 @@ class GameObject : public WorldObject
         uint32 GetDBTableGUIDLow() const { return HasStaticDBSpawnData() ? GetGUIDLow() : 0; }
 
         void UpdateRotationFields(float rotation2 = 0.0f, float rotation3 = 0.0f);
+        QuaternionData const GetLocalRotation() const;
 
         // overwrite WorldObject function for proper name localization
         char const* GetNameForLocaleIdx(int32 locale_idx) const override;
@@ -651,6 +704,8 @@ class GameObject : public WorldObject
 
         ObjectGuid const& GetOwnerGuid() const { return GetGuidValue(OBJECT_FIELD_CREATED_BY); }
         Unit* GetOwner() const;
+        Player* GetAffectingPlayer() const final;
+        bool IsCharmerOrOwnerPlayerOrPlayerItself() const final { return GetOwnerGuid().IsPlayer(); }
 
         void SetSpellId(uint32 id)
         {
@@ -719,6 +774,7 @@ class GameObject : public WorldObject
         uint32 GetDisplayId() const { return GetUInt32Value(GAMEOBJECT_DISPLAYID); }
         void SetDisplayId(uint32 modelId);
 
+        bool HasCustomAnim() const;
         void SendGameObjectCustomAnim(uint32 animId = 0);
         void SendGameObjectReset();
 
@@ -802,7 +858,11 @@ class GameObject : public WorldObject
 
         uint32 GetFactionTemplateId() const final { return GetGOInfo()->faction; }
         uint32 GetLevel() const final ;
-        bool IsValidAttackTarget(Unit const* target) const final ;
+
+        bool IsAtInteractDistance(Position const& pos, float radius) const;
+        bool IsAtInteractDistance(Player const* player, uint32 maxRange = 0) const;
+
+        SpellEntry const* GetSpellForLock(Player const* player) const;
     protected:
         bool        m_visible;
         uint32      m_spellId;
@@ -822,7 +882,7 @@ class GameObject : public WorldObject
         // collected only for GAMEOBJECT_TYPE_SUMMONING_RITUAL
         ObjectGuid m_firstUser;                             // first GO user, in most used cases owner, but in some cases no, for example non-summoned multi-use GAMEOBJECT_TYPE_SUMMONING_RITUAL
         GuidsSet m_UniqueUsers;                             // all players who use item, some items activated after specific amount unique uses
-        ACE_Thread_Mutex m_UniqueUsers_lock;
+        std::mutex m_UniqueUsers_lock;
         ObjectGuid m_summonTarget;                          // The player who is being summoned
 
         uint64 m_rotation;

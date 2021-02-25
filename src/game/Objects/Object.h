@@ -36,6 +36,7 @@
 #include <set>
 #include <string>
 #include <array>
+#include <memory>
 
 #define CONTACT_DISTANCE            0.5f
 #define INTERACTION_DISTANCE        5.0f
@@ -102,6 +103,8 @@ class ZoneScript;
 class Transport;
 class SpellEntry;
 class Spell;
+struct ItemPrototype;
+class ChatHandler;
 
 struct FactionTemplateEntry;
 
@@ -302,11 +305,174 @@ enum ObjectDelayedAction
 
 typedef void(*CreatureAiSetter) (Creature* pCreature);
 
+class CooldownData
+{
+        friend class CooldownContainer;
+    public:
+        CooldownData(TimePoint clockNow, uint32 spellId, uint32 duration, uint32 spellCategory, uint32 categoryDuration, uint32 itemId = 0, bool isPermanent = false) :
+            m_spellId(spellId),
+            m_category(spellCategory),
+            m_expireTime(duration ? std::chrono::milliseconds(duration) + clockNow : TimePoint()),
+            m_catExpireTime(spellCategory && categoryDuration ? std::chrono::milliseconds(categoryDuration) + clockNow : TimePoint()),
+            m_typePermanent(isPermanent),
+            m_itemId(itemId)
+        {}
+
+        // return false if permanent
+        bool GetSpellCDExpireTime(TimePoint& expireTime) const
+        {
+            if (m_typePermanent)
+                return false;
+
+            expireTime = m_expireTime;
+            return true;
+        }
+
+        // return false if permanent
+        bool GetCatCDExpireTime(TimePoint& expireTime) const
+        {
+            if (m_typePermanent)
+                return false;
+
+            expireTime = m_catExpireTime;
+            return true;
+        }
+
+        bool IsSpellCDExpired(TimePoint const& now) const
+        {
+            if (m_typePermanent)
+                return false;
+
+            return now >= m_expireTime;
+        }
+
+        bool IsCatCDExpired(TimePoint const& now) const
+        {
+            if (m_typePermanent)
+                return false;
+
+            if (!m_category)
+                return true;
+
+            if (now >= m_catExpireTime)
+                return true;
+
+            return false;
+        }
+
+        bool IsPermanent() const { return m_typePermanent; }
+        uint32 GetItemId() const { return m_itemId; }
+        uint32 GetSpellId() const { return m_spellId; }
+        uint32 GetCategory() const { return m_category; }
+
+    private:
+        uint32            m_spellId;
+        uint32            m_category;
+        TimePoint         m_expireTime;
+        TimePoint         m_catExpireTime;
+        bool              m_typePermanent;
+        uint32            m_itemId;
+};
+
+typedef std::unique_ptr<CooldownData> CooldownDataUPTR;
+typedef std::map<uint32, TimePoint> GCDMap;
+typedef std::map<SpellSchools, TimePoint> LockoutMap;
+
+class CooldownContainer
+{
+    public:
+        typedef std::map<uint32, CooldownDataUPTR> spellIdMap;
+        typedef spellIdMap::const_iterator ConstIterator;
+        typedef spellIdMap::iterator Iterator;
+        typedef std::map<uint32, ConstIterator> categoryMap;
+
+        void Update(TimePoint const& now)
+        {
+            auto spellCDItr = m_spellIdMap.begin();
+            while (spellCDItr != m_spellIdMap.end())
+            {
+                auto& cd = spellCDItr->second;
+                if (cd->IsSpellCDExpired(now) && cd->IsCatCDExpired(now)) // will not remove permanent CD
+                    spellCDItr = erase(spellCDItr);
+                else
+                {
+                    if (cd->m_category && cd->IsCatCDExpired(now))
+                        m_categoryMap.erase(cd->m_category);
+                    ++spellCDItr;
+                }
+            }
+        }
+
+        bool AddCooldown(TimePoint clockNow, uint32 spellId, uint32 duration, uint32 spellCategory = 0, uint32 categoryDuration = 0, uint32 itemId = 0, bool onHold = false)
+        {
+            auto resultItr = m_spellIdMap.emplace(spellId, std::unique_ptr<CooldownData>(new CooldownData(clockNow, spellId, duration, spellCategory, categoryDuration, itemId, onHold)));
+            if (resultItr.second && spellCategory && categoryDuration)
+                m_categoryMap.emplace(spellCategory, resultItr.first);
+
+            return resultItr.second;
+        }
+
+        void RemoveBySpellId(uint32 spellId)
+        {
+            auto spellCDItr = m_spellIdMap.find(spellId);
+            if (spellCDItr != m_spellIdMap.end())
+            {
+                auto& cdData = spellCDItr->second;
+                if (cdData->m_category)
+                {
+                    auto catCDItr = m_categoryMap.find(cdData->m_category);
+                    if (catCDItr != m_categoryMap.end())
+                        m_categoryMap.erase(catCDItr);
+                }
+                m_spellIdMap.erase(spellCDItr);
+            }
+        }
+
+        void RemoveByCategory(uint32 category)
+        {
+            auto spellCDItr = m_categoryMap.find(category);
+            if (spellCDItr != m_categoryMap.end())
+                m_categoryMap.erase(spellCDItr);
+        }
+
+        Iterator erase(ConstIterator spellCDItr)
+        {
+            auto& cdData = spellCDItr->second;
+            if (cdData->m_category)
+            {
+                auto catCDItr = m_categoryMap.find(cdData->m_category);
+                if (catCDItr != m_categoryMap.end())
+                    m_categoryMap.erase(catCDItr);
+            }
+            return m_spellIdMap.erase(spellCDItr);
+        }
+
+        ConstIterator FindBySpellId(uint32 id) const { return m_spellIdMap.find(id); }
+
+        ConstIterator FindByCategory(uint32 category) const
+        {
+            auto itr = m_categoryMap.find(category);
+            return itr != m_categoryMap.end() ? itr->second : end();
+        }
+
+        void clear() { m_spellIdMap.clear(); m_categoryMap.clear(); }
+
+        ConstIterator begin() const { return m_spellIdMap.begin(); }
+        ConstIterator end() const { return m_spellIdMap.end(); }
+        bool IsEmpty() const { return m_spellIdMap.empty(); }
+        size_t size() const { return m_spellIdMap.size(); }
+
+    private:
+        spellIdMap m_spellIdMap;
+        categoryMap m_categoryMap;
+};
+
 class Object
 {
     public:
         virtual ~Object();
 
+        void SetIsNewObject(bool state) { m_isNewObject = state; }
         bool const& IsInWorld() const { return m_inWorld; }
         virtual void AddToWorld()
         {
@@ -620,6 +786,7 @@ class Object
 
     private:
         bool m_inWorld;
+        bool m_isNewObject;
 
         PackedGuid m_PackGUID;
 
@@ -790,7 +957,13 @@ class WorldObject : public Object
 
         float GetCombatDistance(WorldObject const* target) const;
         float GetDistance2dToCenter(WorldObject const* target) const;
+        float GetDistance2dToCenter(float x, float y) const;
+        float GetDistance2dToCenter(WorldLocation const& position) const { return GetDistance2dToCenter(position.x, position.y); }
+        float GetDistance2dToCenter(Position const& position) const { return GetDistance2dToCenter(position.x, position.y); }
         float GetDistance3dToCenter(WorldObject const* target) const;
+        float GetDistance3dToCenter(float x, float y, float z) const;
+        float GetDistance3dToCenter(WorldLocation const& position) const { return GetDistance3dToCenter(position.x, position.y, position.z); }
+        float GetDistance3dToCenter(Position const& position) const { return GetDistance3dToCenter(position.x, position.y, position.z); }
         float GetDistance(WorldObject const* obj) const;
         float GetDistance(float x, float y, float z) const;
         float GetDistance(WorldLocation const& position) const { return GetDistance(position.x, position.y, position.z); }
@@ -833,15 +1006,16 @@ class WorldObject : public Object
 
         float GetAngle(WorldObject const* obj) const;
         float GetAngle(float const x, float const y) const;
-        bool HasInArc(float const arcangle, WorldObject const* obj, float offset = 0.0f) const;
+        bool HasInArc(WorldObject const* target, float const arcangle = M_PI, float offset = 0.0f) const;
         bool HasInArc(float const arcangle, float const x, float const y) const;
         bool isInFrontInMap(WorldObject const* target,float distance, float arc = M_PI) const;
         bool isInBackInMap(WorldObject const* target, float distance, float arc = M_PI) const;
         bool isInFront(WorldObject const* target,float distance, float arc = M_PI) const;
         bool isInBack(WorldObject const* target, float distance, float arc = M_PI) const;
 
-        bool CanReachWithMeleeSpellAttack(Unit const* pVictim, float flat_mod = 0.0f) const;
+        bool CanReachWithMeleeSpellAttack(WorldObject const* pVictim, float flat_mod = 0.0f) const;
         float GetLeewayBonusRange(Unit const* target, bool ability) const;
+        static float GetLeewayBonusRangeForTargets(Player const* player, Unit const* target, bool ability);
         float GetLeewayBonusRadius() const;
 
         // Gestion des positions
@@ -917,7 +1091,7 @@ class WorldObject : public Object
         FactionTemplateEntry const* getFactionTemplateEntry() const;
         virtual ReputationRank GetReactionTo(WorldObject const* target) const;
         ReputationRank static GetFactionReactionTo(FactionTemplateEntry const* factionTemplateEntry, WorldObject const* target);
-        virtual bool IsValidAttackTarget(Unit const* target) const { return false; }
+        bool IsValidAttackTarget(Unit const* target, bool checkAlive = true) const;
         virtual bool IsVisibleForOrDetect(WorldObject const* pDetector, WorldObject const* viewPoint, bool detect, bool inVisibleList = false, bool* alert = nullptr) const { return IsVisibleForInState(pDetector, viewPoint, inVisibleList); }
 
         bool IsControlledByPlayer() const;
@@ -990,17 +1164,14 @@ class WorldObject : public Object
 
         bool IsWithinLootXPDist(WorldObject const* objToLoot) const;
 
-        // val is added to CONFIG_FLOAT_GROUP_XP_DISTANCE when calculating
-        // if player should be eligible for loot and XP from this object.
-        void SetLootAndXPModDist(float val);
-
         float GetVisibilityModifier() const;
         void SetVisibilityModifier(float f);
 
-        uint32 GetCreatureSummonCount() { return m_creatureSummonCount; }
+        uint32 GetCreatureSummonCount() const;
         void DecrementSummonCounter();
+        void IncrementSummonCounter();
 
-        uint32 GetCreatureSummonLimit() const { return m_creatureSummonLimit; }
+        uint32 GetCreatureSummonLimit() const;
         void SetCreatureSummonLimit(uint32 limit);
 
         virtual uint32 GetLevel() const = 0;
@@ -1011,6 +1182,7 @@ class WorldObject : public Object
         uint32 GetDefenseSkillValue(WorldObject const* target = nullptr) const;
 
         virtual Player* GetAffectingPlayer() const { return nullptr; }
+        virtual bool IsCharmerOrOwnerPlayerOrPlayerItself() const { return IsPlayer(); }
         Unit* SelectMagnetTarget(Unit* victim, Spell* spell = nullptr, SpellEffectIndex eff = EFFECT_INDEX_0);
 
         SpellCastResult CastSpell(Unit* pTarget, uint32 spellId, bool triggered, Item* castItem = nullptr, Aura* triggeredByAura = nullptr, ObjectGuid originalCaster = ObjectGuid(), SpellEntry const* triggeredBy = nullptr, SpellEntry const* triggeredByParent = nullptr);
@@ -1053,16 +1225,16 @@ class WorldObject : public Object
         float GetSpellResistChance(Unit const* victim, uint32 schoolMask, bool innateResists) const;
         SpellMissInfo SpellHitResult(Unit* pVictim, SpellEntry const* spell, SpellEffectIndex effIndex, bool canReflect = false, Spell* spellPtr = nullptr);
         void ProcDamageAndSpell(Unit* pVictim, uint32 procAttacker, uint32 procVictim, uint32 procEx, uint32 amount, WeaponAttackType attType = BASE_ATTACK, SpellEntry const* procSpell = nullptr, Spell* spell = nullptr);
-        void CalculateSpellDamage(SpellNonMeleeDamage* damageInfo, int32 damage, SpellEntry const* spellInfo, WeaponAttackType attackType = BASE_ATTACK, Spell* spell = nullptr);
-        int32 CalculateSpellDamage(Unit const* target, SpellEntry const* spellProto, SpellEffectIndex effect_index, int32 const* basePoints = nullptr, Spell* spell = nullptr);
-        int32 SpellBonusWithCoeffs(SpellEntry const* spellProto, int32 total, int32 benefit, int32 ap_benefit, DamageEffectType damagetype, bool donePart, WorldObject* pCaster, Spell* spell = nullptr) const;
+        void CalculateSpellDamage(SpellNonMeleeDamage* damageInfo, int32 damage, SpellEntry const* spellInfo, SpellEffectIndex effectIndex, WeaponAttackType attackType = BASE_ATTACK, Spell* spell = nullptr);
+        int32 CalculateSpellEffectValue(Unit const* target, SpellEntry const* spellProto, SpellEffectIndex effect_index, int32 const* basePoints = nullptr, Spell* spell = nullptr) const;
+        int32 SpellBonusWithCoeffs(SpellEntry const* spellProto, SpellEffectIndex effectIndex, int32 total, int32 benefit, int32 ap_benefit, DamageEffectType damagetype, bool donePart, WorldObject* pCaster, Spell* spell = nullptr) const;
         static float CalculateLevelPenalty(SpellEntry const* spellProto);
-        uint32 SpellDamageBonusDone(Unit* pVictim, SpellEntry const* spellProto, uint32 pdamage, DamageEffectType damagetype, uint32 stack = 1, Spell* spell = nullptr);
+        uint32 SpellDamageBonusDone(Unit* pVictim, SpellEntry const* spellProto, SpellEffectIndex effectIndex, uint32 pdamage, DamageEffectType damagetype, uint32 stack = 1, Spell* spell = nullptr);
         int32 SpellBaseDamageBonusDone(SpellSchoolMask schoolMask);
-        uint32 SpellHealingBonusDone(Unit* pVictim, SpellEntry const* spellProto, int32 healamount, DamageEffectType damagetype, uint32 stack = 1, Spell* spell = nullptr);
+        uint32 SpellHealingBonusDone(Unit* pVictim, SpellEntry const* spellProto, SpellEffectIndex effectIndex, int32 healamount, DamageEffectType damagetype, uint32 stack = 1, Spell* spell = nullptr);
         int32 SpellBaseHealingBonusDone(SpellSchoolMask schoolMask);
         uint32 CalcArmorReducedDamage(Unit* pVictim, uint32 const damage) const;
-        uint32 MeleeDamageBonusDone(Unit* pVictim, uint32 damage, WeaponAttackType attType, SpellEntry const* spellProto = nullptr, DamageEffectType damagetype = DIRECT_DAMAGE, uint32 stack = 1, Spell* spell = nullptr, bool flat = true);
+        uint32 MeleeDamageBonusDone(Unit* pVictim, uint32 damage, WeaponAttackType attType, SpellEntry const* spellProto = nullptr, SpellEffectIndex effectIndex = EFFECT_INDEX_0, DamageEffectType damagetype = DIRECT_DAMAGE, uint32 stack = 1, Spell* spell = nullptr, bool flat = true);
         virtual SpellSchoolMask GetMeleeDamageSchoolMask() const;
         float GetAPMultiplier(WeaponAttackType attType, bool normalized) const;
         virtual uint32 DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDamage, DamageEffectType damagetype, SpellSchoolMask damageSchoolMask, SpellEntry const* spellProto, bool durabilityLoss, Spell* spell = nullptr);
@@ -1085,10 +1257,33 @@ class WorldObject : public Object
         void RemoveDynObjectWithGUID(ObjectGuid guid) { m_dynObjGUIDs.remove(guid); }
         void RemoveAllDynObjects();
 
+        // cooldown system
+        virtual void AddGCD(SpellEntry const& spellEntry, uint32 forcedDuration = 0, bool updateClient = false);
+        virtual bool HasGCD(SpellEntry const* spellEntry) const;
+        void ResetGCD(SpellEntry const* spellEntry = nullptr);
+        virtual void AddCooldown(SpellEntry const& spellEntry, ItemPrototype const* itemProto = nullptr, bool permanent = false, uint32 forcedDuration = 0);
+        virtual void RemoveSpellCooldown(SpellEntry const& spellEntry, bool updateClient = true);
+        void RemoveSpellCooldown(uint32 spellId, bool updateClient = true);
+        virtual void RemoveSpellCategoryCooldown(uint32 category, bool updateClient = true);
+        virtual void RemoveAllCooldowns(bool /*sendOnly*/ = false) { m_GCDCatMap.clear(); m_cooldownMap.clear(); m_lockoutMap.clear(); }
+        bool IsSpellReady(SpellEntry const& spellEntry, ItemPrototype const* itemProto = nullptr) const;
+        bool IsSpellReady(uint32 spellId, ItemPrototype const* itemProto = nullptr) const;
+        virtual void LockOutSpells(SpellSchoolMask schoolMask, uint32 duration);
+        void PrintCooldownList(ChatHandler& chat) const;
+        bool CheckLockout(SpellSchoolMask schoolMask) const;
+
         // Event handler
         EventProcessor m_Events;
     protected:
         explicit WorldObject();
+
+        // cooldown system
+        void UpdateCooldowns(TimePoint const& now);
+        bool GetExpireTime(SpellEntry const& spellEntry, TimePoint& expireTime, bool& isPermanent) const;
+
+        GCDMap            m_GCDCatMap;
+        LockoutMap        m_lockoutMap;
+        CooldownContainer m_cooldownMap;
 
         std::string m_name;
         ZoneScript* m_zoneScript;
@@ -1108,11 +1303,7 @@ class WorldObject : public Object
         ViewPoint m_viewPoint;
 
         WorldUpdateCounter m_updateTracker;
-        
-        float m_lootAndXPRangeModifier;
 
-        uint32 m_creatureSummonCount;                       // Current summon count
-        uint32 m_creatureSummonLimit;                       // Hard limit on creature summons
         uint32 m_summonLimitAlert;                          // Timer to alert GMs if a creature is at the summon limit
 
         typedef std::list<ObjectGuid> DynObjectGUIDs;

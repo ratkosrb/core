@@ -49,30 +49,33 @@ struct GameEventCreatureData;
 
 enum CreatureFlagsExtra
 {
-    CREATURE_FLAG_EXTRA_INSTANCE_BIND                = 0x00000001,       // creature kill bind instance with killer and killer's group
-    CREATURE_FLAG_EXTRA_NO_AGGRO                     = 0x00000002,       // not aggro (ignore faction/reputation hostility)
-    CREATURE_FLAG_EXTRA_NO_PARRY                     = 0x00000004,       // creature can't parry
-    CREATURE_FLAG_EXTRA_SUMMON_GUARD                 = 0x00000008,       // creature summons a guard if an opposite faction player gets near or attacks
-    CREATURE_FLAG_EXTRA_NO_BLOCK                     = 0x00000010,       // creature can't block
-    CREATURE_FLAG_EXTRA_NO_CRUSH                     = 0x00000020,       // creature can't do crush attacks
-    CREATURE_FLAG_EXTRA_NO_XP_AT_KILL                = 0x00000040,       // creature kill not provide XP
-    CREATURE_FLAG_EXTRA_INVISIBLE                    = 0x00000080,       // creature is always invisible for player (mostly trigger creatures)
-    CREATURE_FLAG_EXTRA_NOT_TAUNTABLE                = 0x00000100,       // creature is immune to taunt auras and effect attack me
-    CREATURE_FLAG_EXTRA_AGGRO_ZONE                   = 0x00000200,       // creature sets itself in combat with zone on aggro
-    CREATURE_FLAG_EXTRA_GUARD                        = 0x00000400,       // creature is a guard
-    CREATURE_FLAG_EXTRA_NO_THREAT_LIST               = 0x00000800,
-    CREATURE_FLAG_EXTRA_KEEP_POSITIVE_AURAS_ON_EVADE = 0x00001000,       // creature keeps positive auras at reset
-    CREATURE_FLAG_EXTRA_ALWAYS_CRUSH                 = 0x00002000,       // creature always roll a crushing melee outcome when not miss/crit/dodge/parry/block
-    CREATURE_FLAG_EXTRA_IMMUNE_AOE                   = 0x00004000,       // creature is immune to AoE
-    CREATURE_FLAG_EXTRA_CHASE_GEN_NO_BACKING         = 0x00008000,       // creature does not move back when target is within bounding radius
-    CREATURE_FLAG_EXTRA_NO_ASSIST                    = 0x00010000,       // creature does not aggro when nearby creatures aggro
-    CREATURE_FLAG_EXTRA_NO_TARGET                    = 0x00020000,       // creature does not acquire targets
-    CREATURE_FLAG_EXTRA_ONLY_VISIBLE_TO_FRIENDLY     = 0x00040000,       // creature can only be seen by friendly units
-    CREATURE_FLAG_EXTRA_PVP                          = 0x00080000,       // creature has pvp unit flag set by default
-    CREATURE_FLAG_EXTRA_CAN_ASSIST                   = 0x00100000,       // CREATURE_TYPEFLAGS_CAN_ASSIST from TBC
-    CREATURE_FLAG_EXTRA_LARGE_AOI                    = 0x00200000,       // CREATURE_DIFFICULTYFLAGS_LARGE_AOI (200 yards)
-    CREATURE_FLAG_EXTRA_GIGANTIC_AOI                 = 0x00400000,       // CREATURE_DIFFICULTYFLAGS_3_GIGANTIC_AOI (400 yards)
-    CREATURE_FLAG_EXTRA_INFINITE_AOI                 = 0x00800000,       // CREATURE_DIFFICULTYFLAGS_3_INFINITE_AOI
+    CREATURE_FLAG_EXTRA_INSTANCE_BIND                = 0x00000001, // 1        Killing this creature will bind players to the raid
+    CREATURE_FLAG_EXTRA_NO_AGGRO                     = 0x00000002, // 2        Creature will not attack nearby hostile targets (ignore faction/reputation hostility)
+    CREATURE_FLAG_EXTRA_NO_PARRY                     = 0x00000004, // 4        Creature can't parry
+    CREATURE_FLAG_EXTRA_SUMMON_GUARD                 = 0x00000008, // 8        Creature summons a guard if an opposite faction player gets near or attacks
+    CREATURE_FLAG_EXTRA_NO_BLOCK                     = 0x00000010, // 16       Creature can't block
+    CREATURE_FLAG_EXTRA_NO_CRUSH                     = 0x00000020, // 32       Creature can't do crush attacks
+    CREATURE_FLAG_EXTRA_FIXED_Z                      = 0x00000040, // 64       Creature does not fall
+    CREATURE_FLAG_EXTRA_INVISIBLE                    = 0x00000080, // 128      Creature is always invisible for player (mostly trigger creatures)
+    CREATURE_FLAG_EXTRA_NOT_TAUNTABLE                = 0x00000100, // 256      Creature is immune to taunt auras and effect attack me
+    CREATURE_FLAG_EXTRA_AGGRO_ZONE                   = 0x00000200, // 512      Creature sets itself in combat with zone on aggro
+    CREATURE_FLAG_EXTRA_GUARD                        = 0x00000400, // 1024     Creature is a guard
+    CREATURE_FLAG_EXTRA_NO_THREAT_LIST               = 0x00000800, // 2048     Creature does not select targets based on threat
+    CREATURE_FLAG_EXTRA_KEEP_POSITIVE_AURAS_ON_EVADE = 0x00001000, // 4096     Creature keeps positive auras at reset
+    CREATURE_FLAG_EXTRA_ALWAYS_CRUSH                 = 0x00002000, // 8192     Creature always roll a crushing melee outcome when not miss/crit/dodge/parry/block
+    CREATURE_FLAG_EXTRA_IMMUNE_AOE                   = 0x00004000, // 16384    Creature is immune to AoE
+    CREATURE_FLAG_EXTRA_CHASE_GEN_NO_BACKING         = 0x00008000, // 32768    Creature does not move back when target is within bounding radius
+    CREATURE_FLAG_EXTRA_NO_ASSIST                    = 0x00010000, // 65536    Creature does not aggro when nearby creatures aggro
+    CREATURE_FLAG_EXTRA_NO_TARGET                    = 0x00020000, // 131072   Creature does not acquire targets
+    CREATURE_FLAG_EXTRA_ONLY_VISIBLE_TO_FRIENDLY     = 0x00040000, // 262144   Creature can only be seen by friendly units
+    CREATURE_FLAG_EXTRA_PVP                          = 0x00080000, // 524288   Creature has pvp unit flag set by default
+    CREATURE_FLAG_EXTRA_CAN_ASSIST                   = 0x00100000, // 1048576  CREATURE_TYPEFLAGS_CAN_ASSIST from TBC
+    CREATURE_FLAG_EXTRA_LARGE_AOI                    = 0x00200000, // 2097152  CREATURE_DIFFICULTYFLAGS_LARGE_AOI (200 yards)
+    CREATURE_FLAG_EXTRA_GIGANTIC_AOI                 = 0x00400000, // 4194304  CREATURE_DIFFICULTYFLAGS_3_GIGANTIC_AOI (400 yards)
+    CREATURE_FLAG_EXTRA_INFINITE_AOI                 = 0x00800000, // 8388606  CREATURE_DIFFICULTYFLAGS_3_INFINITE_AOI
+    CREATURE_FLAG_EXTRA_NO_MOVEMENT_PAUSE            = 0x01000000, // 16777216 Creature will not pause movement when player talks to it
+    CREATURE_FLAG_EXTRA_ALWAYS_RUN                   = 0x02000000, // 33554432 Creature will use run speed out of combat
+    CREATURE_FLAG_EXTRA_NO_UNREACHABLE_EVADE         = 0x04000000, // 67108864 Creature will not evade due to target being unreachable
 };
 
 // GCC have alternative #pragma pack(N) syntax and old gcc version not support pack(push,N), also any gcc version not support it at some platform
@@ -95,6 +98,10 @@ struct CreatureInfo
 {
     uint32  entry;
     uint32  display_id[MAX_DISPLAY_IDS_PER_CREATURE];
+    float   display_scale[MAX_DISPLAY_IDS_PER_CREATURE];
+    uint32  display_probability[MAX_DISPLAY_IDS_PER_CREATURE];
+    uint32  display_total_probability;
+    uint32  mount_display_id;
     char*   name;
     char*   subname;
     uint32  gossip_menu_id;
@@ -109,7 +116,6 @@ struct CreatureInfo
     uint32  npc_flags;
     float   speed_walk;
     float   speed_run;
-    float   scale;
     float   detection_range;                                // Detection Range for Line of Sight aggro
     float   call_for_help_range;                            // Radius for combat assistance call
     float   leash_range;                                    // Hard limit on allowed chase distance
@@ -147,6 +153,7 @@ struct CreatureInfo
     uint32  spells[CREATURE_MAX_SPELLS];
     uint32  spell_list_id;
     uint32  pet_spell_list_id;
+    uint32 const* auras;
     uint32  gold_min;
     uint32  gold_max;
     char const* ai_name;
@@ -190,8 +197,6 @@ struct CreatureData
 {
     std::array<uint32, MAX_CREATURE_IDS_PER_SPAWN> creature_id = {};
     WorldLocation position;
-    uint32 display_id = 0;
-    int32 equipment_id = 0;
     uint32 spawntimesecsmin = 0;
     uint32 spawntimesecsmax = 0;
     float wander_distance = 0.0f;
@@ -229,16 +234,16 @@ struct CreatureData
     }
 };
 
-// from `creature_addon` and `creature_template_addon`tables
+// from `creature_addon` table
 struct CreatureDataAddon
 {
-    uint32 guidOrEntry;
-    uint32 mount;
-    uint32 bytes1;
+    uint32 guid;
+    uint32 display_id;
+    int32  mount_display_id;
+    int32  equipment_id;
+    uint8  stand_state;
     uint8  sheath_state;                                    // SheathState
-    uint8  flags;                                           // UnitBytes2_Flags
-    uint32 emote;
-    uint32 move_flags;
+    uint32 emote_state;
     uint32 const* auras;                                    // loaded as char* "spell1 spell2 ... "
 };
 
@@ -321,23 +326,25 @@ enum SelectFlags
     SELECT_FLAG_POWER_NOT_MANA      = 0x1000,               // Used in some dungeon encounters
 };
 
+#define MAX_SELECT_FLAG_MASK (SELECT_FLAG_IN_LOS | SELECT_FLAG_PLAYER | SELECT_FLAG_POWER_MANA | SELECT_FLAG_POWER_RAGE | SELECT_FLAG_POWER_ENERGY | SELECT_FLAG_IN_MELEE_RANGE | SELECT_FLAG_NOT_IN_MELEE_RANGE | SELECT_FLAG_NO_TOTEM | SELECT_FLAG_PLAYER_NOT_GM | SELECT_FLAG_PET | SELECT_FLAG_NOT_PLAYER | SELECT_FLAG_POWER_NOT_MANA)
+
 enum RegenStatsFlags
 {
     REGEN_FLAG_HEALTH               = 0x001,
     REGEN_FLAG_POWER                = 0x002,
 };
 
-// Change to uint16 if adding more flags!
-enum CreatureStateFlag : uint8
+enum CreatureStateFlag : uint16
 {
-    CSTATE_ALREADY_CALL_ASSIST   = 0x01,
-    CSTATE_ALREADY_SEARCH_ASSIST = 0x02,
-    CSTATE_REGEN_HEALTH          = 0x04,
-    CSTATE_REGEN_MANA            = 0x08,
-    CSTATE_INIT_AI_ON_RESPAWN    = 0x10,
-    CSTATE_COMBAT                = 0x20,
-    CSTATE_COMBAT_WITH_ZONE      = 0x40,
-    CSTATE_ESCORTABLE            = 0x80,
+    CSTATE_ALREADY_CALL_ASSIST   = 0x0001,
+    CSTATE_ALREADY_SEARCH_ASSIST = 0x0002,
+    CSTATE_REGEN_HEALTH          = 0x0004,
+    CSTATE_REGEN_MANA            = 0x0008,
+    CSTATE_INIT_AI_ON_RESPAWN    = 0x0010,
+    CSTATE_COMBAT                = 0x0020,
+    CSTATE_COMBAT_WITH_ZONE      = 0x0040,
+    CSTATE_ESCORTABLE            = 0x0080,
+    CSTATE_DESPAWNING            = 0x0100,
 };
 
 // Vendors
@@ -512,9 +519,9 @@ class Creature : public Unit
         void AddToWorld() override;
         void RemoveFromWorld() override;
 
-        bool Create(uint32 guidlow, CreatureCreatePos& cPos, CreatureInfo const* cinfo, Team team, uint32 firstCreatureId, CreatureData const* data = nullptr, GameEventCreatureData const* eventData = nullptr);
-        bool LoadCreatureAddon(bool reload = false);
-        void UnloadCreatureAddon(CreatureDataAddon const* data);
+        bool Create(uint32 guidlow, CreatureCreatePos& cPos, CreatureInfo const* cinfo, uint32 firstCreatureId, CreatureData const* data = nullptr, GameEventCreatureData const* eventData = nullptr);
+        void LoadDefaultAuras(uint32 const* auras, bool reload);
+        void LoadCreatureAddon(bool reload = false);
 
         // CreatureGroups
         CreatureGroup* GetCreatureGroup() const { return m_creatureGroup; }
@@ -554,6 +561,8 @@ class Creature : public Unit
         void AddCreatureState(CreatureStateFlag f) { m_creatureStateFlags |= f; }
         bool HasCreatureState(CreatureStateFlag f) const { return m_creatureStateFlags & f; }
         void ClearCreatureState(CreatureStateFlag f) { m_creatureStateFlags &= ~f; }
+        bool HasTypeFlag(CreatureTypeFlags flag) const { return GetCreatureInfo()->type_flags & flag; }
+        bool HasExtraFlag(CreatureFlagsExtra flag) const { return GetCreatureInfo()->flags_extra & flag; }
 
         CreatureSubtype GetSubtype() const { return m_subtype; }
         bool IsPet() const { return m_subtype == CREATURE_SUBTYPE_PET; }
@@ -566,17 +575,16 @@ class Creature : public Unit
         void SetCorpseDelay(uint32 delay) { m_corpseDelay = delay; }
         bool IsRacialLeader() const { return GetCreatureInfo()->racial_leader; }
         bool IsCivilian() const { return GetCreatureInfo()->civilian; }
-        bool IsTrigger() const { return GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_INVISIBLE; }
-        bool IsGuard() const { return GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_GUARD; }
-        bool HasTypeFlag(CreatureTypeFlags flag) const { return GetCreatureInfo()->type_flags & flag; }
+        bool IsTrigger() const { return HasExtraFlag(CREATURE_FLAG_EXTRA_INVISIBLE); }
+        bool IsGuard() const { return HasExtraFlag(CREATURE_FLAG_EXTRA_GUARD); }
 
         // World of Warcraft Client Patch 1.10.0 (2006-03-28)
         // - Area effect spells and abilities will no longer consider totems as
         //   valid targets.
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_9_4
-        bool IsImmuneToAoe() const { return IsTotem() || GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_IMMUNE_AOE; }
+        bool IsImmuneToAoe() const { return IsTotem() || HasExtraFlag(CREATURE_FLAG_EXTRA_IMMUNE_AOE); }
 #else
-        bool IsImmuneToAoe() const { return GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_IMMUNE_AOE; }
+        bool IsImmuneToAoe() const { return HasExtraFlag(CREATURE_FLAG_EXTRA_IMMUNE_AOE); }
 #endif
 
         bool CanWalk() const override { return GetCreatureInfo()->inhabit_type & INHABIT_GROUND; }
@@ -647,7 +655,7 @@ class Creature : public Unit
 
         bool HasSpell(uint32 spellId) const override;
 
-        bool UpdateEntry(uint32 entry, Team team = ALLIANCE, CreatureData const* data = nullptr, GameEventCreatureData const* eventData = nullptr, bool preserveHPAndPower = true);
+        bool UpdateEntry(uint32 entry, CreatureData const* data = nullptr, GameEventCreatureData const* eventData = nullptr, bool preserveHPAndPower = true);
 
         void ApplyGameEventSpells(GameEventCreatureData const* eventData, bool activated);
         bool UpdateStats(Stats stat) override;
@@ -677,7 +685,8 @@ class Creature : public Unit
         CreatureDataAddon const* GetCreatureAddon() const;
         CreatureData const* GetCreatureData() const;
 
-        static uint32 ChooseDisplayId(CreatureInfo const* cinfo, CreatureData const* data = nullptr, GameEventCreatureData const* eventData = nullptr);
+        static uint32 ChooseDisplayId(CreatureInfo const* cinfo, CreatureData const* data = nullptr, CreatureDataAddon const* addon = nullptr, GameEventCreatureData const* eventData = nullptr, float* scale = nullptr);
+        static float GetScaleForDisplayId(uint32 displayId);
 
         std::string GetAIName() const;
         std::string GetScriptName() const;
@@ -745,7 +754,7 @@ class Creature : public Unit
         bool HasSearchedAssistance() const { return HasCreatureState(CSTATE_ALREADY_SEARCH_ASSIST); }
         bool CanAssistTo(Unit const* u, Unit const* enemy, bool checkfaction = true) const;
         bool CanInitiateAttack();
-        bool CanHaveTarget() const { return !(GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_NO_TARGET); }
+        bool CanHaveTarget() const { return !HasExtraFlag(CREATURE_FLAG_EXTRA_NO_TARGET); }
 
         uint32 GetDefaultMount() { return m_mountId; }
         void SetDefaultMount(uint32 id) { m_mountId = id; }
@@ -873,7 +882,8 @@ class Creature : public Unit
         bool HasQuest(uint32 quest_id) const override;
         bool HasInvolvedQuest(uint32 quest_id)  const override;
 
-        uint32 GetDefaultGossipMenuId() const override { return GetCreatureInfo()->gossip_menu_id; }
+        void SetDefaultGossipMenuId(uint32 menuId) { m_gossipMenuId = menuId; }
+        uint32 GetDefaultGossipMenuId() const override { return m_gossipMenuId; }
 
         GridReference<Creature>& GetGridRef() { return m_gridRef; }
         bool IsRegeneratingHealth() const { return HasCreatureState(CSTATE_REGEN_HEALTH); }
@@ -907,9 +917,13 @@ class Creature : public Unit
         // Auto evade timer (if target not reachable)
         // Tested on retail 5.4.0: Creatures evade after 3 seconds (but does not return to home position)
         bool IsEvadeBecauseTargetNotReachable() const { return m_TargetNotReachableTimer > 3000; }
-        uint32 GetLastDamageTakenTime() const { return m_lastDamageTakenForEvade; }
-        void   ResetLastDamageTakenTime() { m_lastDamageTakenForEvade = 0; }
         uint32 m_TargetNotReachableTimer;
+
+        std::shared_ptr<time_t> const& GetLastLeashExtensionTimePtr() const;
+        void SetLastLeashExtensionTimePtr(std::shared_ptr<time_t> const& timer);
+        void ClearLastLeashExtensionTimePtr();
+        time_t GetLastLeashExtensionTime() const;
+        void UpdateLeashExtensionTime();
 
         bool IsTempPacified() const         { return m_pacifiedTimer > 0; }
         void SetTempPacified(uint32 timer)  { if (m_pacifiedTimer < timer) m_pacifiedTimer = timer; }
@@ -977,16 +991,15 @@ class Creature : public Unit
                 ClearCreatureState(CSTATE_ESCORTABLE); 
         }
         bool IsEscortable() const { return HasCreatureState(CSTATE_ESCORTABLE); }
-        bool CanAssistPlayers() { return GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_CAN_ASSIST; }
-
-        bool CanSummonGuards() { return GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_SUMMON_GUARD; }
+        bool CanAssistPlayers() { return HasExtraFlag(CREATURE_FLAG_EXTRA_CAN_ASSIST); }
+        bool CanSummonGuards() { return HasExtraFlag(CREATURE_FLAG_EXTRA_SUMMON_GUARD); }
         uint32 GetOriginalEntry() const { return m_originalEntry; }
 
     protected:
         bool MeetsSelectAttackingRequirement(Unit* pTarget, SpellEntry const* pSpellInfo, uint32 selectFlags) const;
 
-        bool CreateFromProto(uint32 guidlow, CreatureInfo const* cinfo, Team team, uint32 firstCreatureId, CreatureData const* data = nullptr, GameEventCreatureData const* eventData = nullptr);
-        bool InitEntry(uint32 entry, Team team=ALLIANCE, CreatureData const* data = nullptr, GameEventCreatureData const* eventData = nullptr);
+        bool CreateFromProto(uint32 guidlow, CreatureInfo const* cinfo, uint32 firstCreatureId, CreatureData const* data = nullptr, GameEventCreatureData const* eventData = nullptr);
+        bool InitEntry(uint32 entry, CreatureData const* data = nullptr, CreatureDataAddon const* addon = nullptr, GameEventCreatureData const* eventData = nullptr);
 
         uint32 m_groupLootTimer;                            // (msecs)timer used for group loot
         uint32 m_groupLootId;                               // used to find group which is looting corpse
@@ -1016,9 +1029,10 @@ class Creature : public Unit
         uint32 m_mountId;                                   // display Id to mount
 
         bool m_AI_locked;
-        uint8 m_creatureStateFlags;                         // change this to uint16 if adding more state flags
+        uint16 m_creatureStateFlags;
         uint32 m_temporaryFactionFlags;                     // used for real faction changes (not auras etc)
         int32 m_reputationId;                               // Id of the creature's faction in the client reputations list.
+        uint32 m_gossipMenuId;
 
         SpellSchoolMask m_meleeDamageSchoolMask;
         uint32 m_originalEntry;
@@ -1035,7 +1049,10 @@ class Creature : public Unit
 
         Position m_summonPos;
 
-        uint32 m_lastDamageTakenForEvade;
+        // Shared timer between mobs who assist another.
+        // Damaging one extends leash range on all of them.
+        mutable std::shared_ptr<time_t> m_lastLeashExtensionTime;
+
         // Used to compute XP.
         uint32 m_playerDamageTaken;
         uint32 m_nonPlayerDamageTaken;
