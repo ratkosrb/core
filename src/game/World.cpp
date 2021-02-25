@@ -1966,8 +1966,11 @@ void World::Update(uint32 diff)
     sPlayerBotMgr.Update(diff);
     // Update AutoBroadcast
     sAutoBroadCastMgr.Update(diff);
-    // Update liste des ban si besoin
+    // Update ban list if necessary
+
     sAccountMgr.Update(diff);
+    // Delete unused aura holders
+    sAuraRemovalMgr.Update(diff);
 
     // And last, but not least handle the issued cli commands
     ProcessCliCommands();

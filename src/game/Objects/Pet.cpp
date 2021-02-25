@@ -1834,7 +1834,7 @@ void Pet::_SaveAuras()
 
     for (const auto& auraHolder : auraHolders)
     {
-        SpellAuraHolder* holder = auraHolder.second;
+        SpellAuraHolder* holder = auraHolder.second.aura;
 
         bool save = true;
         for (int32 j = 0; j < MAX_EFFECT_INDEX; ++j)

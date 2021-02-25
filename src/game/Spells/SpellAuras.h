@@ -25,6 +25,8 @@
 #include "SpellAuraDefines.h"
 #include "DBCEnums.h"
 #include "ObjectGuid.h"
+#include "SpellEntry.h"
+#include "UnitDefines.h"
 
 /**
  * Used to modify what an Aura does to a player/npc.
@@ -73,8 +75,9 @@ struct HeartBeatData
     uint32 hitChance;
 };
 
+class Item;
 class Unit;
-class SpellEntry;
+class Player;
 struct SpellModifier;
 struct ProcTriggerSpell;
 
@@ -86,6 +89,7 @@ struct ReapplyAffectedPassiveAurasHelper;
 
 class SpellAuraHolder
 {
+    friend struct AuraPointer;
     public:
         SpellAuraHolder (SpellEntry const* spellproto, Unit* target, Unit* caster, Item* castItem, WorldObject* realCaster);
         Aura* m_auras[MAX_EFFECT_INDEX];
@@ -225,7 +229,7 @@ class SpellAuraHolder
 
         void UpdateAuraDuration() const;
 
-        void SetAura(uint32 slot, bool remove) { m_target->SetUInt32Value(UNIT_FIELD_AURA + slot, remove ? 0 : GetId()); }
+        void SetAura(uint32 slot, bool remove);
         void SetAuraFlag(uint32 slot, bool add);
         void SetAuraLevel(uint32 slot, uint32 level);
 
@@ -269,6 +273,7 @@ class SpellAuraHolder
         bool m_makesTargetSecondaryFocus;
         bool m_spellTriggered;                              // applied by a triggered spell (used in debuff priority computation)
 
+        uint32 m_globalId;
         uint32 m_in_use;                                    // > 0 while in SpellAuraHolder::ApplyModifiers call/SpellAuraHolder::Update/etc
 };
 

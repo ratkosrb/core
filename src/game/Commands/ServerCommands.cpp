@@ -63,6 +63,70 @@ bool ChatHandler::HandleNotifyCommand(char* args)
     return true;
 }
 
+bool ChatHandler::HandleServerAuraStatsCommand(char* args)
+{
+    uint32 aurasCount = sAuraRemovalMgr.GetTotalCreatedAurasCount();
+    AuraReferenceArray const& aurasArray = sAuraRemovalMgr.GetAuraReferencesArray();
+    uint32 activeAuras = 0;
+    uint32 deletableAuras = 0;
+    uint32 deletableInUseAuras = 0;
+    uint32 mostReferences = 0;
+    uint32 referencesWithoutAuras = 0;
+    std::unordered_map<uint32, uint32> aurasMap;
+
+    for (uint32 i = 0; i < aurasCount; i++)
+    {
+        if (aurasArray[i].references > mostReferences)
+            mostReferences = aurasArray[i].references;
+
+        if (aurasArray[i].aura)
+        {
+            aurasMap[aurasArray[i].aura->GetId()]++;
+            if (!aurasArray[i].references)
+            {
+                if (aurasArray[i].aura->IsInUse())
+                    deletableInUseAuras++;
+                else
+                    deletableAuras++;
+            }
+            else
+                activeAuras++;
+
+            for (uint32 j = i + 1; j < aurasCount; j++)
+            {
+                if (aurasArray[i].aura == aurasArray[j].aura)
+                {
+                    PSendSysMessage("Multiple references for aura %u found!", aurasArray[i].aura->GetId());
+                    break;
+                }
+            }
+        }
+        else if (aurasArray[i].references)
+            referencesWithoutAuras++;
+    }
+
+    uint32 mostCommonAuraId = 0;
+    uint32 mostCommonAuraCount = 0;
+    for (auto i : aurasMap)
+    {
+        if (i.second > mostCommonAuraCount)
+        {
+            mostCommonAuraId = i.first;
+            mostCommonAuraCount = i.second;
+        }
+    }
+
+    PSendSysMessage("Total created auras = %u", aurasCount);
+    PSendSysMessage("Active auras = %u", activeAuras);
+    PSendSysMessage("Deletable auras = %u", deletableAuras);
+    PSendSysMessage("Deletable in use auras = %u", deletableInUseAuras);
+    PSendSysMessage("Highest reference count = %u", mostReferences);
+    PSendSysMessage("References without aura = %u", referencesWithoutAuras);
+    PSendSysMessage("Most common aura = %u (%u)", mostCommonAuraId, mostCommonAuraCount);
+
+    return true;
+}
+
 bool ChatHandler::HandleVariableCommand(char *args)
 {
     uint32 index = 0;

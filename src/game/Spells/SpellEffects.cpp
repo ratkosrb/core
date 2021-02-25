@@ -1094,7 +1094,7 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                     Unit::SpellAuraHolderMap const& auras = unitTarget->GetSpellAuraHolderMap();
                     for (const auto& aura : auras)
                     {
-                        SpellEntry const* spell = aura.second->GetSpellProto();
+                        SpellEntry const* spell = aura.second.aura->GetSpellProto();
                         if (spell->IsFitToFamily<SPELLFAMILY_SHAMAN, CF_SHAMAN_LIGHTNING_SHIELD>())
                             return;
                     }
@@ -3102,7 +3102,7 @@ void Spell::EffectDispel(SpellEffectIndex eff_idx)
     Unit::SpellAuraHolderMap const& auras = unitTarget->GetSpellAuraHolderMap();
     for (const auto& aura : auras)
     {
-        SpellAuraHolder* holder = aura.second;
+        SpellAuraHolder* holder = aura.second.aura;
         if ((1 << holder->GetSpellProto()->Dispel) & dispelMask)
         {
             if (holder->GetSpellProto()->Dispel == DISPEL_MAGIC ||
