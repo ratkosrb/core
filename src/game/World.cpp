@@ -1774,6 +1774,8 @@ void World::SetInitialWorldSettings()
     sLog.outString("==========================================================");
     sLog.outString();
 
+    sObjectMgr.AssignZoneIdsToSpawns();
+
     sLog.outString("World initialized.");
 
     uint32 uStartInterval = WorldTimer::getMSTimeDiff(uStartTime, WorldTimer::getMSTime());

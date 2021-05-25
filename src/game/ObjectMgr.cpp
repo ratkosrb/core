@@ -53,7 +53,10 @@
 #include "CharacterDatabaseCache.h"
 #include "HardcodedEvents.h"
 #include "Conditions.h"
+#include "DBCStores.h"
 
+#include <fstream>
+#include <iostream>
 #include <limits>
 
 INSTANTIATE_SINGLETON_1(ObjectMgr);
@@ -11227,3 +11230,100 @@ void ObjectMgr::ApplyPremadeSpecTemplateToPlayer(uint32 entry, Player* pPlayer) 
         }
     }
 }
+
+extern DBCStorage <WorldMapAreaEntry>  sWorldMapAreaStore;
+
+void ObjectMgr::AssignZoneIdsToSpawns()
+{
+    printf("Loading mangos.gameobject...\n");
+    std::ofstream myfile("gobject_zones.sql");
+    if (!myfile.is_open())
+        return;
+
+    //                                                               0       1      2             3             4
+    std::unique_ptr<QueryResult> result(WorldDatabase.Query("SELECT `guid`, `map`, `position_x`, `position_y`, `position_z` FROM `gameobject` WHERE `map` IN (0, 1)"));
+
+    if (!result)
+    {
+        BarGoLink bar(1);
+        bar.step();
+
+        sLog.outString(">> Loaded 0 gameobject spawns, table is empty!");
+        return;
+    }
+
+    do
+    {
+        auto fields = result->Fetch();
+
+        uint32 guid = fields[0].GetUInt32();
+        uint32 mapId = fields[1].GetUInt32();
+        float x = fields[2].GetFloat();
+        float y = fields[3].GetFloat();
+        float z = fields[4].GetFloat();
+
+        if (auto map = sMapMgr.FindMap(mapId))
+        {
+            uint32 zoneId = 0;
+            uint32 areaId = 0;
+            map->GetTerrain()->GetZoneAndAreaId(zoneId, areaId, x, y, z);
+            //if (WorldMapAreaEntry const* zone_data = sWorldMapAreaStore.LookupEntry(zoneId))
+                myfile << "UPDATE `gameobject` SET `zone_id`=" << zoneId << ", `area_id`=" << areaId << " WHERE `guid`=" << guid << ";\n";
+            //else
+            //    printf("Unable to determine zone for %u! (zone %u, area %u)\n", guid, zoneId, areaId);
+        }
+        else
+            printf("Cannot find map %u!\n", mapId);
+
+    } while (result->NextRow());
+
+    myfile.close();
+}
+
+/*
+void ObjectMgr::AssignZoneIdsToSpawns()
+{
+    printf("Loading sniffs_combined2.gameobject_unique...\n");
+    std::ofstream myfile("gobject_zones.sql");
+    if (!myfile.is_open())
+    return;
+
+    //                                                               0       1      2             3             4             5          6
+    std::unique_ptr<QueryResult> result(WorldDatabase.Query("SELECT `guid`, `map`, `position_x`, `position_y`, `position_z`, `zone_id`, `area_id` FROM `sniffs_combined2`.`gameobject_unique` WHERE `map` IN (0, 1)"));
+
+    if (!result)
+    {
+        sLog.outString(">> Loaded 0 gameobject spawns, table is empty!");
+        return;
+    }
+
+    do
+    {
+        auto fields = result->Fetch();
+
+        uint32 guid = fields[0].GetUInt32();
+        uint32 mapId = fields[1].GetUInt32();
+        float x = fields[2].GetFloat();
+        float y = fields[3].GetFloat();
+        float z = fields[4].GetFloat();
+
+        uint32 currentZoneId = fields[5].GetUInt32();
+        uint32 currentAreaId = fields[6].GetUInt32();
+
+        if (auto map = sMapMgr.FindMap(mapId))
+        {
+            uint32 zoneId = 0;
+            uint32 areaId = 0;
+            map->GetTerrain()->GetZoneAndAreaId(zoneId, areaId, x, y, z);
+
+            if (zoneId != currentZoneId || areaId != currentAreaId)
+                myfile << "UPDATE `gameobject_unique` SET `zone_id`=" << zoneId << ", `area_id`=" << areaId << " WHERE `guid`=" << guid << ";\n";
+        }
+        else
+            printf("Cannot find map %u!\n", mapId);
+
+    } while (result->NextRow());
+
+    myfile.close();
+}
+*/

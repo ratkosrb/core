@@ -600,6 +600,7 @@ class ObjectMgr
 
         static GameObjectInfo const* GetGameObjectInfo(uint32 id) { return sGOStorage.LookupEntry<GameObjectInfo>(id); }
 
+        void AssignZoneIdsToSpawns();
         void LoadGameobjectInfo();
         void CheckGameObjectInfos();
         void AddGameobjectInfo(GameObjectInfo* goinfo);
