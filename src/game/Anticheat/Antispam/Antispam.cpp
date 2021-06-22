@@ -30,9 +30,27 @@ static inline void ReplaceAllW(std::wstring &str, const std::wstring& from, cons
     }
 }
 
+void AntispamAsyncWorker(Antispam *antispam)
+{
+    using namespace std::chrono_literals;
+    LoginDatabase.ThreadStart();
+    LogsDatabase.ThreadStart();
+    auto prevNow = Clock::now();
+    while (!sWorld.IsStopped())
+    {
+        auto currNow = Clock::now();
+        auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(currNow - prevNow).count();
+        antispam->processMessages(diff);
+        prevNow = currNow;
+        std::this_thread::sleep_for(50ms);
+    }
+    LogsDatabase.ThreadEnd();
+    LoginDatabase.ThreadEnd();
+}
+
 Antispam::Antispam()
     :   m_enabled(false), m_restrictionLevel(0), m_originalNormalizeMask(0), m_fullyNormalizeMask(0),
-        m_threshold(0), m_mutetime(0), m_chatMask(0), m_worker(nullptr), m_banEnabled(false), m_detectThreshold(3),
+        m_threshold(0), m_mutetime(0), m_chatMask(0), m_worker(), m_banEnabled(false), m_detectThreshold(3),
         m_messageBlockSize(5), m_updateTimer(60000), m_messageRepeatCount(5), m_frequencyCount(5.0f), m_frequencyTime(6.0f),
         m_mergeAllWhispers(false)
 {
@@ -160,8 +178,8 @@ void Antispam::loadConfig()
     m_frequencyCount = sWorld.getConfig(CONFIG_UINT32_AC_ANTISPAM_FREQUENCY_COUNT);
     m_frequencyCoeff = m_frequencyCount / m_frequencyTime;
 
-    if (!m_worker)
-        m_worker = new ACE_Based::Thread(new AntispamAsyncWorker(this));
+    if (!m_worker.joinable())
+        m_worker = std::thread(AntispamAsyncWorker, this);
 }
 
 void Antispam::addMessage(const std::string& msg, uint32 type, PlayerPointer from, PlayerPointer to)
