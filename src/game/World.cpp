@@ -1144,6 +1144,23 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_UINT32_AC_WARDEN_DB_LOGLEVEL, "Warden.DBLogLevel", 0);
     m_wardenModuleDirectory = sConfig.GetStringDefault("Warden.ModuleDir", "warden_modules");
 
+    // Antispam
+    setConfig(CONFIG_BOOL_AC_ANTISPAM_ENABLED, "Antispam.Enable", true);
+    setConfig(CONFIG_BOOL_AC_ANTISPAM_BAN_ENABLED, "Antispam.BanEnable", false);
+    setConfig(CONFIG_BOOL_AC_ANTISPAM_MERGE_ALL_WHISPERS, "Antispam.MergeAllWhispers", false);
+    setConfig(CONFIG_UINT32_AC_ANTISPAM_MAX_RESTRICTION_LEVEL, "Antispam.MaxRestrictionLevel", 20);
+    setConfig(CONFIG_UINT32_AC_ANTISPAM_ORIGINAL_NORMALIZE_MASK, "Antispam.OriginalNormalizeMask", 0);
+    setConfig(CONFIG_UINT32_AC_ANTISPAM_FULLY_NORMALIZE_MASK, "Antispam.FullyNormalizeMask", 0);
+    setConfig(CONFIG_UINT32_AC_ANTISPAM_SCORE_THRESHOLD, "Antispam.ScoreThreshold", 4);
+    setConfig(CONFIG_UINT32_AC_ANTISPAM_MUTETIME, "Antispam.Mutetime", 3600);
+    setConfig(CONFIG_UINT32_AC_ANTISPAM_CHAT_MASK, "Antispam.ChatMask", 0);
+    setConfig(CONFIG_UINT32_AC_ANTISPAM_DETECT_THRESHOLD, "Antispam.DetectThreshold", 3);
+    setConfig(CONFIG_UINT32_AC_ANTISPAM_REPEAT_COUNT, "Antispam.RepeatCount", 5);
+    setConfig(CONFIG_UINT32_AC_ANTISPAM_UPDATE_TIMER, "Antispam.UpdateTimer", 60000);
+    setConfig(CONFIG_UINT32_AC_ANTISPAM_MESSAGE_BLOCK_SIZE, "Antispam.MessageBlockSize", 5);
+    setConfig(CONFIG_UINT32_AC_ANTISPAM_FREQUENCY_TIME, "Antispam.FrequencyTime", 3);
+    setConfig(CONFIG_UINT32_AC_ANTISPAM_FREQUENCY_COUNT, "Antispam.FrequencyCount", 3);
+
     setConfig(CONFIG_UINT32_CREATURE_SUMMON_LIMIT, "MaxCreatureSummonLimit", DEFAULT_CREATURE_SUMMON_LIMIT);
 
     // Smartlog data

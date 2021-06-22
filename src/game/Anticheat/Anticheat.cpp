@@ -32,6 +32,7 @@ AnticheatManager* GetAnticheatLib()
 #include "World.h"
 #include "WorldSession.h"
 
+#include "Antispam/Antispam.h"
 #include "MovementAnticheat/MovementAnticheat.h"
 #include "WardenAnticheat/Warden.h"
 #include "WardenAnticheat/WardenWin.h"
@@ -39,6 +40,10 @@ AnticheatManager* GetAnticheatLib()
 
 void AnticheatManager::LoadAnticheatData()
 {
+    sLog.outString();
+    sLog.outString("Loading antispam system ...");
+    sAntispam->loadConfig();
+
     sLog.outString();
     sLog.outString("Loading warden checks...");
     sWardenMgr->LoadWardenChecks();
@@ -74,6 +79,11 @@ Warden* AnticheatManager::CreateWardenFor(WorldSession* client, BigNumber* K)
     warden->Init(client, K);
 
     return warden;
+}
+
+AntispamInterface* AnticheatManager::GetAntispam() const
+{
+    return sAntispam;
 }
 
 #endif
