@@ -310,7 +310,7 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recvData)
     /* extract packet */
     MovementInfo movementInfo = pPlayerMover ? pPlayerMover->m_movementInfo : MovementInfo();
     recvData >> movementInfo;
-    movementInfo.UpdateTime(recvData.GetPacketTime());
+    movementInfo.UpdateBroadcastTime(pMover->m_movementInfo.ctime, pMover->m_movementInfo.btime);
     /*----------------*/
 
     if (!VerifyMovementInfo(movementInfo))
@@ -428,7 +428,6 @@ void WorldSession::HandleForceSpeedChangeAckOpcodes(WorldPacket& recvData)
     recvData >> movementInfo;
     float  speedReceived;
     recvData >> speedReceived;
-    movementInfo.UpdateTime(recvData.GetPacketTime());
     /*----------------*/
 
     // now can skip not our packet
@@ -465,6 +464,8 @@ void WorldSession::HandleForceSpeedChangeAckOpcodes(WorldPacket& recvData)
 
     if (!pMover)
         return;
+
+    movementInfo.UpdateBroadcastTime(pMover->m_movementInfo.ctime, pMover->m_movementInfo.btime);
 
     // verify that indeed the client is replying with the changes that were send to him
     if (!pMover->HasPendingMovementChange())
@@ -549,7 +550,6 @@ void WorldSession::HandleMovementFlagChangeToggleAck(WorldPacket& recvData)
 #endif
     MovementInfo movementInfo;
     recvData >> movementInfo;
-    movementInfo.UpdateTime(recvData.GetPacketTime());
     uint32 applyInt;
     recvData >> applyInt;
     bool applyReceived = applyInt != 0u;
@@ -563,6 +563,8 @@ void WorldSession::HandleMovementFlagChangeToggleAck(WorldPacket& recvData)
 
     if (!pMover)
         return;
+
+    movementInfo.UpdateBroadcastTime(pMover->m_movementInfo.ctime, pMover->m_movementInfo.btime);
 
     // verify that indeed the client is replying with the changes that were send to him
     if (!pMover->HasPendingMovementChange())
@@ -670,7 +672,6 @@ void WorldSession::HandleMoveRootAck(WorldPacket& recvData)
 #endif
     MovementInfo movementInfo;
     recvData >> movementInfo;
-    movementInfo.UpdateTime(recvData.GetPacketTime());
     /*----------------*/
 
     // make sure this client is allowed to control the unit which guid is provided
@@ -681,6 +682,8 @@ void WorldSession::HandleMoveRootAck(WorldPacket& recvData)
 
     if (!pMover)
         return;
+
+    movementInfo.UpdateBroadcastTime(pMover->m_movementInfo.ctime, pMover->m_movementInfo.btime);
 
     // verify that indeed the client is replying with the changes that were send to him
     if (!pMover->HasPendingMovementChange())
@@ -758,7 +761,6 @@ void WorldSession::HandleMoveKnockBackAck(WorldPacket& recvData)
 #endif
     MovementInfo movementInfo;
     recvData >> movementInfo;
-    movementInfo.UpdateTime(recvData.GetPacketTime());
     /*----------------*/
 
     if (guid != _clientMoverGuid && guid != _player->GetObjectGuid() && guid != _player->GetMover()->GetObjectGuid())
@@ -768,6 +770,8 @@ void WorldSession::HandleMoveKnockBackAck(WorldPacket& recvData)
 
     if (!pMover)
         return;
+
+    movementInfo.UpdateBroadcastTime(pMover->m_movementInfo.ctime, pMover->m_movementInfo.btime);
 
     if (!VerifyMovementInfo(movementInfo))
         return;
@@ -955,6 +959,7 @@ void WorldSession::HandleMoveTimeSkippedOpcode(WorldPacket& recvData)
 
     pMover->m_movementInfo.stime += lag;
     pMover->m_movementInfo.ctime += lag;
+    pMover->m_movementInfo.btime += lag;
 
     // fix an 1.12 client problem with transports
     if (_player->HasJustBoarded())

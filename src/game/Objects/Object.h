@@ -186,7 +186,12 @@ class MovementInfo
         uint32 GetFallTime() const { return fallTime; }
         void ChangeOrientation(float o) { pos.o = o; }
         void ChangePosition(float x, float y, float z, float o) { pos.x = x; pos.y = y; pos.z = z; pos.o = o; }
-        void UpdateTime(uint32 _time) { stime = _time; }
+        void UpdateTime(uint32 serverTime) { stime = serverTime; btime = serverTime; }
+        void UpdateBroadcastTime(uint32 oldClientTime, uint32 oldBroadcastTime)
+        {
+            if (oldClientTime && oldBroadcastTime && ctime && ctime > oldClientTime)
+                btime = oldBroadcastTime + (ctime - oldClientTime);
+        }
 
         struct JumpInfo
         {
@@ -197,22 +202,26 @@ class MovementInfo
         };
 
         JumpInfo const& GetJumpInfo() const { return jump; }
-    //private:
+
         // common
-        uint32  moveFlags;                                  // see enum MovementFlags
-        uint32  stime; // Server time
-        uint32  ctime; // Client time
+        uint32 moveFlags; // see enum MovementFlags
+        uint32 btime; // Broadcast time
+        uint32 ctime; // Client time
+        uint32 stime; // Server time
         Position pos;
+
         // transport
         ObjectGuid t_guid;
         Position t_pos;
         uint32  t_time;
-        // swimming and unknown
+
+        // swimming
         float   s_pitch;
-        // last fall time
+
+        // jumping and falling
         uint32  fallTime;
-        // jumping
         JumpInfo jump;
+
         // spline
         float splineElevation;
 };

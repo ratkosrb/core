@@ -60,6 +60,8 @@
 void MovementInfo::Read(ByteBuffer &data)
 {
     stime = WorldTimer::getMSTime();
+    btime = stime;
+
     data >> moveFlags;
     data >> ctime;
     data >> pos.x;
@@ -142,7 +144,7 @@ void MovementInfo::CorrectData(Unit* mover)
 void MovementInfo::Write(ByteBuffer &data) const
 {
     data << moveFlags;
-    data << stime;
+    data << btime;
     data << pos.x;
     data << pos.y;
     data << pos.z;
@@ -1409,8 +1411,13 @@ void WorldObject::Relocate(float x, float y, float z, float orientation)
     m_position.z = z;
     m_position.o = orientation;
 
-    m_movementInfo.ChangePosition(x, y, z, orientation);
-    m_movementInfo.UpdateTime(WorldTimer::getMSTime());
+    // don't overwrite the time if player is already on same position.
+    if (!IsPlayer() || m_movementInfo.pos.x != x || m_movementInfo.pos.y != y || m_movementInfo.pos.z != z)
+    {
+        m_movementInfo.ChangePosition(x, y, z, orientation);
+        m_movementInfo.UpdateTime(WorldTimer::getMSTime());
+    }
+    
     /*if (Transport* t = GetTransport())
     {
         t->CalculatePassengerOffset(x, y, z);
