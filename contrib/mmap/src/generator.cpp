@@ -18,14 +18,6 @@
 
 #include "MMapCommon.h"
 #include "MapBuilder.h"
-#ifdef _WIN32
-#include <Windows.h>
-#include <sys/stat.h>
-#include <direct.h>
-#define mkdir _mkdir
-#else
-#include <sys/stat.h>
-#endif
 
 using namespace MMAP;
 
@@ -49,17 +41,8 @@ bool checkDirectories(bool debugOutput)
     dirFiles.clear();
     if (getDirContents(dirFiles, "mmaps") == LISTFILE_DIRECTORY_NOT_FOUND)
     {
-        /* create mmaps directory */
-        if (mkdir("mmaps"
-#ifndef _WIN32
-            , 0777
-#endif
-            ) != 0)
-        {
-            /* return error if operation fails */
-            printf("'mmaps' directory does not exist, please create it\n");
-            return false;
-        }
+        printf("'mmaps' directory does not exist\n");
+        return false;
     }
 
     dirFiles.clear();
@@ -86,7 +69,6 @@ void printUsage()
     printf("--skipJunkMaps : junk maps include some unused\n");
     printf("--skipBattlegrounds : does not include PVP arenas\n");
     printf("--debug : create debugging files for use with RecastDemo\n");
-    printf("--quick : Does not remove undermap positions ... But generates way more quickly.\n");
     printf("--silent : Make script friendly. No wait for user input, error, completion.\n");
     printf("--offMeshInput [file.*] : Path to file containing off mesh connections data.\n\n");
     printf("--configInputPath [file.*] : Path to json configuration file.\n\n");
@@ -107,12 +89,11 @@ bool handleArgs(int argc, char** argv,
                 bool& skipBattlegrounds,
                 bool& debugOutput,
                 bool& silent,
-                bool& quick,
                 bool& buildOnlyGameobjectModels,
                 char*& offMeshInputPath,
                 char*& configInputPath)
 {
-    char* param = nullptr;
+    char* param = NULL;
     for (int i = 1; i < argc; ++i)
     {
         if (strcmp(argv[i], "--tile") == 0)
@@ -122,7 +103,8 @@ bool handleArgs(int argc, char** argv,
                 return false;
 
             char* stileX = strtok(param, ",");
-            char* stileY = strtok(nullptr, ",");
+            char* stileY = strtok(NULL, ",");
+
             int tilex = atoi(stileX);
             int tiley = atoi(stileY);
 
@@ -160,10 +142,6 @@ bool handleArgs(int argc, char** argv,
         else if (strcmp(argv[i], "--silent") == 0)
         {
             silent = true;
-        }
-        else if (strcmp(argv[i], "--quick") == 0)
-        {
-            quick = true;
         }
         else if (strcmp(argv[i], "--onlyGO") == 0)
         {
@@ -217,6 +195,7 @@ int main(int argc, char** argv)
 {
     int mapId = -1;
     int tileX = -1, tileY = -1;
+
     bool skipLiquid = false;
     bool skipContinents = false;
     bool skipJunkMaps = true;
@@ -224,14 +203,13 @@ int main(int argc, char** argv)
     bool debug = false;
     bool silent = false;
     bool buildOnlyGameobjectModels = false;
-    bool quick = false;
 
     char* offMeshInputPath = "offmesh.txt";
     char* configInputPath = "config.json";
 
     bool validParam = handleArgs(argc, argv, mapId, tileX, tileY, skipLiquid,
                                  skipContinents, skipJunkMaps, skipBattlegrounds,
-                                 debug, silent, quick, buildOnlyGameobjectModels, offMeshInputPath, configInputPath);
+                                 debug, silent, buildOnlyGameobjectModels, offMeshInputPath, configInputPath);
 
     if (!validParam)
         return silent ? -1 : finish("You have specified invalid parameters (use -? for more help)", -1);
@@ -241,7 +219,7 @@ int main(int argc, char** argv)
         if (silent)
             return -2;
 
-        printf("You have specified debug output, but didn't specify a map to generate.\n");
+        printf("You have specifed debug output, but didn't specify a map to generate.\n");
         printf("This will generate debug output for ALL maps.\n");
         printf("Are you sure you want to continue? (y/n) ");
         if (getchar() != 'y')
@@ -251,8 +229,7 @@ int main(int argc, char** argv)
     if (!checkDirectories(debug))
         return silent ? -3 : finish("Press any key to close...", -3);
 
-    MapBuilder builder(configInputPath, skipLiquid, skipContinents, skipJunkMaps,
-                       skipBattlegrounds, debug, quick, offMeshInputPath);
+    MapBuilder builder(configInputPath, skipLiquid, skipContinents, skipJunkMaps, skipBattlegrounds, debug, offMeshInputPath);
 
     if (buildOnlyGameobjectModels)
         builder.buildTransports();
@@ -265,5 +242,6 @@ int main(int argc, char** argv)
         builder.buildAllMaps();
         builder.buildTransports();
     }
+
     return silent ? 1 : finish("Movemap build is complete!", 1);
 }

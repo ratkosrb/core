@@ -34,6 +34,7 @@
 
 #include "json.hpp"
 
+using namespace std;
 using namespace VMAP;
 // G3D namespace typedefs conflicts with ACE typedefs
 
@@ -74,14 +75,13 @@ namespace MMAP
     class MapBuilder
     {
         public:
-            MapBuilder(char const* configInputPath,
+            MapBuilder(const char* configInputPath,
                        bool skipLiquid          = false,
                        bool skipContinents      = false,
                        bool skipJunkMaps        = true,
                        bool skipBattlegrounds   = false,
                        bool debug               = false,
-                       bool quick               = false,
-                       const char* offMeshFilePath = nullptr);
+                       const char* offMeshFilePath = NULL);
 
             ~MapBuilder();
 
@@ -94,11 +94,9 @@ namespace MMAP
             // builds list of maps, then builds all of mmap tiles (based on the skip settings)
             void buildAllMaps();
 
+            // builds all GO models needed for pathfinding
             void buildGameObject(std::string modelName, uint32 displayId);
             void buildTransports();
-
-            bool duDumpPolyMeshToObj(rcPolyMesh& pmesh, uint32 mapID, uint32 tileY, uint32 tileX);
-            bool duDumpPolyMeshDetailToObj(rcPolyMeshDetail& dmesh, uint32 mapID, uint32 tileY, uint32 tileX);
 
         private:
             // detect maps and tiles
@@ -108,6 +106,8 @@ namespace MMAP
             void buildNavMesh(uint32 mapID, dtNavMesh*& navMesh);
 
             void buildTile(uint32 mapID, uint32 tileX, uint32 tileY, dtNavMesh* navMesh, uint32 curTile, uint32 tileCount);
+            bool buildCommonTile(const char* tileString, Tile& tile, rcConfig& tileCfg, float* tVerts, int tVertCount, int* tTris, int tTriCount, float* lVerts, int lVertCount,
+                                 int* lTris, int lTriCount, uint8* lTriFlags);
 
             // move map building
             void buildMoveMapTile(uint32 mapID, uint32 tileX, uint32 tileY, MeshData& meshData, float bmin[3], float bmax[3], dtNavMesh* navMesh);
@@ -131,7 +131,7 @@ namespace MMAP
             bool m_skipContinents;
             bool m_skipJunkMaps;
             bool m_skipBattlegrounds;
-            bool m_quick;
+
             json m_config;
 
             // build performance - not really used for now

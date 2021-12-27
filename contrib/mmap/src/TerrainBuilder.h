@@ -19,18 +19,14 @@
 #ifndef _MMAP_TERRAIN_BUILDER_H
 #define _MMAP_TERRAIN_BUILDER_H
 
-#include <set>
-
 #include "MMapCommon.h"
 #include "../../../src/game/Maps/MoveMapSharedDefines.h"
 
 #include "WorldModel.h"
-#include "VMapManager2.h"
 
 #include "G3D/Array.h"
 #include "G3D/Vector3.h"
 #include "G3D/Matrix3.h"
-
 
 namespace MMAP
 {
@@ -49,7 +45,6 @@ namespace MMAP
         GRID_V9
     };
 
-    static const int MAP_RESOLUTION = 128;
     static const int V9_SIZE = 129;
     static const int V9_SIZE_SQ = V9_SIZE * V9_SIZE;
     static const int V8_SIZE = 128;
@@ -65,8 +60,8 @@ namespace MMAP
     // see following files:
     // contrib/extractor/system.cpp
     // src/game/GridMap.cpp
-    static char const* MAP_VERSION_MAGIC = "z1.5";
-
+    static char const* MAP_VERSION_MAGIC = "z1.4";
+    
     struct MeshData
     {
         G3D::Array<float> solidVerts;
@@ -82,22 +77,16 @@ namespace MMAP
         G3D::Array<unsigned char> offMeshConnectionDirs;
         G3D::Array<unsigned char> offMeshConnectionsAreas;
         G3D::Array<unsigned short> offMeshConnectionsFlags;
-
-        // Terrain or gobj model ?
-        bool IsTerrainTriangle(int tri) const { return tri < vmapFirstTriangle || tri >=  vmapLastTriangle; }
-        int vmapFirstTriangle;
-        int vmapLastTriangle;
     };
 
     class TerrainBuilder
     {
         public:
-            TerrainBuilder(bool skipLiquid, bool quick);
+            TerrainBuilder(bool skipLiquid);
             ~TerrainBuilder();
 
             void loadMap(uint32 mapID, uint32 tileX, uint32 tileY, MeshData& meshData);
             bool loadVMap(uint32 mapID, uint32 tileX, uint32 tileY, MeshData& meshData);
-            void unloadVMap(uint32 mapID, uint32 tileX, uint32 tileY);
             void loadOffMeshConnections(uint32 mapID, uint32 tileX, uint32 tileY, MeshData& meshData, const char* offMeshFilePath);
 
             bool usesLiquids() { return !m_skipLiquid; }
@@ -109,8 +98,6 @@ namespace MMAP
             static void copyIndices(vector<VMAP::MeshTriangle>& source, G3D::Array<int>& dest, int offest, bool flip);
             static void copyIndices(G3D::Array<int>& src, G3D::Array<int>& dest, int offset);
             static void cleanVertices(G3D::Array<float>& verts, G3D::Array<int>& tris);
-            float getHeight(float x, float y) const;
-            bool IsUnderMap(float* pos /* y,z,x */);
         private:
             /// Loads a portion of a map's terrain
             bool loadMap(uint32 mapID, uint32 tileX, uint32 tileY, MeshData& meshData, Spot portion);
@@ -139,15 +126,9 @@ namespace MMAP
             /// Get the liquid type for a specific position
             uint8 getLiquidType(int square, const uint8 liquid_type[16][16]);
 
-
             // hide parameterless and copy constructor
             TerrainBuilder();
             TerrainBuilder(const TerrainBuilder& tb);
-            float* m_V9;
-            float* m_V8;
-            bool m_quick;
-            uint32 m_mapId;
-            VMAP::VMapManager2 vmapManager;
     };
 }
 

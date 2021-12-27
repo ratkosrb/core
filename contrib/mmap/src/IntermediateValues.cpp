@@ -202,8 +202,77 @@ namespace MMAP
     void IntermediateValues::generateObjFile(uint32 mapID, uint32 tileX, uint32 tileY, MeshData& meshData)
     {
         char objFileName[255];
-        sprintf(objFileName, "map%03u%02u%02u", mapID, tileY, tileX);
-        generateObjFile(objFileName, meshData);
+        sprintf(objFileName, "meshes/map%03u%02u%02u.obj", mapID, tileY, tileX);
+
+        FILE* objFile = fopen(objFileName, "wb");
+        if (!objFile)
+        {
+            char message[1024];
+            sprintf(message, "Failed to open %s for writing!\n", objFileName);
+            perror(message);
+            return;
+        }
+
+        G3D::Array<float> allVerts;
+        G3D::Array<int> allTris;
+
+        allTris.append(meshData.liquidTris);
+        allVerts.append(meshData.liquidVerts);
+        TerrainBuilder::copyIndices(meshData.solidTris, allTris, allVerts.size() / 3);
+        allVerts.append(meshData.solidVerts);
+
+        float* verts = allVerts.getCArray();
+        int vertCount = allVerts.size() / 3;
+        int* tris = allTris.getCArray();
+        int triCount = allTris.size() / 3;
+
+        for (int i = 0; i < allVerts.size() / 3; i++)
+            fprintf(objFile, "v %f %f %f\n", verts[i * 3], verts[i * 3 + 1], verts[i * 3 + 2]);
+
+        for (int i = 0; i < allTris.size() / 3; i++)
+            fprintf(objFile, "f %i %i %i\n", tris[i * 3] + 1, tris[i * 3 + 1] + 1, tris[i * 3 + 2] + 1);
+
+        fclose(objFile);
+
+
+        char tileString[25];
+        sprintf(tileString, "[%02u,%02u]: ", tileY, tileX);
+        printf("%sWriting debug output...                       \r", tileString);
+
+        sprintf(objFileName, "meshes/%03u.map", mapID);
+
+        objFile = fopen(objFileName, "wb");
+        if (!objFile)
+        {
+            char message[1024];
+            sprintf(message, "Failed to open %s for writing!\n", objFileName);
+            perror(message);
+            return;
+        }
+
+        char b = '\0';
+        fwrite(&b, sizeof(char), 1, objFile);
+        fclose(objFile);
+
+        sprintf(objFileName, "meshes/%03u%02u%02u.mesh", mapID, tileY, tileX);
+        objFile = fopen(objFileName, "wb");
+        if (!objFile)
+        {
+            char message[1024];
+            sprintf(message, "Failed to open %s for writing!\n", objFileName);
+            perror(message);
+            return;
+        }
+
+        fwrite(&vertCount, sizeof(int), 1, objFile);
+        fwrite(verts, sizeof(float), vertCount * 3, objFile);
+        fflush(objFile);
+
+        fwrite(&triCount, sizeof(int), 1, objFile);
+        fwrite(tris, sizeof(int), triCount * 3, objFile);
+        fflush(objFile);
+
+        fclose(objFile);
     }
     void IntermediateValues::generateObjFile(std::string filename, MeshData& meshData)
     {
@@ -236,7 +305,7 @@ namespace MMAP
 
         fclose(objFile);
 
-        #if 0
+#if 0
         printf("%sWriting debug output...                       \r", filename.c_str());
 
         realFileName = "meshes/" + filename + ".map";
@@ -277,6 +346,6 @@ namespace MMAP
         fflush(objFile);
 
         fclose(objFile);
-        #endif
+#endif
     }
 }
