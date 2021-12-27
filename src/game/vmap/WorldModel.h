@@ -86,7 +86,6 @@ namespace VMAP
             void setLiquidData(WmoLiquid*& liquid) { iLiquid = liquid; liquid = nullptr; }
             uint32 IntersectRay(G3D::Ray const& ray, float& distance, bool stopAtFirstHit, bool ignoreM2Model = false) const;
             bool IsInsideObject(Vector3 const& pos, Vector3 const& up, float& z_dist) const;
-            bool IsUnderObject(Vector3 const& pos, Vector3 const& up, bool isM2, float* outDist = nullptr, float* inDist = nullptr) const; // Use client triangles orientation. You can see bot->top through the floor.
             bool GetLiquidLevel(Vector3 const& pos, float& liqHeight) const;
             uint32 GetLiquidType() const;
             bool writeToFile(FILE* wf);
@@ -119,7 +118,6 @@ namespace VMAP
             void setRootWmoID(uint32 id) { RootWMOID = id; }
             bool IntersectRay(G3D::Ray const& ray, float& distance, bool stopAtFirstHit, bool ignoreM2Model) const;
             bool IntersectPoint(G3D::Vector3 const& p, G3D::Vector3 const& down, float& dist, AreaInfo& info) const;
-            bool IsUnderObject(G3D::Vector3 const& p, G3D::Vector3 const& up, bool m2, float* outDist = nullptr, float* inDist = nullptr) const;
             bool GetLocationInfo(G3D::Vector3 const& p, G3D::Vector3 const& down, float& dist, LocationInfo& info) const;
             bool writeFile(std::string const& filename);
             bool readFile(std::string const& filename);

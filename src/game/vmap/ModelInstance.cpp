@@ -97,31 +97,6 @@ void ModelInstance::intersectPoint(G3D::Vector3 const& p, AreaInfo& info) const
     }
 }
 
-bool ModelInstance::isUnderModel(G3D::Vector3 const& p, float* outDist, float* inDist) const
-{
-    if (!iModel)
-    {
-#ifdef VMAP_DEBUG
-        DEBUG_LOG("<object not loaded>");
-#endif
-        return false;
-    }
-
-    // M2 files don't have bounds
-    if (flags & MOD_M2)
-    {
-        //if (p.
-    }
-    else if (!iBound.contains(p))
-        return false;
-    // child bounds are defined in object space:
-    Vector3 up(0, 0, 1);
-    Vector3 pModel = iInvRot * (p - iPos) * iInvScale;
-    up = iInvRot * up * iInvScale;
-
-    return iModel->IsUnderObject(pModel, up, flags & MOD_M2, outDist, inDist);
-}
-
 bool ModelInstance::GetLocationInfo(G3D::Vector3 const& p, LocationInfo& info) const
 {
     if (!iModel)
