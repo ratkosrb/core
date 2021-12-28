@@ -454,7 +454,7 @@ namespace MMAP
     /**************************************************************************/
     void MapBuilder::buildSingleTile(uint32 mapID, uint32 tileX, uint32 tileY)
     {
-        dtNavMesh* navMesh = NULL;
+        dtNavMesh* navMesh = nullptr;
         buildNavMesh(mapID, navMesh);
         if (!navMesh)
         {
@@ -532,7 +532,7 @@ namespace MMAP
         m_terrainBuilder->loadMap(mapID, tileX, tileY, meshData);
 
         // get model data
-        m_terrainBuilder->loadVMap(mapID, tileY, tileX, meshData);
+        m_terrainBuilder->loadVMap(mapID, tileX, tileY, meshData);
 
         // if there is no data, give up now
         if (!meshData.solidVerts.size() && !meshData.liquidVerts.size())

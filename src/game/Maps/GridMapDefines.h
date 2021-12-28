@@ -82,17 +82,4 @@ struct GridMapLiquidData
     float depth_level = 0.0f;
 };
 
-enum NavMeshAreas
-{
-    AREA_NONE = 0,
-    AREA_GROUND,
-    AREA_GROUND_MODEL,
-    AREA_STEEP_SLOPE,
-    AREA_STEEP_SLOPE_MODEL,
-    AREA_WATER_TRANSITION,
-    AREA_WATER,
-    AREA_MAGMA,
-    AREA_SLIME,
-};
-
 #endif

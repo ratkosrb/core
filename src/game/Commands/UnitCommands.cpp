@@ -160,6 +160,11 @@ bool ChatHandler::HandleGPSCommand(char* args)
     GridMapLiquidStatus res = terrain->getLiquidStatus(obj->GetPositionX(), obj->GetPositionY(), obj->GetPositionZ(), MAP_ALL_LIQUIDS, &liquid_status);
     if (res)
         PSendSysMessage(LANG_LIQUID_STATUS, liquid_status.level, liquid_status.depth_level, liquid_status.type_flags, res);
+
+    PSendSysMessage("Is Underwater: %u", obj->GetTerrain()->IsUnderWater(obj->GetPositionX(), obj->GetPositionY(), obj->GetPositionZ()));
+    PSendSysMessage("Is In Water: %u", obj->GetTerrain()->IsInWater(obj->GetPositionX(), obj->GetPositionY(), obj->GetPositionZ()));
+    PSendSysMessage("Is Swimmable: %u", obj->GetTerrain()->IsSwimmable(obj->GetPositionX(), obj->GetPositionY(), obj->GetPositionZ()));
+
     return true;
 }
 
