@@ -3127,7 +3127,7 @@ bool Map::GetWalkHitPosition(GenericTransport* transport, float srcX, float srcY
     filter.setIncludeFlags(moveAllowedFlags);
 
     if (!locatedOnSteepSlope)
-        filter.setExcludeFlags(NAV_STEEP_SLOPES);
+        filter.setExcludeFlags(NAV_GROUND_STEEP);
 
     dtPolyRef startRef = PathInfo::FindWalkPoly(m_navMeshQuery, point, filter, closestPoint, zSearchDist);
     if (!startRef)
@@ -3135,7 +3135,7 @@ bool Map::GetWalkHitPosition(GenericTransport* transport, float srcX, float srcY
         DETAIL_LOG("WalkHitPos: Start poly not found");
         return false;
     }
-    filter.setExcludeFlags(NAV_STEEP_SLOPES);
+    filter.setExcludeFlags(NAV_GROUND_STEEP);
 
     /// Walk on the surface found
     dtPolyRef visited[50] = {0};
@@ -3216,7 +3216,7 @@ bool Map::GetWalkRandomPosition(GenericTransport* transport, float &x, float &y,
     float closestPoint[3] = {0.0f, 0.0f, 0.0f};
     dtQueryFilter filter;
     filter.setIncludeFlags(moveAllowedFlags);
-    filter.setExcludeFlags(NAV_STEEP_SLOPES);
+    filter.setExcludeFlags(NAV_GROUND_STEEP);
     dtPolyRef startRef = PathInfo::FindWalkPoly(m_navMeshQuery, point, filter, closestPoint);
     if (!startRef)
         return false;

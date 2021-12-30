@@ -85,7 +85,7 @@ class PathInfo
         bool UpdateForMelee(Unit* pTarget, float meleeReach);
         void CutPathWithDynamicLoS();
         float Length() const;
-        void ExcludeSteepSlopes() { m_filter.setExcludeFlags(NAV_STEEP_SLOPES); }
+        void ExcludeSteepSlopes() { m_filter.setExcludeFlags(NAV_GROUND_STEEP); }
         static dtPolyRef FindWalkPoly(dtNavMeshQuery const* query, float const* pointYZX, dtQueryFilter const& filter, float* closestPointYZX, float zSearchDist = 10.0f);
         void SetTransport(GenericTransport* t) { m_transport = t; }
         GenericTransport* GetTransport() const { return m_transport; }

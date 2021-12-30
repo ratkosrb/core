@@ -9863,7 +9863,7 @@ bool Unit::GetRandomAttackPoint(Unit const* attacker, float &x, float &y, float 
         if (attacker->CanSwim())
             nav |= NAV_WATER;
         if (!attacker->IsPlayer())
-            nav |= NAV_MAGMA | NAV_SLIME;
+            nav |= NAV_MAGMA_SLIME;
 
         // Try mmaps. On fail, use target position (but should not fail)
         if (GetMap()->GetWalkHitPosition(GetTransport(), initialPosX, initialPosY, initialPosZ, x, y, z, nav))

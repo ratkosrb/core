@@ -528,7 +528,7 @@ void PathInfo::createFilter()
         if (m_sourceUnit->GetTypeId() == TYPEID_PLAYER)
             includeFlags |= NAV_WATER;
         else // creatures don't take environmental damage
-            includeFlags |= (NAV_WATER | NAV_MAGMA | NAV_SLIME);
+            includeFlags |= (NAV_WATER | NAV_MAGMA_SLIME);
     }
 
     m_filter.setIncludeFlags(includeFlags);
@@ -546,11 +546,11 @@ void PathInfo::FillTargetAllowedFlags(Unit* target)
 {
     m_targetAllowedFlags = 0;
     if (target->CanSwim())
-        m_targetAllowedFlags |= NAV_WATER | NAV_SLIME | NAV_MAGMA;
+        m_targetAllowedFlags |= NAV_WATER | NAV_MAGMA_SLIME;
     if (target->CanWalk())
         m_targetAllowedFlags |= NAV_GROUND;
     if (!target->IsPlayer())
-        m_targetAllowedFlags |= NAV_STEEP_SLOPES;
+        m_targetAllowedFlags |= NAV_GROUND_STEEP;
 }
 
 bool PathInfo::HaveTiles(Vector3 const& p) const

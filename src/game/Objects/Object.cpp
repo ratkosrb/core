@@ -1876,7 +1876,7 @@ bool WorldObject::GetRandomPoint(float x, float y, float z, float distance, floa
         // Sinon, on trouve une position au sol, ou dans l'eau, ou dans la lave (pas pour les joueurs)
         uint32 moveAllowed = NAV_GROUND | NAV_WATER;
         if (GetTypeId() != TYPEID_PLAYER)
-            moveAllowed |= NAV_MAGMA | NAV_SLIME;
+            moveAllowed |= NAV_MAGMA_SLIME;
         rand_x = x;
         rand_y = y;
         rand_z = z;

@@ -66,7 +66,7 @@ public:
 
         for (uint8 i = 0; i < 20; ++i)
         {
-            me->GetMap()->GetWalkRandomPosition(nullptr, x, y, z, 65.0f, NAV_GROUND | NAV_STEEP_SLOPES | NAV_WATER);
+            me->GetMap()->GetWalkRandomPosition(nullptr, x, y, z, 65.0f, NAV_GROUND | NAV_GROUND_STEEP | NAV_WATER);
             if (me->GetDistance2d(x, y) > 15.0f)
                 break;
         }
