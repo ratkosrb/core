@@ -23,39 +23,50 @@ using namespace G3D;
 
 namespace VMAP
 {
-    void chompAndTrim(std::string& str)
+    void VMapFactory::chompAndTrim(std::string& str)
     {
         while (str.length() > 0)
         {
             char lc = str[str.length() - 1];
             if (lc == '\r' || lc == '\n' || lc == ' ' || lc == '"' || lc == '\'')
+            {
                 str = str.substr(0, str.length() - 1);
+            }
             else
+            {
                 break;
+            }
         }
         while (str.length() > 0)
         {
             char lc = str[0];
             if (lc == ' ' || lc == '"' || lc == '\'')
+            {
                 str = str.substr(1, str.length() - 1);
+            }
             else
+            {
                 break;
+            }
         }
     }
 
+    std::mutex m_vmapMutex;
     IVMapManager* gVMapManager = nullptr;
 
     //===============================================
     // result false, if no more id are found
 
-    bool getNextId(std::string const& pString, unsigned int& pStartPos, unsigned int& pId)
+    bool VMapFactory::getNextId(const std::string& pString, unsigned int& pStartPos, unsigned int& pId)
     {
         bool result = false;
         unsigned int i;
         for (i = pStartPos; i < pString.size(); ++i)
         {
             if (pString[i] == ',')
+            {
                 break;
+            }
         }
         if (i > pStartPos)
         {
@@ -73,7 +84,11 @@ namespace VMAP
     IVMapManager* VMapFactory::createOrGetVMapManager()
     {
         if (!gVMapManager)
-            gVMapManager = new VMapManager2();              // should be taken from config ... Please change if you like :-)
+        {
+            std::lock_guard<std::mutex> lock(m_vmapMutex);
+            if (!gVMapManager)
+                gVMapManager = new VMapManager2();              // should be taken from config ... Please change if you like :-)
+        }
         return gVMapManager;
     }
 
@@ -81,8 +96,9 @@ namespace VMAP
     // delete all internal data structures
     void VMapFactory::clear()
     {
-        delete gVMapManager;
+        std::lock_guard<std::mutex> lock(m_vmapMutex);
 
+        delete gVMapManager;
         gVMapManager = nullptr;
     }
 }

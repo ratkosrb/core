@@ -21,15 +21,15 @@
 #include "VMapDefinitions.h"
 #include "WorldModel.h"
 
-#include "GameObject.h"
-#include "World.h"
+#include "Entities//GameObject.h"
+#include "World/World.h"
 #include "GameObjectModel.h"
-#include "DBCStores.h"
+#include "Server/DBCStores.h"
 #include "ModelInstance.h"
 
 struct GameobjectModelData
 {
-    GameobjectModelData(std::string const& name_, G3D::AABox const& box) :
+    GameobjectModelData(const std::string& name_, const G3D::AABox& box) :
         name(name_), bound(box) {}
 
     std::string name;
@@ -54,7 +54,7 @@ void LoadGameObjectModelList()
 
         if (name_length >= sizeof(buff))
         {
-            DEBUG_LOG("File %s seems to be corrupted", VMAP::GAMEOBJECT_MODELS);
+            sLog.outDebug("File %s seems to be corrupted", VMAP::GAMEOBJECT_MODELS);
             break;
         }
 
@@ -70,9 +70,11 @@ void LoadGameObjectModelList()
 
 GameObjectModel::~GameObjectModel()
 {
+    if (iModel)
+        ((VMAP::VMapManager2*)VMAP::VMapFactory::createOrGetVMapManager())->releaseModelInstance(name);
 }
 
-bool GameObjectModel::initialize(GameObject const* const pGo, GameObjectDisplayInfoEntry const* pDisplayInfo)
+bool GameObjectModel::initialize(const GameObject* const pGo, const GameObjectDisplayInfoEntry* const pDisplayInfo)
 {
     ModelList::const_iterator it = model_list.find(pDisplayInfo->Displayid);
     if (it == model_list.end())
@@ -82,7 +84,7 @@ bool GameObjectModel::initialize(GameObject const* const pGo, GameObjectDisplayI
     // ignore models with no bounds
     if (mdl_box == G3D::AABox::zero())
     {
-        DEBUG_LOG("Model %s has zero bounds, loading skipped", it->second.name.c_str());
+        sLog.outDebug("Model %s has zero bounds, loading skipped", it->second.name.c_str());
         return false;
     }
 
@@ -108,16 +110,16 @@ bool GameObjectModel::initialize(GameObject const* const pGo, GameObjectDisplayI
     for (int i = 0; i < 8; ++i)
         rotated_bounds.merge(iRotation * mdl_box.corner(i));
 
-    iBound = rotated_bounds + iPos;
+    this->iBound = rotated_bounds + iPos;
 
 #ifdef SPAWN_CORNERS
     // test:
     for (int i = 0; i < 8; ++i)
     {
         Vector3 pos(iBound.corner(i));
-        if (Creature* c = const_cast<GameObject*>(pGo)->SummonCreature(24440, pos.x, pos.y, pos.z, 0, TEMPSUMMON_MANUAL_DESPAWN, 0))
+        if (Creature* c = const_cast<GameObject*>(pGo)->SummonCreature(24440, pos.x, pos.y, pos.z, 0, TEMPSPAWN_MANUAL_DESPAWN, 0))
         {
-            c->SetFactionTemplateId(35);
+            c->setFaction(35);
             c->SetObjectScale(0.1f);
         }
     }
@@ -126,24 +128,14 @@ bool GameObjectModel::initialize(GameObject const* const pGo, GameObjectDisplayI
     return true;
 }
 
-GameObjectModel* GameObjectModel::construct(GameObject const* const object)
+GameObjectModel* GameObjectModel::construct(const GameObject* const pGo)
 {
-    if (GameObjectInfo const* gobjInfo = object->GetGOInfo())
-    {
-        // TODO: What kind of gobj should block LoS or not ?
-        if (gobjInfo->type == GAMEOBJECT_TYPE_BUTTON && gobjInfo->button.losOK)
-            return nullptr;
-        if (gobjInfo->type == GAMEOBJECT_TYPE_GOOBER && gobjInfo->goober.losOK)
-            return nullptr;
-        if (gobjInfo->IsServerOnly())
-            return nullptr;
-    }
-    GameObjectDisplayInfoEntry const* info = sGameObjectDisplayInfoStore.LookupEntry(object->GetDisplayId());
+    const GameObjectDisplayInfoEntry* info = sGameObjectDisplayInfoStore.LookupEntry(pGo->GetDisplayId());
     if (!info)
         return nullptr;
 
     GameObjectModel* mdl = new GameObjectModel();
-    if (!mdl->initialize(object, info))
+    if (!mdl->initialize(pGo, info))
     {
         delete mdl;
         return nullptr;
@@ -152,7 +144,7 @@ GameObjectModel* GameObjectModel::construct(GameObject const* const object)
     return mdl;
 }
 
-bool GameObjectModel::intersectRay(G3D::Ray const& ray, float& MaxDist, bool StopAtFirstHit, bool ignoreM2Model) const
+bool GameObjectModel::intersectRay(const G3D::Ray& ray, float& MaxDist, bool StopAtFirstHit, bool ignoreM2Model) const
 {
     if (!collision_enabled)
         return false;

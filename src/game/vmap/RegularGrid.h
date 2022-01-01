@@ -56,7 +56,7 @@ class RegularGrid2D
 #define HGRID_MAP_SIZE  (533.33333f * 64.f)     // shouldn't be changed
 #define CELL_SIZE       float(HGRID_MAP_SIZE/(float)CELL_NUMBER)
 
-        typedef std::unordered_multimap<T const*, Node*> MemberTable;
+        typedef std::unordered_multimap<const T*, Node*> MemberTable;
 
         MemberTable memberTable;
         Node* nodes[CELL_NUMBER][CELL_NUMBER];
@@ -73,7 +73,7 @@ class RegularGrid2D
                     delete nodes[x][y];
         }
 
-        void insert(T const& value)
+        void insert(const T& value)
         {
             G3D::AABox bounds;
             BoundsFunc::getBounds(value, bounds);
@@ -111,7 +111,7 @@ class RegularGrid2D
             return { map.equal_range(key) };
         }
 
-        void remove(T const& value)
+        void remove(const T& value)
         {
             for (auto& p : MapEqualRange(memberTable, &value))
                 p.second->remove(value);
@@ -127,13 +127,13 @@ class RegularGrid2D
                         n->balance();
         }
 
-        bool contains(T const& value) const { return memberTable.count(&value) > 0; }
+        bool contains(const T& value) const { return memberTable.count(&value) > 0; }
         int size() const { return uint32(memberTable.size()); }
 
         struct Cell
         {
             int x, y;
-            bool operator == (Cell const& c2) const { return x == c2.x && y == c2.y;}
+            bool operator == (const Cell& c2) const { return x == c2.x && y == c2.y;}
 
             static Cell ComputeCell(float fx, float fy)
             {
@@ -153,13 +153,13 @@ class RegularGrid2D
         }
 
         template<typename RayCallback>
-        void intersectRay(Ray const& ray, RayCallback& intersectCallback, float max_dist, bool ignoreM2Model)
+        void intersectRay(const Ray& ray, RayCallback& intersectCallback, float max_dist, bool ignoreM2Model)
         {
             intersectRay(ray, intersectCallback, max_dist, ray.origin() + ray.direction() * max_dist, ignoreM2Model);
         }
 
         template<typename RayCallback>
-        void intersectRay(Ray const& ray, RayCallback& intersectCallback, float& max_dist, Vector3 const& end, bool ignoreM2Model)
+        void intersectRay(const Ray& ray, RayCallback& intersectCallback, float& max_dist, const Vector3& end, bool ignoreM2Model)
         {
             Cell cell = Cell::ComputeCell(ray.origin().x, ray.origin().y);
             if (!cell.isValid())
@@ -236,7 +236,7 @@ class RegularGrid2D
         }
 
         template<typename IsectCallback>
-        void intersectPoint(Vector3 const& point, IsectCallback& intersectCallback)
+        void intersectPoint(const Vector3& point, IsectCallback& intersectCallback)
         {
             Cell cell = Cell::ComputeCell(point.x, point.y);
             if (!cell.isValid())
@@ -247,7 +247,7 @@ class RegularGrid2D
 
         // Optimized verson of intersectRay function for rays with vertical directions
         template<typename RayCallback>
-        void intersectZAllignedRay(Ray const& ray, RayCallback& intersectCallback, float& max_dist)
+        void intersectZAllignedRay(const Ray& ray, RayCallback& intersectCallback, float& max_dist)
         {
             Cell cell = Cell::ComputeCell(ray.origin().x, ray.origin().y);
             if (!cell.isValid())

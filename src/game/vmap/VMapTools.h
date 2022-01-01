@@ -54,9 +54,9 @@ namespace VMAP
         public:
 
             static bool collisionLocationForMovingPointFixedAABox(
-                G3D::Vector3 const&     origin,
-                G3D::Vector3 const&     dir,
-                G3D::AABox const&       box,
+                const G3D::Vector3&     origin,
+                const G3D::Vector3&     dir,
+                const G3D::AABox&       box,
                 G3D::Vector3&           location,
                 bool&                   Inside)
             {
@@ -64,8 +64,8 @@ namespace VMAP
 #define IR(x)   (reinterpret_cast<G3D::uint32 const&>(x))
 
                 Inside = true;
-                G3D::Vector3 const& MinB = box.low();
-                G3D::Vector3 const& MaxB = box.high();
+                const G3D::Vector3& MinB = box.low();
+                const G3D::Vector3& MaxB = box.high();
                 G3D::Vector3 MaxT(-1.0f, -1.0f, -1.0f);
 
                 // Find candidate planes.

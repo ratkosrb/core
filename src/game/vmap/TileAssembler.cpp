@@ -32,21 +32,18 @@ using std::pair;
 
 template<> struct BoundsTrait<VMAP::ModelSpawn*>
 {
-    static void getBounds(VMAP::ModelSpawn const* const& obj, G3D::AABox& out)
-    {
-        out = obj->getBounds();
-    }
+    static void getBounds(const VMAP::ModelSpawn* const& obj, G3D::AABox& out) { out = obj->getBounds(); }
 };
 
 namespace VMAP
 {
-    bool readChunk(FILE* rf, char* dest, char const* compare, uint32 len)
+    bool readChunk(FILE* rf, char* dest, const char* compare, uint32 len)
     {
         if (fread(dest, sizeof(char), len, rf) != len) return false;
         return memcmp(dest, compare, len) == 0;
     }
 
-    Vector3 ModelPosition::transform(Vector3 const& pIn) const
+    Vector3 ModelPosition::transform(const Vector3& pIn) const
     {
         Vector3 out = pIn * iScale;
         out = iRotation * out;
@@ -55,10 +52,14 @@ namespace VMAP
 
     //=================================================================
 
-    TileAssembler::TileAssembler(std::string const& pSrcDirName, std::string const& pDestDirName) : iDestDir(pDestDirName), iSrcDir(pSrcDirName)
+    TileAssembler::TileAssembler(const std::string& pSrcDirName, const std::string& pDestDirName)
     {
         iCurrentUniqueNameId = 0;
         iFilterMethod = nullptr;
+        iSrcDir = pSrcDirName;
+        iDestDir = pDestDirName;
+        // mkdir(iDestDir);
+        // init();
     }
 
     TileAssembler::~TileAssembler()
@@ -150,7 +151,7 @@ namespace VMAP
             TileMap::iterator tile;
             for (tile = tileEntries.begin(); tile != tileEntries.end(); ++tile)
             {
-                ModelSpawn const& spawn = map_iter->second->UniqueEntries[tile->second];
+                const ModelSpawn& spawn = map_iter->second->UniqueEntries[tile->second];
                 if (spawn.flags & MOD_WORLDSPAWN)           // WDT spawn, saved as tile 65/65 currently...
                     continue;
                 uint32 nSpawns = tileEntries.count(tile->first);
@@ -170,9 +171,7 @@ namespace VMAP
                 {
                     if (s)
                         ++tile;
-                    if (tile == tileEntries.end())
-                        break;
-                    ModelSpawn const& spawn2 = map_iter->second->UniqueEntries[tile->second];
+                    ModelSpawn& spawn2 = map_iter->second->UniqueEntries[tile->second];
                     success = success && ModelSpawn::writeToFile(tilefile, spawn2);
                     // MapTree nodes to update when loading tile:
                     std::map<uint32, uint32>::iterator nIdx = modelNodeIdx.find(spawn2.ID);
@@ -201,7 +200,9 @@ namespace VMAP
 
         // cleanup:
         for (auto& map_iter : mapData)
+        {
             delete map_iter.second;
+        }
         return success;
     }
 
@@ -215,7 +216,7 @@ namespace VMAP
             return false;
         }
         printf("Read coordinate mapping...\n");
-        uint32 mapID = 0, tileX = 0, tileY = 0;
+        uint32 mapID, tileX, tileY;
         ModelSpawn spawn;
         while (!feof(dirf))
         {
@@ -296,7 +297,7 @@ namespace VMAP
         short type;
     };
     //=================================================================
-    bool TileAssembler::convertRawFile(std::string const& pModelFilename)
+    bool TileAssembler::convertRawFile(const std::string& pModelFilename)
     {
         std::string filename = iSrcDir;
         if (filename.length() > 0)
@@ -446,7 +447,9 @@ namespace VMAP
             }
             triangles.reserve(nindexes / 3);
             for (uint32 i = 0; i < nindexes; i += 3)
+            {
                 triangles.push_back(MeshTriangle(indexarray[i], indexarray[i + 1], indexarray[i + 2]));
+            }
             delete[] indexarray;
         }
 
@@ -469,7 +472,9 @@ namespace VMAP
             }
 
             for (uint32 i = 0; i < nvectors; ++i)
+            {
                 vertexArray.push_back(Vector3(vectorarray + 3 * i));
+            }
             delete[] vectorarray;
         }
 
@@ -496,7 +501,7 @@ namespace VMAP
         delete liquid;
     }
 
-    bool WorldModel_Raw::Read(char const* path)
+    bool WorldModel_Raw::Read(const char* path)
     {
         FILE* rf = fopen(path, "rb");
         if (!rf)
@@ -527,7 +532,7 @@ namespace VMAP
         fclose(rf);
         return succeed;
     }
-// drop of temporary use defines
+    // drop of temporary use defines
 #undef READ_OR_RETURN
 #undef CMP_OR_RETURN
 }

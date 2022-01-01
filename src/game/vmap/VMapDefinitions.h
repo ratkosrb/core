@@ -23,18 +23,18 @@
 
 namespace VMAP
 {
-    char const VMAP_MAGIC[] = "VMAP_7.0";                   // used in final vmap files
-    char const RAW_VMAP_MAGIC[] = "VMAPs05";                // used in extracted vmap files with raw data
-    char const GAMEOBJECT_MODELS[] = "temp_gameobject_models";
+    const char VMAP_MAGIC[] = "VMAP_7.0";                   // used in final vmap files
+    const char RAW_VMAP_MAGIC[] = "VMAPs05";                // used in extracted vmap files with raw data
+    const char GAMEOBJECT_MODELS[] = "temp_gameobject_models";
 
     // defined in TileAssembler.cpp currently...
-    bool readChunk(FILE* rf, char* dest, char const* compare, uint32 len);
+    bool readChunk(FILE* rf, char* dest, const char* compare, uint32 len);
 }
 
 #ifndef NO_CORE_FUNCS
 #include "Errors.h"
 #include "Log.h"
-#define ERROR_LOG(...) do{ sLog.outError(__VA_ARGS__); } while(0)
+#define ERROR_LOG(...) sLog.outError(__VA_ARGS__);
 #elif defined MMAP_GENERATOR
 #include <assert.h>
 #define MANGOS_ASSERT(x) assert(x)

@@ -42,8 +42,13 @@ namespace VMAP
     VMapManager2::~VMapManager2(void)
     {
         for (auto& iInstanceMapTree : iInstanceMapTrees)
+        {
             delete iInstanceMapTree.second;
-        iLoadedModelFiles.clear();
+        }
+        for (auto& iLoadedModelFile : iLoadedModelFiles)
+        {
+            delete iLoadedModelFile.second.getModel();
+        }
     }
 
     //=========================================================
@@ -51,7 +56,7 @@ namespace VMAP
     Vector3 VMapManager2::convertPositionToInternalRep(float x, float y, float z) const
     {
         Vector3 pos;
-        float const mid = 0.5f * 64.0f * 533.33333333f;
+        const float mid = 0.5f * 64.0f * 533.33333333f;
         pos.x = mid - x;
         pos.y = mid - y;
         pos.z = z;
@@ -70,7 +75,7 @@ namespace VMAP
 
     //=========================================================
 
-    VMAPLoadResult VMapManager2::loadMap(char const* pBasePath, unsigned int pMapId, int x, int y)
+    VMAPLoadResult VMapManager2::loadMap(const char* pBasePath, unsigned int pMapId, int x, int y)
     {
         VMAPLoadResult result = VMAP_LOAD_RESULT_IGNORED;
         if (isMapLoadingEnabled())
@@ -84,9 +89,19 @@ namespace VMAP
     }
 
     //=========================================================
+    // Check if specified map have tile loaded
+    bool VMapManager2::IsTileLoaded(uint32 mapId, uint32 x, uint32 y) const
+    {
+        InstanceTreeMap::const_iterator instanceTree = iInstanceMapTrees.find(mapId);
+        if (instanceTree == iInstanceMapTrees.end())
+            return false;
+        return instanceTree->second->IsTileLoaded(x, y);
+    }
+
+    //=========================================================
     // load one tile (internal use only)
 
-    bool VMapManager2::_loadMap(unsigned int pMapId, std::string const& basePath, uint32 tileX, uint32 tileY)
+    bool VMapManager2::_loadMap(unsigned int pMapId, const std::string& basePath, uint32 tileX, uint32 tileY)
     {
         InstanceTreeMap::iterator instanceTree = iInstanceMapTrees.find(pMapId);
         if (instanceTree == iInstanceMapTrees.end())
@@ -98,7 +113,12 @@ namespace VMAP
                 delete newTree;
                 return false;
             }
-            instanceTree = iInstanceMapTrees.insert(InstanceTreeMap::value_type(pMapId, newTree)).first;
+
+            // insert new data
+            {
+                std::lock_guard<std::mutex> lock(m_vmStaticMapMutex);
+                instanceTree = iInstanceMapTrees.insert(InstanceTreeMap::value_type(pMapId, newTree)).first;
+            }
         }
         return instanceTree->second->LoadMapTile(tileX, tileY, this);
     }
@@ -147,21 +167,9 @@ namespace VMAP
             Vector3 pos1 = convertPositionToInternalRep(x1, y1, z1);
             Vector3 pos2 = convertPositionToInternalRep(x2, y2, z2);
             if (pos1 != pos2)
+            {
                 result = instanceTree->second->isInLineOfSight(pos1, pos2, ignoreM2Model);
-        }
-        return result;
-    }
-    ModelInstance* VMapManager2::FindCollisionModel(unsigned int mapId, float x0, float y0, float z0, float x1, float y1, float z1)
-    {
-        if (!isLineOfSightCalcEnabled()) return nullptr;
-        ModelInstance* result = nullptr;
-        InstanceTreeMap::iterator instanceTree = iInstanceMapTrees.find(mapId);
-        if (instanceTree != iInstanceMapTrees.end())
-        {
-            Vector3 pos1 = convertPositionToInternalRep(x0, y0, z0);
-            Vector3 pos2 = convertPositionToInternalRep(x1, y1, z1);
-            if (pos1 != pos2)
-                result = instanceTree->second->FindCollisionModel(pos1, pos2);
+            }
         }
         return result;
     }
@@ -234,18 +242,6 @@ namespace VMAP
         return result;
     }
 
-    bool VMapManager2::isUnderModel(unsigned int pMapId, float x, float y, float z, float* outDist, float* inDist) const
-    {
-        bool result = false;
-        InstanceTreeMap::const_iterator instanceTree = iInstanceMapTrees.find(pMapId);
-        if (instanceTree != iInstanceMapTrees.end())
-        {
-            Vector3 pos = convertPositionToInternalRep(x, y, z);
-            result = instanceTree->second->isUnderModel(pos, outDist, inDist);
-        }
-        return result;
-    }
-
     uint8 GetLiquidMask(uint32 type) // wotlk uses dbc
     {
         switch (type)
@@ -284,22 +280,12 @@ namespace VMAP
 
     //=========================================================
 
-    std::shared_ptr<WorldModel> VMapManager2::acquireModelInstance(std::string const& basepath, std::string const& filename)
+    WorldModel* VMapManager2::acquireModelInstance(const std::string& basepath, const std::string& filename)
     {
-        std::shared_lock<std::shared_timed_mutex> slock (m_modelsLock);
+        std::lock_guard<std::mutex> lock(m_vmModelMutex);
         ModelFileMap::iterator model = iLoadedModelFiles.find(filename);
-        std::shared_ptr<WorldModel> ret;
         if (model == iLoadedModelFiles.end())
         {
-            slock.unlock();
-            std::unique_lock<std::shared_timed_mutex> ulock (m_modelsLock);
-            model = iLoadedModelFiles.find(filename);
-            if (model != iLoadedModelFiles.end())
-            {
-                ret = model->second.lock();
-                return ret;
-            }
-
             WorldModel* worldmodel = new WorldModel();
             if (!worldmodel->readFile(basepath + filename + ".vmo"))
             {
@@ -307,33 +293,35 @@ namespace VMAP
                 delete worldmodel;
                 return nullptr;
             }
-            //DEBUG_FILTER_LOG(LOG_FILTER_MAP_LOADING, "VMapManager2: loading file '%s%s'.", basepath.c_str(), filename.c_str());
-            ret = std::shared_ptr<WorldModel>(
-                        worldmodel,
-                        [this, filename](WorldModel* m){
-                            std::unique_lock<std::shared_timed_mutex> lock(m_modelsLock);
-                            if (!getUseManagedPtrs())
-                                iLoadedModelFiles.erase(filename);
-                            delete m;
-                        });
-            model = iLoadedModelFiles.emplace(filename, ManagedModel{ret, getUseManagedPtrs()}).first;
-            return ret;
+
+            // insert new data
+            DEBUG_FILTER_LOG(LOG_FILTER_MAP_LOADING, "VMapManager2: loading file '%s%s'.", basepath.c_str(), filename.c_str());
+            model = iLoadedModelFiles.insert(std::pair<std::string, ManagedModel>(filename, ManagedModel())).first;
+            model->second.setModel(worldmodel);
         }
-        ret = model->second.lock();
-        return ret;
+        model->second.incRefCount();
+        return model->second.getModel();
     }
 
+    void VMapManager2::releaseModelInstance(const std::string& filename)
+    {
+        ModelFileMap::iterator model = iLoadedModelFiles.find(filename);
+        if (model == iLoadedModelFiles.end())
+        {
+            ERROR_LOG("VMapManager2: trying to unload non-loaded file '%s'!", filename.c_str());
+            return;
+        }
+        if (model->second.decRefCount() == 0)
+        {
+            DEBUG_FILTER_LOG(LOG_FILTER_MAP_LOADING, "VMapManager2: unloading file '%s'", filename.c_str());
+            delete model->second.getModel();
+            iLoadedModelFiles.erase(model);
+        }
+    }
     //=========================================================
 
-    bool VMapManager2::existsMap(char const* pBasePath, unsigned int pMapId, int x, int y)
+    bool VMapManager2::existsMap(const char* pBasePath, unsigned int pMapId, int x, int y)
     {
         return StaticMapTree::CanLoadMap(std::string(pBasePath), pMapId, x, y);
-    }
-
-    ManagedModel::ManagedModel(const std::shared_ptr<WorldModel> &ptr, bool managed) :
-        std::weak_ptr<WorldModel>(ptr)
-    {
-        if (managed)
-            m_persistent = lock();
     }
 } // namespace VMAP

@@ -26,27 +26,27 @@ using G3D::Ray;
 
 namespace VMAP
 {
-    ModelInstance::ModelInstance(ModelSpawn const& spawn, std::shared_ptr<WorldModel> model): ModelSpawn(spawn), iModel(model)
+    ModelInstance::ModelInstance(const ModelSpawn& spawn, WorldModel* model): ModelSpawn(spawn), iModel(model)
     {
         iInvRot = G3D::Matrix3::fromEulerAnglesZYX(G3D::pi() * iRot.y / 180.f, G3D::pi() * iRot.x / 180.f, G3D::pi() * iRot.z / 180.f).inverse();
         iInvScale = 1.f / iScale;
     }
 
-    bool ModelInstance::intersectRay(G3D::Ray const& pRay, float& pMaxDist, bool pStopAtFirstHit, bool ignoreM2Model) const
+    bool ModelInstance::intersectRay(const G3D::Ray& pRay, float& pMaxDist, bool pStopAtFirstHit, bool ignoreM2Model) const
     {
         if (!iModel)
         {
-    #ifdef VMAP_DEBUG
+#ifdef VMAP_DEBUG
             DEBUG_LOG("<object not loaded>");
-    #endif
+#endif
             return false;
         }
         float time = pRay.intersectionTime(iBound);
         if (time == G3D::inf())
         {
-    #ifdef VMAP_DEBUG
+#ifdef VMAP_DEBUG
             DEBUG_LOG("Ray does not hit '%s'", name.c_str());
-    #endif
+#endif
             return false;
         }
         // child bounds are defined in object space:
@@ -58,18 +58,17 @@ namespace VMAP
         {
             distance *= iScale;
             pMaxDist = distance;
-            //sLog.outString("LoS HIT ! Flags 0x%x (%s)", flags, name.c_str());
         }
         return hit;
     }
 
-    void ModelInstance::intersectPoint(G3D::Vector3 const& p, AreaInfo& info) const
+    void ModelInstance::intersectPoint(const G3D::Vector3& p, AreaInfo& info) const
     {
         if (!iModel)
         {
-    #ifdef VMAP_DEBUG
+#ifdef VMAP_DEBUG
             DEBUG_LOG("<object not loaded>");
-    #endif
+#endif
             return;
         }
 
@@ -97,38 +96,13 @@ namespace VMAP
         }
     }
 
-    bool ModelInstance::isUnderModel(G3D::Vector3 const& p, float* outDist, float* inDist) const
+    bool ModelInstance::GetLocationInfo(const G3D::Vector3& p, LocationInfo& info) const
     {
         if (!iModel)
         {
-    #ifdef VMAP_DEBUG
+#ifdef VMAP_DEBUG
             DEBUG_LOG("<object not loaded>");
-    #endif
-            return false;
-        }
-
-        // M2 files don't have bounds
-        if (flags & MOD_M2)
-        {
-            //if (p.
-        }
-        else if (!iBound.contains(p))
-            return false;
-        // child bounds are defined in object space:
-        Vector3 up(0, 0, 1);
-        Vector3 pModel = iInvRot * (p - iPos) * iInvScale;
-        up = iInvRot * up * iInvScale;
-
-        return iModel->IsUnderObject(pModel, up, flags & MOD_M2, outDist, inDist);
-    }
-
-    bool ModelInstance::GetLocationInfo(G3D::Vector3 const& p, LocationInfo& info) const
-    {
-        if (!iModel)
-        {
-    #ifdef VMAP_DEBUG
-            DEBUG_LOG("<object not loaded>");
-    #endif
+#endif
             return false;
         }
 
@@ -158,7 +132,7 @@ namespace VMAP
         return false;
     }
 
-    bool ModelInstance::GetLiquidLevel(G3D::Vector3 const& p, LocationInfo& info, float& liqHeight) const
+    bool ModelInstance::GetLiquidLevel(const G3D::Vector3& p, LocationInfo& info, float& liqHeight) const
     {
         // child bounds are defined in object space:
         Vector3 pModel = iInvRot * (p - iPos) * iInvScale;
@@ -192,7 +166,7 @@ namespace VMAP
         check += fread(&spawn.iPos, sizeof(float), 3, rf);
         check += fread(&spawn.iRot, sizeof(float), 3, rf);
         check += fread(&spawn.iScale, sizeof(float), 1, rf);
-        bool const has_bound = (spawn.flags & MOD_HAS_BOUND) != 0;
+        const bool has_bound = (spawn.flags & MOD_HAS_BOUND) != 0;
         if (has_bound) // only WMOs have bound in MPQ, only available after computation
         {
             Vector3 bLow, bHigh;
@@ -222,7 +196,7 @@ namespace VMAP
         return true;
     }
 
-    bool ModelSpawn::writeToFile(FILE* wf, ModelSpawn const& spawn)
+    bool ModelSpawn::writeToFile(FILE* wf, const ModelSpawn& spawn)
     {
         uint32 check = 0;
         check += fwrite(&spawn.flags, sizeof(uint32), 1, wf);
@@ -231,7 +205,7 @@ namespace VMAP
         check += fwrite(&spawn.iPos, sizeof(float), 3, wf);
         check += fwrite(&spawn.iRot, sizeof(float), 3, wf);
         check += fwrite(&spawn.iScale, sizeof(float), 1, wf);
-        bool const has_bound = (spawn.flags & MOD_HAS_BOUND) != 0;
+        const bool has_bound = (spawn.flags & MOD_HAS_BOUND) != 0;
         if (has_bound) // only WMOs have bound in MPQ, only available after computation
         {
             check += fwrite(&spawn.iBound.low(), sizeof(float), 3, wf);

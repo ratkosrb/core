@@ -35,7 +35,8 @@ namespace VMAP
     class MeshTriangle
     {
         public:
-            MeshTriangle() : idx0(0), idx1(0), idx2(0) {};
+            MeshTriangle(): idx0(0), idx1(0), idx2(0)
+            {};
             MeshTriangle(uint32 na, uint32 nb, uint32 nc): idx0(na), idx1(nb), idx2(nc) {};
 
             uint32 idx0;
@@ -46,11 +47,11 @@ namespace VMAP
     class WmoLiquid
     {
         public:
-            WmoLiquid(uint32 width, uint32 height, Vector3 const& corner, uint32 type);
-            WmoLiquid(WmoLiquid const& other);
+            WmoLiquid(uint32 width, uint32 height, const Vector3& corner, uint32 type);
+            WmoLiquid(const WmoLiquid& other);
             ~WmoLiquid();
-            WmoLiquid& operator=(WmoLiquid const& other);
-            bool GetLiquidHeight(Vector3 const& pos, float& liqHeight) const;
+            WmoLiquid& operator=(const WmoLiquid& other);
+            bool GetLiquidHeight(const Vector3& pos, float& liqHeight) const;
             uint32 GetType() const { return iType; }
             float* GetHeightStorage() const { return iHeight; }
             uint8* GetFlagsStorage() const { return iFlags; }
@@ -76,22 +77,21 @@ namespace VMAP
     {
         public:
             GroupModel() : iMogpFlags(0), iGroupWMOID(0), iLiquid(nullptr) {}
-            GroupModel(GroupModel const& other);
-            GroupModel(uint32 mogpFlags, uint32 groupWMOID, AABox const& bound):
+            GroupModel(const GroupModel& other);
+            GroupModel(uint32 mogpFlags, uint32 groupWMOID, const AABox& bound):
                 iBound(bound), iMogpFlags(mogpFlags), iGroupWMOID(groupWMOID), iLiquid(nullptr) {}
             ~GroupModel() { delete iLiquid; }
 
             //! pass mesh data to object and create BIH. Passed vectors get get swapped with old geometry!
             void setMeshData(std::vector<Vector3>& vert, std::vector<MeshTriangle>& tri);
             void setLiquidData(WmoLiquid*& liquid) { iLiquid = liquid; liquid = nullptr; }
-            uint32 IntersectRay(G3D::Ray const& ray, float& distance, bool stopAtFirstHit, bool ignoreM2Model = false) const;
-            bool IsInsideObject(Vector3 const& pos, Vector3 const& up, float& z_dist) const;
-            bool IsUnderObject(Vector3 const& pos, Vector3 const& up, bool isM2, float* outDist = nullptr, float* inDist = nullptr) const; // Use client triangles orientation. You can see bot->top through the floor.
-            bool GetLiquidLevel(Vector3 const& pos, float& liqHeight) const;
+            bool IntersectRay(const G3D::Ray& ray, float& distance, bool stopAtFirstHit, bool ignoreM2Model = false) const;
+            bool IsInsideObject(const Vector3& pos, const Vector3& down, float& z_dist) const;
+            bool GetLiquidLevel(const Vector3& pos, float& liqHeight) const;
             uint32 GetLiquidType() const;
             bool writeToFile(FILE* wf);
             bool readFromFile(FILE* rf);
-            G3D::AABox const& GetBound() const { return iBound; }
+            const G3D::AABox& GetBound() const { return iBound; }
             uint32 GetMogpFlags() const { return iMogpFlags; }
             uint32 GetWmoID() const { return iGroupWMOID; }
         protected:
@@ -117,12 +117,11 @@ namespace VMAP
             //! pass group models to WorldModel and create BIH. Passed vector is swapped with old geometry!
             void setGroupModels(std::vector<GroupModel>& models);
             void setRootWmoID(uint32 id) { RootWMOID = id; }
-            bool IntersectRay(G3D::Ray const& ray, float& distance, bool stopAtFirstHit, bool ignoreM2Model) const;
-            bool IntersectPoint(G3D::Vector3 const& p, G3D::Vector3 const& down, float& dist, AreaInfo& info) const;
-            bool IsUnderObject(G3D::Vector3 const& p, G3D::Vector3 const& up, bool m2, float* outDist = nullptr, float* inDist = nullptr) const;
-            bool GetLocationInfo(G3D::Vector3 const& p, G3D::Vector3 const& down, float& dist, LocationInfo& info) const;
-            bool writeFile(std::string const& filename);
-            bool readFile(std::string const& filename);
+            bool IntersectRay(const G3D::Ray& ray, float& distance, bool stopAtFirstHit, bool ignoreM2Model = false) const;
+            bool IntersectPoint(const G3D::Vector3& p, const G3D::Vector3& down, float& dist, AreaInfo& info) const;
+            bool GetLocationInfo(const G3D::Vector3& p, const G3D::Vector3& down, float& dist, LocationInfo& info) const;
+            bool writeFile(const std::string& filename);
+            bool readFile(const std::string& filename);
             void setModelFlags(uint32 newFlags) { modelFlags = newFlags; }
             uint32 getModelFlags() const { return modelFlags; }
         protected:

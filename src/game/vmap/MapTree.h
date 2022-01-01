@@ -19,9 +19,9 @@
 #ifndef _MAPTREE_H
 #define _MAPTREE_H
 
-#include "Platform/Define.h"
-#include <unordered_map>
 #include "BIH.h"
+
+#include <unordered_map>
 
 namespace VMAP
 {
@@ -31,9 +31,9 @@ namespace VMAP
 
     struct LocationInfo
     {
-        LocationInfo() : hitInstance(nullptr), hitModel(nullptr), ground_Z(-G3D::inf()) {};
+        LocationInfo(): hitInstance(nullptr), hitModel(nullptr), ground_Z(-G3D::inf()) {};
         const ModelInstance* hitInstance;
-        GroupModel const* hitModel;
+        const GroupModel* hitModel;
         float ground_Z;
     };
 
@@ -57,28 +57,36 @@ namespace VMAP
             std::string iBasePath;
 
         private:
-            bool getIntersectionTime(G3D::Ray const& pRay, float& pMaxDist, bool pStopAtFirstHit = false, bool ignoreM2Model = false) const;
+            bool getIntersectionTime(const G3D::Ray& pRay, float& pMaxDist, bool pStopAtFirstHit = false, bool ignoreM2Model = false) const;
             // bool containsLoadedMapTile(unsigned int pTileIdent) const { return(iLoadedMapTiles.containsKey(pTileIdent)); }
         public:
             static std::string getTileFileName(uint32 mapID, uint32 tileX, uint32 tileY);
             static uint32 packTileID(uint32 tileX, uint32 tileY) { return tileX << 16 | tileY; }
             static void unpackTileID(uint32 ID, uint32& tileX, uint32& tileY) { tileX = ID >> 16; tileY = ID & 0xFF; }
-            static bool CanLoadMap(std::string const& vmapPath, uint32 mapID, uint32 tileX, uint32 tileY);
+            static bool CanLoadMap(const std::string& vmapPath, uint32 mapID, uint32 tileX, uint32 tileY);
 
-            StaticMapTree(uint32 mapID, std::string const& basePath);
+            StaticMapTree(uint32 mapID, const std::string& basePath);
             ~StaticMapTree();
 
-            bool isInLineOfSight(G3D::Vector3 const& pos1, G3D::Vector3 const& pos2, bool ignoreM2Model) const;
-            ModelInstance* FindCollisionModel(G3D::Vector3 const& pos1, G3D::Vector3 const& pos2);
-            bool getObjectHitPos(G3D::Vector3 const& pos1, G3D::Vector3 const& pos2, G3D::Vector3& pResultHitPos, float pModifyDist) const;
-            float getHeight(G3D::Vector3 const& pPos, float maxSearchDist) const;
+            bool isInLineOfSight(const G3D::Vector3& pos1, const G3D::Vector3& pos2, bool ignoreM2Model) const;
+            bool getObjectHitPos(const G3D::Vector3& pPos1, const G3D::Vector3& pPos2, G3D::Vector3& pResultHitPos, float pModifyDist) const;
+            float getHeight(const G3D::Vector3& pPos, float maxSearchDist) const;
             bool getAreaInfo(G3D::Vector3& pos, uint32& flags, int32& adtId, int32& rootId, int32& groupId) const;
-            bool isUnderModel(G3D::Vector3& pos, float* outDist = nullptr, float* inDist = nullptr) const;
-            bool GetLocationInfo(Vector3 const& pos, LocationInfo& info) const;
+            bool GetLocationInfo(const Vector3& pos, LocationInfo& info) const;
 
-            bool InitMap(std::string const& fname, VMapManager2* vm);
+            bool InitMap(const std::string& fname, VMapManager2* vm);
             void UnloadMap(VMapManager2* vm);
             bool LoadMapTile(uint32 tileX, uint32 tileY, VMapManager2* vm);
+            bool IsTileLoaded(uint32 x, uint32 y) const
+            {
+                if (!iIsTiled)
+                    return true;
+
+                auto itr = iLoadedTiles.find(packTileID(x, y));
+                if (itr == iLoadedTiles.end())
+                    return false;
+                return itr->second;
+            }
             void UnloadMapTile(uint32 tileX, uint32 tileY, VMapManager2* vm);
             bool isTiled() const { return iIsTiled; }
             uint32 numLoadedTiles() const { return iLoadedTiles.size(); }
@@ -91,7 +99,8 @@ namespace VMAP
 
     struct AreaInfo
     {
-        AreaInfo() : result(false), ground_Z(-G3D::inf()), flags(0), adtId(0), rootId(0), groupId(0) {};
+        AreaInfo(): result(false), ground_Z(-G3D::inf()), flags(0), adtId(0), rootId(0), groupId(0)
+        {};
         bool result;
         float ground_Z;
         uint32 flags;

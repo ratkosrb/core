@@ -34,6 +34,9 @@ namespace VMAP
         public:
             static IVMapManager* createOrGetVMapManager();
             static void clear();
+
+            static void chompAndTrim(std::string& str);
+            static bool getNextId(const std::string& pString, unsigned int& pStartPos, unsigned int& pId);
     };
 }
 #endif
