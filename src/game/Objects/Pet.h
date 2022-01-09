@@ -23,7 +23,6 @@
 #define MANGOSSERVER_PET_H
 
 #include "Common.h"
-#include "ObjectGuid.h"
 #include "Creature.h"
 
 enum PetType
@@ -160,7 +159,7 @@ class Pet : public Creature
 
         bool Create (uint32 guidlow, CreatureCreatePos& cPos, CreatureInfo const* cinfo, uint32 pet_number);
         bool CreateBaseAtCreature(Creature* creature);
-        bool LoadPetFromDB(Player* owner,uint32 petentry = 0,uint32 petnumber = 0, bool current = false);
+        bool LoadPetFromDB(Player* owner, uint32 petEntry = 0, uint32 petNumber = 0, bool current = false);
         void SavePetToDB(PetSaveMode mode);
         void Unsummon(PetSaveMode mode, Unit* owner = nullptr);
         void DelayedUnsummon(uint32 timeMSToDespawn, PetSaveMode mode);
@@ -186,14 +185,14 @@ class Pet : public Creature
         uint32 GetMaxLoyaltyPoints(uint32 level);
         uint32 GetStartLoyaltyPoints(uint32 level);
         void KillLoyaltyBonus(uint32 level);
-        uint32 GetLoyaltyLevel() const { return GetByteValue(UNIT_FIELD_BYTES_1, 1); }
+        uint32 GetLoyaltyLevel() const { return GetByteValue(UNIT_FIELD_BYTES_1, UNIT_BYTES_1_OFFSET_PET_LOYALTY); }
         void SetLoyaltyLevel(LoyaltyLevel level);
         void GivePetXP(uint32 xp);
         void GivePetLevel(uint32 level);
         void SynchronizeLevelWithOwner();
         bool InitStatsForLevel(uint32 level, Unit* owner = nullptr);
         bool HaveInDiet(ItemPrototype const* item) const;
-        uint32 GetCurrentFoodBenefitLevel(uint32 itemlevel) const;
+        uint32 GetCurrentFoodBenefitLevel(uint32 itemLevel) const;
         void SetDuration(int32 dur) { m_duration = dur; }
 
         int32 GetBonusDamage() const { return m_bonusdamage; }
@@ -223,7 +222,8 @@ class Pet : public Creature
         void CastPetAuras(bool current);
         void CastPetAura(PetAura const* aura);
 
-        void ProhibitSpellSchool(SpellSchoolMask idSchoolMask, uint32 unTimeMs) override;
+        virtual void RemoveAllCooldowns(bool sendOnly = false) override;
+
         void _LoadSpellCooldowns();
         void _SaveSpellCooldowns();
         void _LoadAuras(uint32 timediff);
@@ -231,10 +231,10 @@ class Pet : public Creature
         void _LoadSpells();
         void _SaveSpells();
 
-        bool AddSpell(uint32 spell_id,ActiveStates active = ACT_DECIDE, PetSpellState state = PETSPELL_NEW, PetSpellType type = PETSPELL_NORMAL);
-        bool LearnSpell(uint32 spell_id);
-        bool unlearnSpell(uint32 spell_id, bool learn_prev, bool clear_ab = true);
-        bool RemoveSpell(uint32 spell_id, bool learn_prev, bool clear_ab = true);
+        bool AddSpell(uint32 spellId, ActiveStates active = ACT_DECIDE, PetSpellState state = PETSPELL_NEW, PetSpellType type = PETSPELL_NORMAL);
+        bool LearnSpell(uint32 spellId);
+        bool unlearnSpell(uint32 spellId, bool learn_prev, bool clear_ab = true);
+        bool RemoveSpell(uint32 spellId, bool learn_prev, bool clear_ab = true);
         void CleanupActionBar();
 
         PetSpellMap     m_petSpells;
@@ -282,6 +282,21 @@ class Pet : public Creature
         void SaveToDB(uint32) override { MANGOS_ASSERT(false); }
         void DeleteFromDB() override { MANGOS_ASSERT(false); }
 };
+
+inline bool Object::IsPet() const
+{
+    return IsCreature() && static_cast<Creature const*>(this)->IsPet();
+}
+
+inline Pet const* Object::ToPet() const
+{
+    return IsPet() ? static_cast<Pet const*>(this) : nullptr;
+}
+
+inline Pet* Object::ToPet()
+{
+    return IsPet() ? static_cast<Pet*>(this) : nullptr;
+}
 
 class UnsummonPetDelayEvent : public BasicEvent
 {

@@ -270,7 +270,7 @@ void ChargeMovementGenerator<T>::ComputePath(T& attacker, Unit& victim)
     Vector3 victimSpd; // speed vector of victim
     float o;
 
-    if (Transport* t = attacker.GetTransport())
+    if (GenericTransport* t = attacker.GetTransport())
         path.SetTransport(t);
 
     if (m_speed == 0)
@@ -289,9 +289,9 @@ void ChargeMovementGenerator<T>::ComputePath(T& attacker, Unit& victim)
     // Improved path to victim future estimated position
     if (Player* victimPlayer = victim.ToPlayer())
     {
-        MovementAnticheat* data = victimPlayer->GetCheatData();
-        if ((data->ExtrapolateMovement(victimPlayer->m_movementInfo, 1000, victimSpd.x, victimSpd.y, victimSpd.z, o)) &&
-                (data->ExtrapolateMovement(victimPlayer->m_movementInfo, 0, victimPos.x, victimPos.y, victimPos.z, o)))
+        if (sWorld.getConfig(CONFIG_BOOL_ENABLE_MOVEMENT_EXTRAPOLATION_CHARGE) && 
+            victimPlayer->ExtrapolateMovement(victimPlayer->m_movementInfo, 1000, victimSpd.x, victimSpd.y, victimSpd.z, o) &&
+            victimPlayer->ExtrapolateMovement(victimPlayer->m_movementInfo, 0, victimPos.x, victimPos.y, victimPos.z, o))
         {
             // Victim speed per sec.
             victimSpd -= victimPos;
@@ -310,9 +310,9 @@ void ChargeMovementGenerator<T>::ComputePath(T& attacker, Unit& victim)
                     pathTravelTime = (uint32)(1000 * 2 * currDistance / m_speed);
 
                 pathTravelTime *= 0.45f; // Attenuation factor (empirical)
-                m_interpolateDelay = (WorldTimer::getMSTime() - victimPlayer->m_movementInfo.time) + pathTravelTime;
-                if (m_interpolateDelay > 1500) m_interpolateDelay = 1500;
-                if (data->ExtrapolateMovement(victimPlayer->m_movementInfo, m_interpolateDelay, victimPos.x, victimPos.y, victimPos.z, o))
+                m_extrapolateDelay = (WorldTimer::getMSTime() - victimPlayer->m_movementInfo.stime) + pathTravelTime;
+                if (m_extrapolateDelay > 1500) m_extrapolateDelay = 1500;
+                if (victimPlayer->ExtrapolateMovement(victimPlayer->m_movementInfo, m_extrapolateDelay, victimPos.x, victimPos.y, victimPos.z, o))
                 {
                     victim.UpdateAllowedPositionZ(victimPos.x, victimPos.y, victimPos.z);
                     path.calculate(victimPos.x, victimPos.y, victimPos.z, false);

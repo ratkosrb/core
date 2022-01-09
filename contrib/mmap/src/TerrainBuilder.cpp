@@ -91,6 +91,7 @@ namespace MMAP
         {
             fclose(mapFile);
             printf("%s is the wrong version, please extract new .map files\n", mapFileName);
+            printf("Expected version %u, got %u instead.\n", fheader.versionMagic, *((uint32 const*)(MAP_VERSION_MAGIC)));
             return false;
         }
 
@@ -350,7 +351,7 @@ namespace MMAP
                     else
                         liquidType = MAP_LIQUID_TYPE_WATER;
 
-                    if (liquidType & MAP_LIQUID_TYPE_DARK_WATER)
+                    if (liquidType & MAP_LIQUID_TYPE_DEEP_WATER)
                     {
                         // players should not be here, so logically neither should creatures
                         useTerrain = false;
@@ -603,7 +604,7 @@ namespace MMAP
             ModelInstance& instance = models[i];
 
             // model instances exist in tree even though there are instances of that model in this tile
-            WorldModel* worldModel = instance.getWorldModel();
+            std::shared_ptr<WorldModel> worldModel = instance.getWorldModel();
             if (!worldModel)
                 continue;
 
@@ -730,7 +731,7 @@ namespace MMAP
             ModelInstance instance = models[i];
 
             // model instances exist in tree even though there are instances of that model in this tile
-            WorldModel* worldModel = instance.getWorldModel();
+            std::shared_ptr<WorldModel> worldModel = instance.getWorldModel();
             if (!worldModel)
                 continue;
 

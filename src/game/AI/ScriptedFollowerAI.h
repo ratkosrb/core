@@ -6,8 +6,9 @@
 #define SC_FOLLOWERAI_H
 
 #include "ScriptedAI.h"
-#include "Player.h"
-#include "QuestDef.h"
+#include "Pet.h"
+
+class Player;
 
 enum eFollowState
 {
@@ -30,8 +31,6 @@ class FollowerAI : public ScriptedAI
 
         void MovementInform(uint32 uiMotionType, uint32 uiPointId) override;
 
-        void AttackStart(Unit*) override;
-
         void MoveInLineOfSight(Unit*) override;
 
         void EnterEvadeMode() override;
@@ -40,13 +39,14 @@ class FollowerAI : public ScriptedAI
 
         void JustRespawned() override;
 
-        void UpdateAI(uint32 const) override;                        //the "internal" update, calls UpdateFollowerAI()
-        virtual void UpdateFollowerAI(uint32 const);        //used when it's needed to add code in update (abilities, scripted events, etc)
+        void UpdateAI(uint32 const) override;               // the "internal" update, calls UpdateFollowerAI()
+        virtual void UpdateFollowerAI(uint32 const);        // used when it's needed to add code in update (abilities, scripted events, etc)
 
         void StartFollow(Player* pPlayer, uint32 uiFactionForFollower = 0, Quest const* pQuest = nullptr, float followDist = PET_FOLLOW_DIST);
 
-        void SetFollowPaused(bool bPaused);                 //if special event require follow mode to hold/resume during the follow
+        void SetFollowPaused(bool bPaused);                 // if special event require follow mode to hold/resume during the follow
         void SetFollowComplete(bool bWithEndEvent = false);
+        virtual void OnEscortFailed(bool bDied) {};
 
         bool HasFollowState(uint32 uiFollowState) const { return m_uiFollowState & uiFollowState; }
 

@@ -182,7 +182,7 @@ struct instance_uldaman : public ScriptedInstance
     {
         creature->SetFactionTemplateId(FACTION_STONED);
         creature->RemoveAllAuras();
-        creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+        creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
         if (!creature->HasAura(SPELL_STONED))
         {
             creature->CastSpell(creature, SPELL_STONED, false);
@@ -196,10 +196,10 @@ struct instance_uldaman : public ScriptedInstance
         {
             creature->RemoveAurasDueToSpell(SPELL_STONED);
         }
-        creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+        creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
         //creature->ClearUnitState(UNIT_STAT_ROOT | UNIT_STAT_PENDING_ROOT);
         //creature->RemoveFlag(UNIT_FIELD_FLAGS,
-    //                    UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_NON_ATTACKABLE);
+    //                    UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_SPAWNING);
     }
 
     void RespawnMinion(uint64 guid)
@@ -483,7 +483,11 @@ struct instance_uldaman : public ScriptedInstance
                             if (target && target->IsDespawned())
                                 target->Respawn();
                         }
-                        SetData(DATA_ANCIENT_DOOR, DONE); // open the vault door
+                        // Open the Vault door
+                        SetData(DATA_ANCIENT_DOOR, DONE);
+                        // Summon Ancient Treasure
+                        instance->SummonGameObject(GO_ANCIENT_TREASURE, 153.39f, 289.091f, -52.2262f, 2.68781f,
+                                0, 0, 0.97437f, 0.224951f, -1, 0);
                         break;
                     default:
                         m_auiEncounter[ULDAMAN_ENCOUNTER_ARCHAEDAS] = uiData;

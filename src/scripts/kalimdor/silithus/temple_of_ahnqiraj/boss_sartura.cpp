@@ -45,8 +45,8 @@ enum
 
     TAUNT_IMMUNE                    = 26602,
 
-    EMOTE_ENRAGE                    = -1000003,
-    EMOTE_ENRAGEHARD                = -1000004,
+    EMOTE_ENRAGE                    = 2384,
+    EMOTE_ENRAGEHARD                = 4428,
 
     // Royal Guard
     SPELL_KNOCKBACK                 = 19813,
@@ -81,7 +81,7 @@ struct boss_sarturaAI : public ScriptedAI
     void Reset() override
     {
         m_uiCleaveTimer = 4000;
-        m_uiWhirlWindTimer = urand(8000, 12000);;
+        m_uiWhirlWindTimer = urand(8000, 12000);
         m_uiWhirlWindEndTimer = 0;
         m_uiAggroResetTimer = urand(5000, 7500);
         
@@ -389,7 +389,7 @@ struct mob_sartura_royal_guardAI : public ScriptedAI
             // Knockback
             if (m_uiKnockbackTimer < uiDiff)
             {
-                if(m_creature->IsWithinMeleeRange(m_creature->GetVictim()))
+                if(m_creature->CanReachWithMeleeAutoAttack(m_creature->GetVictim()))
                     if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_KNOCKBACK) == CAST_OK)
                         m_uiKnockbackTimer = urand(8000, 14000);
             }
@@ -421,8 +421,8 @@ enum
     SPELL_IMPALE        = 26025,
     SPELL_FRENZY        = 8599,
 
-    EMOTE_EMIT        = -1531100,
-    EMOTE_FRENZY        = -1000002,
+    EMOTE_EMIT          = 10755,
+    EMOTE_FRENZY        = 10645,
     SOUND_CHARGE        = 3330,
 };
 

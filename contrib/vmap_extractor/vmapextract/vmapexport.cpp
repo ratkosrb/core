@@ -39,12 +39,11 @@
 //#pragma comment(lib, "Winmm.lib")
 
 #include <map>
+#include <unordered_map>
 
 //From Extractor
-#include "adtfile.h"
 #include "wdtfile.h"
 #include "dbcfile.h"
-#include "wmo.h"
 #include "mpq_libmpq04.h"
 
 #include "vmapexport.h"
@@ -71,12 +70,20 @@ char output_path[128] = ".";
 char input_path[1024] = ".";
 bool hasInputPathParam = false;
 bool preciseVectorData = false;
+std::unordered_map<std::string, WMODoodadData> WmoDoodads;
 
 // Constants
 
 //static const char * szWorkDirMaps = ".\\Maps";
 const char* szWorkDirWmo = "./Buildings";
-const char* szRawVMAPMagic = "VMAP005";
+const char* szRawVMAPMagic = "VMAPs05";
+
+std::map<std::pair<uint32, uint16>, uint32> uniqueObjectIds;
+
+uint32 GenerateUniqueObjectId(uint32 clientId, uint16 clientDoodadId)
+{
+    return uniqueObjectIds.emplace(std::make_pair(clientId, clientDoodadId), uniqueObjectIds.size() + 1).first->second;
+}
 
 // Local testing functions
 
@@ -145,37 +152,18 @@ bool ExtractWmo()
     return success;
 }
 
-
-// This zepp has position / orientation modified.
-// Don't know why ... Here is a hack-fix.
-void ZeppFixVect(float* v)
-{
-    /*
-    it2->x = -it2->x + 3.0f;
-    it2->y *= -1;
-    it2->y -= 14;
-    */
-    v[0] = -v[0] + 3.0f;
-    v[1] = -v[1] - 14;
-}
-
-void FixZepp(WMOGroup& g)
-{
-    for (uint32 i = 0; i < g.nVertices; ++i)
-        ZeppFixVect(g.MOVT + 3 * i);
-}
-
 bool ExtractSingleWmo(std::string& fname)
 {
     // Copy files from archive
 
     char szLocalFile[1024];
-    const char* plain_name = GetPlainName(fname.c_str());
+    char* plain_name = GetPlainName(&fname[0]);
+    fixnamen(plain_name, strlen(plain_name));
+    fixname2(plain_name, strlen(plain_name));
     sprintf(szLocalFile, "%s/%s", szWorkDirWmo, plain_name);
-    fixnamen(szLocalFile, strlen(szLocalFile));
 
-    //if (FileExists(szLocalFile))
-    //    return true;
+    if (FileExists(szLocalFile))
+        return true;
 
     int p = 0;
     //Select root wmo files
@@ -209,9 +197,11 @@ bool ExtractSingleWmo(std::string& fname)
         printf("couldn't open %s for writing!\n", szLocalFile);
         return false;
     }
-
     froot.ConvertToVMAPRootWmo(output);
+    WMODoodadData& doodads = WmoDoodads[plain_name];
+    std::swap(doodads, froot.DoodadData);
     int Wmo_nVertices = 0;
+    uint32 RealNbOfGroups = froot.nGroups;
     //printf("root has %d groups\n", froot->nGroups);
     if (froot.nGroups != 0)
     {
@@ -225,7 +215,7 @@ bool ExtractSingleWmo(std::string& fname)
             //printf("Trying to open groupfile %s\n",groupFileName);
 
             string s = groupFileName;
-            WMOGroup fgroup(s, &froot);
+            WMOGroup fgroup(s);
             if (!fgroup.open())
             {
                 printf("Could not open all Group file for: %s\n", plain_name);
@@ -233,15 +223,32 @@ bool ExtractSingleWmo(std::string& fname)
                 break;
             }
 
-            if (strcmp(szLocalFile, "./Buildings/Transport_Zeppelin.wmo") == 0)
-                FixZepp(fgroup);
+            if (fgroup.ShouldSkip(froot))
+            {
+                printf("Skipped WMOGroup %s %s %d", fname.c_str(), s.c_str(), fgroup.mogpFlags);
+                RealNbOfGroups--;
+                continue;
+            }
 
             Wmo_nVertices += fgroup.ConvertToVMAPGroupWmo(output, &froot, preciseVectorData);
+            for (uint16 groupReference : fgroup.DoodadReferences)
+            {
+                if (groupReference >= doodads.Spawns.size())
+                    continue;
+
+                uint32 doodadNameIndex = doodads.Spawns[groupReference].NameIndex;
+                if (froot.ValidDoodadNames.find(doodadNameIndex) == froot.ValidDoodadNames.end())
+                    continue;
+
+                doodads.References.insert(groupReference);
+            }
         }
     }
 
     fseek(output, 8, SEEK_SET); // store the correct no of vertices
     fwrite(&Wmo_nVertices, sizeof(int), 1, output);
+    fseek(output, 12, SEEK_SET); // store the correct no of groups
+    fwrite(&RealNbOfGroups, sizeof(uint32), 1, output);
     fclose(output);
 
     // Delete the extracted file in the case of an error
@@ -323,7 +330,7 @@ bool scan_patches(char* scanmatch, std::vector<std::string>& pArchiveNames)
         }
     }
 
-    return true;
+    return (true);
 }
 
 bool fillArchiveNameVector(std::vector<std::string>& pArchiveNames)
@@ -340,13 +347,12 @@ bool fillArchiveNameVector(std::vector<std::string>& pArchiveNames)
     sprintf(path, "%sterrain.MPQ", input_path);
     pArchiveNames.push_back(path);
     sprintf(path, "%smodel.MPQ", input_path);
-    //pArchiveNames.push_back(path);
     pArchiveNames.push_back(path);
-	sprintf(path, "%stexture.MPQ", input_path);
+    sprintf(path, "%stexture.MPQ", input_path);
     pArchiveNames.push_back(path);
-	sprintf(path, "%swmo.MPQ", input_path);
+    sprintf(path, "%swmo.MPQ", input_path);
     pArchiveNames.push_back(path);
-	sprintf(path, "%sbase.MPQ", input_path);
+    sprintf(path, "%sbase.MPQ", input_path);
     pArchiveNames.push_back(path);
     sprintf(path, "%smisc.MPQ", input_path);
 
@@ -354,7 +360,7 @@ bool fillArchiveNameVector(std::vector<std::string>& pArchiveNames)
     printf("Scanning patch levels from data directory.\n");
     sprintf(path, "%spatch", input_path);
     if (!scan_patches(path, pArchiveNames))
-        return false;
+        return (false);
 
     printf("\n");
 
@@ -432,11 +438,22 @@ int main(int argc, char** argv)
     if (!processArgv(argc, argv))
         return 1;
 
-    /*if (!ModelLOSMgr::Load())
+    // some simple check if working dir is dirty
+    else
     {
-        printf("Unable to open LOS Modificators.\n");
-        return 1;
-    }*/
+        std::string sdir = std::string(szWorkDirWmo) + "/dir";
+        std::string sdir_bin = std::string(szWorkDirWmo) + "/dir_bin";
+        struct stat status;
+        if (!stat(sdir.c_str(), &status) || !stat(sdir_bin.c_str(), &status))
+        {
+            printf("Your output directory seems to be polluted, please use an empty directory!\n");
+            printf("<press return to exit>");
+            char garbage[2];
+            scanf("%c", garbage);
+            return 1;
+        }
+    }
+
     printf("Extract for %s. Beginning work ....\n", szRawVMAPMagic);
     //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     // Create the working directory
@@ -507,46 +524,4 @@ int main(int argc, char** argv)
     printf("Extract for %s. Work complete. No errors.\n", szRawVMAPMagic);
     delete [] LiqType;
     return 0;
-}
-
-std::vector<ModelLOSMgr::LosModificator> ModelLOSMgr::modificators;
-bool ModelLOSMgr::Load()
-{
-    FILE* f = fopen("los_mods", "r");
-    if (!f)
-        return false;
-    LosModificator mod;
-    while (true)
-    {
-        mod.id = 0;
-        char fName[200] = {0};
-        uint32 enable = 0;
-        fscanf(f, "%u %u %s\n", &enable, &mod.id, fName);
-        if (!fName[0])
-            break;
-        mod.enable = !!enable;
-        mod.filename = fName;
-        modificators.push_back(mod);
-    }
-    printf("%u LOS modificators loaded\n", uint32(modificators.size()));
-    fclose(f);
-    return true;
-}
-
-bool ModelLOSMgr::IsLOSEnabled(uint32 spawnId, std::string modelName)
-{
-    std::vector<LosModificator>::iterator it;
-    // Check by ID
-    for (it = modificators.begin(); it != modificators.end(); ++it)
-        if (it->id == spawnId)
-            break;
-    // By modelname else
-    if (it == modificators.end())
-        for (it = modificators.begin(); it != modificators.end(); ++it)
-            if (modelName.find(it->filename) != std::string::npos)
-                break;
-    if (it != modificators.end())
-        return it->enable;
-    // Le reste ... On va dire que ca casse.
-    return true;
 }

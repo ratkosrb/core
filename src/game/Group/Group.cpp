@@ -37,6 +37,7 @@
 #include "LootMgr.h"
 #include "LFGMgr.h"
 #include "LFGHandler.h"
+#include "UpdateMask.h"
 
 #include <array>
 
@@ -141,10 +142,10 @@ bool Group::Create(ObjectGuid guid, char const*  name)
 
         // store group in database
         CharacterDatabase.BeginTransaction();
-        CharacterDatabase.PExecute("DELETE FROM groups WHERE groupId ='%u'", m_Id);
-        CharacterDatabase.PExecute("DELETE FROM group_member WHERE groupId ='%u'", m_Id);
+        CharacterDatabase.PExecute("DELETE FROM `groups` WHERE `group_id` ='%u'", m_Id);
+        CharacterDatabase.PExecute("DELETE FROM `group_member` WHERE `group_id` ='%u'", m_Id);
 
-        CharacterDatabase.PExecute("INSERT INTO groups(groupId,leaderGuid,mainTank,mainAssistant,lootMethod,looterGuid,lootThreshold,icon1,icon2,icon3,icon4,icon5,icon6,icon7,icon8,isRaid) "
+        CharacterDatabase.PExecute("REPLACE INTO `groups` (`group_id`, `leader_guid`, `main_tank_guid`, `main_assistant_guid`, `loot_method`, `looter_guid`, `loot_threshold`, `icon1`, `icon2`, `icon3`, `icon4`, `icon5`, `icon6`, `icon7`, `icon8`, `is_raid`) "
                                    "VALUES('%u','%u','%u','%u','%u','%u','%u','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','%u')",
                                    m_Id, m_leaderGuid.GetCounter(), m_mainTankGuid.GetCounter(), m_mainAssistantGuid.GetCounter(), uint32(m_lootMethod),
                                    m_looterGuid.GetCounter(), uint32(m_lootThreshold),
@@ -168,8 +169,8 @@ bool Group::Create(ObjectGuid guid, char const*  name)
 
 bool Group::LoadGroupFromDB(Field* fields)
 {
-    //                                          0         1              2           3           4              5      6      7      8      9      10     11     12     13      14          15
-    // result = CharacterDatabase.Query("SELECT mainTank, mainAssistant, lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, isRaid, leaderGuid, groupId FROM groups");
+    //                                          0               1                    2            3            4               5      6      7      8      9      10     11     12     13       14           15
+    // result = CharacterDatabase.Query("SELECT main_tank_guid, main_assistant_guid, loot_method, looter_guid, loot_threshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, is_raid, leader_guid, group_id FROM groups");
 
     m_Id = fields[15].GetUInt32();
     m_leaderGuid = ObjectGuid(HIGHGUID_PLAYER, fields[14].GetUInt32());
@@ -229,13 +230,20 @@ void Group::ConvertToRaid()
     _initRaidSubGroupsCounter();
 
     if (!isBGGroup())
-        CharacterDatabase.PExecute("UPDATE groups SET isRaid = 1 WHERE groupId='%u'", m_Id);
+        CharacterDatabase.PExecute("UPDATE `groups` SET `is_raid` = 1 WHERE `group_id`='%u'", m_Id);
     SendUpdate();
 
     // update quest related GO states (quest activity dependent from raid membership)
     for (const auto& itr : m_memberSlots)
+    {
         if (Player* player = sObjectMgr.GetPlayer(itr.guid))
-            player->UpdateForQuestWorldObjects();
+        {
+            player->m_Events.AddLambdaEventAtOffset([player]
+            {
+                player->UpdateForQuestWorldObjects();
+            }, 1);
+        }
+    }
 }
 
 bool Group::AddInvite(Player* player)
@@ -338,7 +346,12 @@ bool Group::AddMember(ObjectGuid guid, char const* name, uint8 joinMethod)
 
         // quest related GO state dependent from raid membership
         if (isRaidGroup())
-            player->UpdateForQuestWorldObjects();
+        {
+            player->m_Events.AddLambdaEventAtOffset([player]
+            {
+                player->UpdateForQuestWorldObjects();
+            }, 1);
+        }
 
         if (isInLFG())
         {
@@ -360,6 +373,56 @@ bool Group::AddMember(ObjectGuid guid, char const* name, uint8 joinMethod)
             if (playerBind && groupBind && !player->m_InstanceValid && playerBind->state == groupBind->state && !((DungeonMap*)map)->IsUnloadingBeforeReset())
                 player->m_InstanceValid = true;
         }
+
+        {
+            // Broadcast new player group member fields to rest of the group
+            UpdateData groupData;
+            WorldPacket groupDataPacket;
+
+            // Broadcast group members' fields to player
+            for (GroupReference* itr = GetFirstMember(); itr != nullptr; itr = itr->next())
+            {
+                if (itr->getSource() == player)
+                    continue;
+
+                if (Player* member = itr->getSource())
+                {
+                    if (player->IsInVisibleList(member))
+                    {
+                        UpdateMask updateMask;
+                        updateMask.SetCount(member->GetValuesCount());
+                        member->MarkUpdateFieldsWithFlagForUpdate(updateMask, UF_FLAG_GROUP_ONLY);
+                        if (updateMask.HasData())
+                            member->BuildValuesUpdateBlockForPlayer(groupData, updateMask, player);
+                    }
+
+                    if (member->IsInVisibleList(player))
+                    {
+                        UpdateMask updateMask;
+                        updateMask.SetCount(member->GetValuesCount());
+                        member->MarkUpdateFieldsWithFlagForUpdate(updateMask, UF_FLAG_GROUP_ONLY);
+                        if (updateMask.HasData())
+                        {
+                            UpdateData newData;
+                            player->BuildValuesUpdateBlockForPlayer(newData, updateMask, member);
+
+                            if (newData.HasData())
+                            {
+                                WorldPacket newDataPacket;
+                                newData.BuildPacket(&newDataPacket);
+                                member->SendDirectMessage(&newDataPacket);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (groupData.HasData())
+            {
+                groupData.BuildPacket(&groupDataPacket);
+                player->SendDirectMessage(&groupDataPacket);
+            }
+        }
     }
 
     return true;
@@ -376,7 +439,12 @@ uint32 Group::RemoveMember(ObjectGuid guid, uint8 removeMethod)
         {
             // quest related GO state dependent from raid membership
             if (isRaidGroup())
-                player->UpdateForQuestWorldObjects();
+            {
+                player->m_Events.AddLambdaEventAtOffset([player]
+                {
+                    player->UpdateForQuestWorldObjects();
+                }, 1);
+            }
 
             WorldPacket data;
 
@@ -480,7 +548,12 @@ void Group::Disband(bool hideDestroy)
 
         // quest related GO state dependent from raid membership
         if (isRaidGroup())
-            player->UpdateForQuestWorldObjects();
+        {
+            player->m_Events.AddLambdaEventAtOffset([player]
+            {
+                player->UpdateForQuestWorldObjects();
+            }, 1);
+        }
 
         if (!player->GetSession())
             continue;
@@ -522,8 +595,8 @@ void Group::Disband(bool hideDestroy)
     if (!isBGGroup())
     {
         CharacterDatabase.BeginTransaction();
-        CharacterDatabase.PExecute("DELETE FROM groups WHERE groupId='%u'", m_Id);
-        CharacterDatabase.PExecute("DELETE FROM group_member WHERE groupId='%u'", m_Id);
+        CharacterDatabase.PExecute("DELETE FROM `groups` WHERE `group_id`='%u'", m_Id);
+        CharacterDatabase.PExecute("DELETE FROM `group_member` WHERE `group_id`='%u'", m_Id);
         CharacterDatabase.CommitTransaction();
         ResetInstances(INSTANCE_RESET_GROUP_DISBAND, nullptr);
     }
@@ -1155,7 +1228,8 @@ void Group::ClearTargetIcon(ObjectGuid targetGuid)
             return SetTargetIcon(i, ObjectGuid());
 }
 
-static void GetDataForXPAtKill_helper(Player* player, Unit const* victim, uint32& sum_level, Player* & member_with_max_level, Player* & not_gray_member_with_max_level)
+
+static void GetDataForXPAtKill_helper(Player* player, Unit const* victim, uint32& sum_level, Player* & member_with_max_level, Unit* & not_gray_member_with_max_level)
 {
     sum_level += player->GetLevel();
     if (!member_with_max_level || member_with_max_level->GetLevel() < player->GetLevel())
@@ -1163,11 +1237,11 @@ static void GetDataForXPAtKill_helper(Player* player, Unit const* victim, uint32
 
     uint32 gray_level = MaNGOS::XP::GetGrayLevel(player->GetLevel());
     if (victim->GetLevel() > gray_level && (!not_gray_member_with_max_level
-                                            || not_gray_member_with_max_level->GetLevel() < player->GetLevel()))
+        || not_gray_member_with_max_level->GetLevel() < player->GetLevel()))
         not_gray_member_with_max_level = player;
 }
 
-void Group::GetDataForXPAtKill(Unit const* victim, uint32& count, uint32& sum_level, Player* & member_with_max_level, Player* & not_gray_member_with_max_level, Player* additional)
+void Group::GetDataForXPAtKill(Unit const* victim, uint32& count, uint32& sum_level, Player* & member_with_max_level, Unit* & not_gray_member_with_max_level, Player* additional)
 {
     for (GroupReference* itr = GetFirstMember(); itr != nullptr; itr = itr->next())
     {
@@ -1421,10 +1495,10 @@ bool Group::_addMember(ObjectGuid guid, char const* name, bool isAssistant, uint
                 player->m_InstanceValid = true;
     }
 
-    if (!isBGGroup() && !(player && player->GetSession()->GetBot()))
+    if (!isBGGroup() && !(player && player->IsBot()))
     {
         // insert into group table
-        CharacterDatabase.PExecute("INSERT INTO group_member(groupId,memberGuid,assistant,subgroup) VALUES('%u','%u','%u','%u')",
+        CharacterDatabase.PExecute("INSERT INTO `group_member` (`group_id`, `member_guid`, `assistant`, `subgroup`) VALUES('%u','%u','%u','%u')",
                                    m_Id, member.guid.GetCounter(), ((member.assistant == 1) ? 1 : 0), member.group);
     }
 
@@ -1460,7 +1534,7 @@ bool Group::_removeMember(ObjectGuid guid)
     }
 
     if (!isBGGroup())
-        CharacterDatabase.PExecute("DELETE FROM group_member WHERE memberGuid='%u'", guid.GetCounter());
+        CharacterDatabase.PExecute("DELETE FROM `group_member` WHERE `member_guid`='%u'", guid.GetCounter());
 
     if (m_leaderGuid == guid)                               // leader was removed
     {
@@ -1538,8 +1612,8 @@ void Group::_setLeader(ObjectGuid guid)
         // in the DB also remove solo binds that will be replaced with permbinds
         // from the new leader
         CharacterDatabase.PExecute(
-            "DELETE FROM group_instance WHERE leaderguid='%u' AND (permanent = 1 OR "
-            "instance IN (SELECT instance FROM character_instance WHERE guid = '%u')"
+            "DELETE FROM `group_instance` WHERE `leader_guid`='%u' AND (`permanent` = 1 OR "
+            "`instance` IN (SELECT `instance` FROM `character_instance` WHERE `guid` = '%u')"
             ")", leader_lowguid, slot_lowguid);
 
         Player* player = sObjectMgr.GetPlayer(slot->guid);
@@ -1559,7 +1633,7 @@ void Group::_setLeader(ObjectGuid guid)
         }
 
         // update the group's solo binds to the new leader
-        CharacterDatabase.PExecute("UPDATE group_instance SET leaderGuid='%u' WHERE leaderGuid = '%u'",
+        CharacterDatabase.PExecute("UPDATE `group_instance` SET `leader_guid`='%u' WHERE `leader_guid` = '%u'",
                                    slot_lowguid, leader_lowguid);
 
         // copy the permanent binds from the new leader to the group
@@ -1568,7 +1642,7 @@ void Group::_setLeader(ObjectGuid guid)
         Player::ConvertInstancesToGroup(player, this, slot->guid);
 
         // update the group leader
-        CharacterDatabase.PExecute("UPDATE groups SET leaderGuid='%u' WHERE groupId='%u'", slot_lowguid, m_Id);
+        CharacterDatabase.PExecute("UPDATE `groups` SET `leader_guid`='%u' WHERE `group_id`='%u'", slot_lowguid, m_Id);
         CharacterDatabase.CommitTransaction();
     }
 
@@ -1631,8 +1705,8 @@ bool Group::_swapMembersGroup(ObjectGuid guid, ObjectGuid swapGuid)
     // Don't need to change group counters since we are swapping
     if (!isBGGroup())
     {
-        CharacterDatabase.PExecute("UPDATE group_member SET subgroup='%u' WHERE memberGuid='%u'", slot->group, guid.GetCounter());
-        CharacterDatabase.PExecute("UPDATE group_member SET subgroup='%u' WHERE memberGuid='%u'", swapSlot->group, swapGuid.GetCounter());
+        CharacterDatabase.PExecute("UPDATE `group_member` SET `subgroup`='%u' WHERE `member_guid`='%u'", slot->group, guid.GetCounter());
+        CharacterDatabase.PExecute("UPDATE `group_member` SET `subgroup`='%u' WHERE `member_guid`='%u'", swapSlot->group, swapGuid.GetCounter());
     }
 
     return true;
@@ -1649,7 +1723,7 @@ bool Group::_setMembersGroup(ObjectGuid guid, uint8 group)
     SubGroupCounterIncrease(group);
 
     if (!isBGGroup())
-        CharacterDatabase.PExecute("UPDATE group_member SET subgroup='%u' WHERE memberGuid='%u'", group, guid.GetCounter());
+        CharacterDatabase.PExecute("UPDATE `group_member` SET `subgroup`='%u' WHERE `member_guid`='%u'", group, guid.GetCounter());
 
     return true;
 }
@@ -1662,7 +1736,7 @@ bool Group::_setAssistantFlag(ObjectGuid guid, bool const& state)
 
     slot->assistant = state;
     if (!isBGGroup())
-        CharacterDatabase.PExecute("UPDATE group_member SET assistant='%u' WHERE memberGuid='%u'", (state) ? 1 : 0, guid.GetCounter());
+        CharacterDatabase.PExecute("UPDATE `group_member` SET `assistant`='%u' WHERE `member_guid`='%u'", (state) ? 1 : 0, guid.GetCounter());
     return true;
 }
 
@@ -1684,7 +1758,7 @@ bool Group::_setMainTank(ObjectGuid guid)
     m_mainTankGuid = guid;
 
     if (!isBGGroup())
-        CharacterDatabase.PExecute("UPDATE groups SET mainTank='%u' WHERE groupId='%u'", m_mainTankGuid.GetCounter(), m_Id);
+        CharacterDatabase.PExecute("UPDATE `groups` SET `main_tank_guid`='%u' WHERE `group_id`='%u'", m_mainTankGuid.GetCounter(), m_Id);
 
     return true;
 }
@@ -1707,7 +1781,7 @@ bool Group::_setMainAssistant(ObjectGuid guid)
     m_mainAssistantGuid = guid;
 
     if (!isBGGroup())
-        CharacterDatabase.PExecute("UPDATE groups SET mainAssistant='%u' WHERE groupId='%u'",
+        CharacterDatabase.PExecute("UPDATE `groups` SET `main_assistant_guid`='%u' WHERE `group_id`='%u'",
                                    m_mainAssistantGuid.GetCounter(), m_Id);
 
     return true;
@@ -1990,7 +2064,7 @@ void Group::ResetInstances(InstanceResetMethod method, Player* SendMsgTo)
             if (state->CanReset())
                 state->DeleteFromDB();
             else
-                CharacterDatabase.PExecute("DELETE FROM group_instance WHERE instance = '%u'", state->GetInstanceId());
+                CharacterDatabase.PExecute("DELETE FROM `group_instance` WHERE `instance` = '%u'", state->GetInstanceId());
             // i don't know for sure if hash_map iterators
             m_boundInstances.erase(itr);
             itr = m_boundInstances.begin();
@@ -2028,11 +2102,11 @@ InstanceGroupBind* Group::BindToInstance(DungeonPersistentState* state, bool per
             // when a boss is killed or when copying the players's binds to the group
             if (permanent != bind.perm || state != bind.state)
                 if (!load)
-                    CharacterDatabase.PExecute("UPDATE group_instance SET instance = '%u', permanent = '%u' WHERE leaderGuid = '%u' AND instance = '%u'",
+                    CharacterDatabase.PExecute("UPDATE `group_instance` SET `instance` = '%u', `permanent` = '%u' WHERE `leader_guid` = '%u' AND `instance` = '%u'",
                                                state->GetInstanceId(), permanent, GetLeaderGuid().GetCounter(), bind.state->GetInstanceId());
         }
         else if (!load)
-            CharacterDatabase.PExecute("INSERT INTO group_instance (leaderGuid, instance, permanent) VALUES ('%u', '%u', '%u')",
+            CharacterDatabase.PExecute("INSERT INTO `group_instance` (`leader_guid`, `instance`, `permanent`) VALUES ('%u', '%u', '%u')",
                                        GetLeaderGuid().GetCounter(), state->GetInstanceId(), permanent);
 
         if (bind.state != state)
@@ -2059,7 +2133,7 @@ void Group::UnbindInstance(uint32 mapid, bool unload)
     if (itr != m_boundInstances.end())
     {
         if (!unload)
-            CharacterDatabase.PExecute("DELETE FROM group_instance WHERE leaderGuid = '%u' AND instance = '%u'",
+            CharacterDatabase.PExecute("DELETE FROM `group_instance` WHERE `leader_guid` = '%u' AND `instance` = '%u'",
                                        GetLeaderGuid().GetCounter(), itr->second.state->GetInstanceId());
         itr->second.state->RemoveGroup(this);               // save can become invalid
         m_boundInstances.erase(itr);
@@ -2082,7 +2156,7 @@ void Group::_homebindIfInstance(Player* player)
     }
 }
 
-static void RewardGroupAtKill_helper(Player* pGroupGuy, Unit* pVictim, uint32 count, bool PvP, float group_rate, uint32 sum_level, bool is_dungeon, Player* not_gray_member_with_max_level, Player* member_with_max_level, uint32 xp)
+static void RewardGroupAtKill_helper(Player* pGroupGuy, Unit* pVictim, uint32 count, bool PvP, float group_rate, uint32 sum_level, bool is_dungeon, Unit* not_gray_member_with_max_level, Player* member_with_max_level, uint32 xp)
 {
     // honor can be in PvP and !PvP (racial leader) cases (for alive)
     if (pGroupGuy->IsAlive())
@@ -2122,14 +2196,14 @@ static void RewardGroupAtKill_helper(Player* pGroupGuy, Unit* pVictim, uint32 co
         pGroupGuy->RewardReputation(pVictim, 1.0f);
 
         // XP updated only for alive group member
-        if (pGroupGuy->IsAlive() && not_gray_member_with_max_level &&
-                pGroupGuy->GetLevel() <= not_gray_member_with_max_level->GetLevel())
+        if (pGroupGuy->IsAlive() && not_gray_member_with_max_level)
         {
             uint32 itr_xp = (member_with_max_level == not_gray_member_with_max_level) ? uint32(xp * rate) : uint32((xp * rate / 2) + 1);
-
-            pGroupGuy->GiveXP(itr_xp, pVictim);
+            if (pGroupGuy->GetLevel() <= not_gray_member_with_max_level->GetLevel())
+                pGroupGuy->GiveXP(itr_xp, pVictim);
             if (Pet* pet = pGroupGuy->GetPet())
-                pet->GivePetXP(itr_xp);
+                if (pet->GetLevel() <= not_gray_member_with_max_level->GetLevel())
+                    pet->GivePetXP(itr_xp);
         }
 
         // quest objectives updated only for alive group member or dead but with not released body
@@ -2151,7 +2225,7 @@ static void RewardGroupAtKill_helper(Player* pGroupGuy, Unit* pVictim, uint32 co
  */
 void Group::RewardGroupAtKill(Unit* pVictim, Player* pPlayerTap)
 {
-    bool PvP = pVictim->IsCharmedOwnedByPlayerOrPlayer();
+    bool PvP = pVictim->IsCharmerOrOwnerPlayerOrPlayerItself();
 
     // prepare data for near group iteration (PvP and !PvP cases)
     uint32 xp = 0;
@@ -2159,7 +2233,7 @@ void Group::RewardGroupAtKill(Unit* pVictim, Player* pPlayerTap)
     uint32 count = 0;
     uint32 sum_level = 0;
     Player* member_with_max_level = nullptr;
-    Player* not_gray_member_with_max_level = nullptr;
+    Unit* not_gray_member_with_max_level = nullptr;
 
     GetDataForXPAtKill(pVictim, count, sum_level, member_with_max_level, not_gray_member_with_max_level, pPlayerTap);
 

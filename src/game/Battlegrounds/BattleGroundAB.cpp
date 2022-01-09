@@ -23,13 +23,11 @@
 #include "Player.h"
 #include "BattleGround.h"
 #include "BattleGroundAB.h"
-#include "Creature.h"
 #include "GameObject.h"
 #include "BattleGroundMgr.h"
 #include "Language.h"
 #include "Util.h"
 #include "WorldPacket.h"
-#include "MapManager.h"
 
 BattleGroundAB::BattleGroundAB()
 {
@@ -117,10 +115,15 @@ void BattleGroundAB::Update(uint32 diff)
                 if (!m_IsInformedNearVictory && m_TeamScores[team] > BG_AB_WARNING_NEAR_VICTORY_SCORE)
                 {
                     if (team == BG_TEAM_ALLIANCE)
+                    {
                         SendMessageToAll(LANG_BG_AB_A_NEAR_VICTORY, CHAT_MSG_BG_SYSTEM_NEUTRAL);
+                        PlaySoundToAll(BG_AB_SOUND_NEAR_VICTORY_ALLIANCE);
+                    }
                     else
+                    {
                         SendMessageToAll(LANG_BG_AB_H_NEAR_VICTORY, CHAT_MSG_BG_SYSTEM_NEUTRAL);
-                    PlaySoundToAll(BG_AB_SOUND_NEAR_VICTORY);
+                        PlaySoundToAll(BG_AB_SOUND_NEAR_VICTORY_HORDE);
+                    }
                     m_IsInformedNearVictory = true;
                 }
 
@@ -350,8 +353,6 @@ void BattleGroundAB::EventPlayerClickedOnFlag(Player* source, GameObject* target
         BG_AB_NODE_LUMBER_MILL_CREDIT,
         BG_AB_NODE_GOLD_MINE_CREDIT};
     source->KilledMonsterCredit(killCredits[node]);
-
-    source->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_ENTER_PVP_COMBAT);
 
     uint32 sound = 0;
 

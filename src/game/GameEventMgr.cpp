@@ -30,7 +30,6 @@
 #include "Language.h"
 #include "Log.h"
 #include "MapManager.h"
-#include "BattleGroundMgr.h"
 #include "MassMailMgr.h"
 #include "SpellMgr.h"
 #include "Policies/SingletonImp.h"
@@ -445,13 +444,9 @@ void GameEventMgr::LoadFromDB()
     }
 
     mGameEventCreatureData.resize(mGameEvent.size());
-    //                                   0              1                             2
-    result = WorldDatabase.Query("SELECT creature.guid, game_event_creature_data.event, game_event_creature_data.display_id,"
-                                 //   3                                      4
-                                 "game_event_creature_data.equipment_id, game_event_creature_data.entry_id, "
-                                 //   5                                     6
-                                 "game_event_creature_data.spell_start, game_event_creature_data.spell_end "
-                                 "FROM creature JOIN game_event_creature_data ON creature.guid=game_event_creature_data.guid");
+    //                                     0       1        2             3               4           5              6
+    result = WorldDatabase.PQuery("SELECT `guid`, `event`, `display_id`, `equipment_id`, `entry_id`, `spell_start`, `spell_end` "
+                                  "FROM `game_event_creature_data` t1 WHERE `patch`=(SELECT max(`patch`) FROM `game_event_creature_data` t2 WHERE t1.`guid`=t2.`guid` && t1.`event`=t2.`event` && `patch` <= %u)", sWorld.GetWowPatch());
 
     count = 0;
     if (!result)
@@ -1004,7 +999,7 @@ struct GameEventUpdateCreatureDataInMapsWorker
     {
         if (Creature* pCreature = map->GetCreature(i_guid))
         {
-            pCreature->UpdateEntry(pCreature->GetOriginalEntry(), TEAM_NONE, i_data, i_activate ? i_event_data : nullptr);
+            pCreature->UpdateEntry(pCreature->GetOriginalEntry(), i_data, i_activate ? i_event_data : nullptr);
 
             // spells not casted for event remove case (sent nullptr into update), do it
             if (!i_activate)
@@ -1063,7 +1058,7 @@ void GameEventMgr::SendEventMails(int16 event_id)
             ss << "SELECT characters.guid FROM characters, character_queststatus "
                "WHERE (1 << (characters.race - 1)) & "
                << mail.raceMask
-               << " AND characters.deleteDate IS NULL AND character_queststatus.guid = characters.guid AND character_queststatus.quest = "
+               << " AND characters.deleted_time IS NULL AND character_queststatus.guid = characters.guid AND character_queststatus.quest = "
                << mail.questId
                << " AND character_queststatus.rewarded <> 0";
             sMassMailMgr.AddMassMailTask(new MailDraft(mail.mailTemplateId), MailSender(MAIL_CREATURE, mail.senderEntry), ss.str().c_str());

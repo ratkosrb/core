@@ -26,15 +26,14 @@ EndScriptData
 #include "../kalimdor/moonglade/boss_omen.h"
 #include "CritterAI.h"
 #include <array>
+#include "Utilities/EventMap.h"
 
 /* ContentData
 npc_chicken_cluck       100%    support for quest 3861 (Cluck!)
-npc_garments_of_quests  80%     NPC's related to all Garments of-quests 5621, 5624, 5625, 5648, 5650
 npc_injured_patient     100%    patients for triage-quests (6622 and 6624)
 npc_doctor              100%    Gustaf Vanhowzen and Gregory Victor, quest 6622 and 6624 (Triage)
 npc_lunaclaw_spirit     100%    Appears at two different locations, quest 6001/6002
 npc_mount_vendor        100%    Regular mount vendors all over the world. Display gossip if player doesn't meet the requirements to buy
-npc_sayge               100%    Darkmoon event fortune teller, buff player based on answers given
 npc_event_fireworks     100%    Shoots fireworks every hour. Used for New Year's Eve event.
 EndContentData */
 
@@ -326,7 +325,7 @@ struct npc_injured_patientAI : public ScriptedAI
         }
     }
 
-    void SpellHit(Unit *caster, SpellEntry const* spell) override
+    void SpellHit(SpellCaster *caster, SpellEntry const* spell) override
     {
         if (caster->GetTypeId() == TYPEID_PLAYER && m_creature->IsAlive() && spell->Id == 20804)
         {
@@ -346,20 +345,7 @@ struct npc_injured_patientAI : public ScriptedAI
             Pvloss = false;
             //stand up
             m_creature->SetStandState(UNIT_STAND_STATE_STAND);
-
-            switch (urand(0, 2))
-            {
-                case 0:
-                    DoScriptText(SAY_DOC1, m_creature);
-                    break;
-                case 1:
-                    DoScriptText(SAY_DOC2, m_creature);
-                    break;
-                case 2:
-                    DoScriptText(SAY_DOC3, m_creature);
-                    break;
-            }
-
+            DoScriptText(PickRandomValue(SAY_DOC1, SAY_DOC2, SAY_DOC3), m_creature);
             m_creature->SetWalk(false);
 
             uint32 mobId = m_creature->GetEntry();
@@ -588,233 +574,6 @@ CreatureAI* GetAI_npc_doctor(Creature* pCreature)
 }
 
 /*######
-## npc_garments_of_quests
-######*/
-
-//TODO: get text for each NPC
-
-enum
-{
-    SPELL_LESSER_HEAL_R2    = 2052,
-    SPELL_FORTITUDE_R1      = 1243,
-
-    QUEST_MOON              = 5621,
-    QUEST_LIGHT_1           = 5624,
-    QUEST_LIGHT_2           = 5625,
-    QUEST_SPIRIT            = 5648,
-    QUEST_DARKNESS          = 5650,
-
-    ENTRY_SHAYA             = 12429,
-    ENTRY_ROBERTS           = 12423,
-    ENTRY_DOLF              = 12427,
-    ENTRY_KORJA             = 12430,
-    ENTRY_DG_KEL            = 12428,
-
-    SAY_COMMON_HEALED       = -1000231,
-    SAY_DG_KEL_THANKS       = -1000232,
-    SAY_DG_KEL_GOODBYE      = -1000233,
-    SAY_ROBERTS_THANKS      = -1000256,
-    SAY_ROBERTS_GOODBYE     = -1000257,
-    SAY_KORJA_THANKS        = -1000258,
-    SAY_KORJA_GOODBYE       = -1000259,
-    SAY_DOLF_THANKS         = -1000260,
-    SAY_DOLF_GOODBYE        = -1000261,
-    SAY_SHAYA_THANKS        = -1000262,
-    SAY_SHAYA_GOODBYE       = -1000263,
-};
-
-struct npc_garments_of_questsAI : public npc_escortAI
-{
-    npc_garments_of_questsAI(Creature* pCreature) : npc_escortAI(pCreature)
-    {
-        Reset();
-    }
-
-    uint64 caster;
-
-    bool bIsHealed;
-    bool bCanRun;
-
-    uint32 RunAwayTimer;
-
-    void Reset() override
-    {
-        caster = 0;
-
-        bIsHealed = false;
-        bCanRun = false;
-
-        RunAwayTimer = 5000;
-
-        m_creature->SetStandState(UNIT_STAND_STATE_KNEEL);
-        //expect database to have RegenHealth=0
-        m_creature->SetHealth(int(m_creature->GetMaxHealth() * 0.7));
-    }
-
-    void SpellHit(Unit* pCaster, SpellEntry const* Spell) override
-    {
-        if (Spell->Id == SPELL_LESSER_HEAL_R2 || Spell->Id == SPELL_FORTITUDE_R1)
-        {
-            //not while in combat
-            if (m_creature->IsInCombat())
-                return;
-
-            //nothing to be done now
-            if (bIsHealed && bCanRun)
-                return;
-
-            if (pCaster->GetTypeId() == TYPEID_PLAYER)
-            {
-                switch (m_creature->GetEntry())
-                {
-                    case ENTRY_SHAYA:
-                        if (((Player*)pCaster)->GetQuestStatus(QUEST_MOON) == QUEST_STATUS_INCOMPLETE)
-                        {
-                            if (bIsHealed && !bCanRun && Spell->Id == SPELL_FORTITUDE_R1)
-                            {
-                                DoScriptText(SAY_SHAYA_THANKS, m_creature, pCaster);
-                                bCanRun = true;
-                            }
-                            else if (!bIsHealed && Spell->Id == SPELL_LESSER_HEAL_R2)
-                            {
-                                caster = pCaster->GetGUID();
-                                m_creature->SetStandState(UNIT_STAND_STATE_STAND);
-                                DoScriptText(SAY_COMMON_HEALED, m_creature, pCaster);
-                                bIsHealed = true;
-                            }
-                        }
-                        break;
-                    case ENTRY_ROBERTS:
-                        if (((Player*)pCaster)->GetQuestStatus(QUEST_LIGHT_1) == QUEST_STATUS_INCOMPLETE)
-                        {
-                            if (bIsHealed && !bCanRun && Spell->Id == SPELL_FORTITUDE_R1)
-                            {
-                                DoScriptText(SAY_ROBERTS_THANKS, m_creature, pCaster);
-                                bCanRun = true;
-                            }
-                            else if (!bIsHealed && Spell->Id == SPELL_LESSER_HEAL_R2)
-                            {
-                                caster = pCaster->GetGUID();
-                                m_creature->SetStandState(UNIT_STAND_STATE_STAND);
-                                DoScriptText(SAY_COMMON_HEALED, m_creature, pCaster);
-                                bIsHealed = true;
-                            }
-                        }
-                        break;
-                    case ENTRY_DOLF:
-                        if (((Player*)pCaster)->GetQuestStatus(QUEST_LIGHT_2) == QUEST_STATUS_INCOMPLETE)
-                        {
-                            if (bIsHealed && !bCanRun && Spell->Id == SPELL_FORTITUDE_R1)
-                            {
-                                DoScriptText(SAY_DOLF_THANKS, m_creature, pCaster);
-                                bCanRun = true;
-                            }
-                            else if (!bIsHealed && Spell->Id == SPELL_LESSER_HEAL_R2)
-                            {
-                                caster = pCaster->GetGUID();
-                                m_creature->SetStandState(UNIT_STAND_STATE_STAND);
-                                DoScriptText(SAY_COMMON_HEALED, m_creature, pCaster);
-                                bIsHealed = true;
-                            }
-                        }
-                        break;
-                    case ENTRY_KORJA:
-                        if (((Player*)pCaster)->GetQuestStatus(QUEST_SPIRIT) == QUEST_STATUS_INCOMPLETE)
-                        {
-                            if (bIsHealed && !bCanRun && Spell->Id == SPELL_FORTITUDE_R1)
-                            {
-                                DoScriptText(SAY_KORJA_THANKS, m_creature, pCaster);
-                                bCanRun = true;
-                            }
-                            else if (!bIsHealed && Spell->Id == SPELL_LESSER_HEAL_R2)
-                            {
-                                caster = pCaster->GetGUID();
-                                m_creature->SetStandState(UNIT_STAND_STATE_STAND);
-                                DoScriptText(SAY_COMMON_HEALED, m_creature, pCaster);
-                                bIsHealed = true;
-                            }
-                        }
-                        break;
-                    case ENTRY_DG_KEL:
-                        if (((Player*)pCaster)->GetQuestStatus(QUEST_DARKNESS) == QUEST_STATUS_INCOMPLETE)
-                        {
-                            if (bIsHealed && !bCanRun && Spell->Id == SPELL_FORTITUDE_R1)
-                            {
-                                DoScriptText(SAY_DG_KEL_THANKS, m_creature, pCaster);
-                                bCanRun = true;
-                            }
-                            else if (!bIsHealed && Spell->Id == SPELL_LESSER_HEAL_R2)
-                            {
-                                caster = pCaster->GetGUID();
-                                m_creature->SetStandState(UNIT_STAND_STATE_STAND);
-                                DoScriptText(SAY_COMMON_HEALED, m_creature, pCaster);
-                                bIsHealed = true;
-                            }
-                        }
-                        break;
-                }
-
-                //give quest credit, not expect any special quest objectives
-                if (bCanRun)
-                    ((Player*)pCaster)->TalkedToCreature(m_creature->GetEntry(), m_creature->GetGUID());
-            }
-        }
-    }
-
-    void WaypointReached(uint32 uiPoint) override
-    {
-    }
-
-    void UpdateEscortAI(uint32 const diff) override
-    {
-        if (bCanRun && !m_creature->IsInCombat())
-        {
-            if (RunAwayTimer <= diff)
-            {
-                if (Unit *pUnit = m_creature->GetMap()->GetUnit(caster))
-                {
-                    switch (m_creature->GetEntry())
-                    {
-                        case ENTRY_SHAYA:
-                            DoScriptText(SAY_SHAYA_GOODBYE, m_creature, pUnit);
-                            break;
-                        case ENTRY_ROBERTS:
-                            DoScriptText(SAY_ROBERTS_GOODBYE, m_creature, pUnit);
-                            break;
-                        case ENTRY_DOLF:
-                            DoScriptText(SAY_DOLF_GOODBYE, m_creature, pUnit);
-                            break;
-                        case ENTRY_KORJA:
-                            DoScriptText(SAY_KORJA_GOODBYE, m_creature, pUnit);
-                            break;
-                        case ENTRY_DG_KEL:
-                            DoScriptText(SAY_DG_KEL_GOODBYE, m_creature, pUnit);
-                            break;
-                    }
-
-                    Start(true);
-                }
-                else
-                    EnterEvadeMode();                       //something went wrong
-
-                RunAwayTimer = 30000;
-            }
-            else RunAwayTimer -= diff;
-        }
-
-        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
-            return;
-
-        DoMeleeAttackIfReady();
-    }
-};
-
-CreatureAI* GetAI_npc_garments_of_quests(Creature* pCreature)
-{
-    return new npc_garments_of_questsAI(pCreature);
-}
-
-/*######
 ## npc_tonk_mine
 ######*/
 
@@ -987,140 +746,6 @@ bool GossipSelect_npc_lunaclaw_spirit(Player* pPlayer, Creature* pCreature, uint
     return true;
 }
 
-/*######
-## npc_sayge
-######*/
-
-#define SPELL_DMG       23768                               //dmg
-#define SPELL_RES       23769                               //res
-#define SPELL_ARM       23767                               //arm
-#define SPELL_SPI       23738                               //spi
-#define SPELL_INT       23766                               //int
-#define SPELL_STM       23737                               //stm
-#define SPELL_STR       23735                               //str
-#define SPELL_AGI       23736                               //agi
-#define SPELL_FORTUNE   23765                               //faire fortune
-
-bool GossipHello_npc_sayge(Player* pPlayer, Creature* pCreature)
-{
-    if (pCreature->IsQuestGiver())
-        pPlayer->PrepareQuestMenu(pCreature->GetGUID());
-
-    if (pPlayer->HasSpellCooldown(SPELL_INT) ||
-            pPlayer->HasSpellCooldown(SPELL_ARM) ||
-            pPlayer->HasSpellCooldown(SPELL_DMG) ||
-            pPlayer->HasSpellCooldown(SPELL_RES) ||
-            pPlayer->HasSpellCooldown(SPELL_STR) ||
-            pPlayer->HasSpellCooldown(SPELL_AGI) ||
-            pPlayer->HasSpellCooldown(SPELL_STM) ||
-            pPlayer->HasSpellCooldown(SPELL_SPI))
-        pPlayer->SEND_GOSSIP_MENU(7393, pCreature->GetGUID());
-    else
-    {
-        pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Yes", GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 1);
-        pPlayer->SEND_GOSSIP_MENU(7339, pCreature->GetGUID());
-    }
-
-    return true;
-}
-
-void SendAction_npc_sayge(Player* pPlayer, Creature* pCreature, uint32 uiAction)
-{
-    switch (uiAction)
-    {
-        case GOSSIP_ACTION_INFO_DEF+1:
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Slay the Man",                      GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 2);
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Turn him over to liege",            GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 3);
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Confiscate the corn",               GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 4);
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Let him go and have the corn",      GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 5);
-            pPlayer->SEND_GOSSIP_MENU(7340, pCreature->GetGUID());
-            break;
-        case GOSSIP_ACTION_INFO_DEF+2:
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Execute your friend painfully",     GOSSIP_SENDER_MAIN + 1, GOSSIP_ACTION_INFO_DEF);
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Execute your friend painlessly",    GOSSIP_SENDER_MAIN + 2, GOSSIP_ACTION_INFO_DEF);
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Let your friend go",                GOSSIP_SENDER_MAIN + 3, GOSSIP_ACTION_INFO_DEF);
-            pPlayer->SEND_GOSSIP_MENU(7341, pCreature->GetGUID());
-            break;
-        case GOSSIP_ACTION_INFO_DEF+3:
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Confront the diplomat",             GOSSIP_SENDER_MAIN + 4, GOSSIP_ACTION_INFO_DEF);
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Show not so quiet defiance",        GOSSIP_SENDER_MAIN + 5, GOSSIP_ACTION_INFO_DEF);
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Remain quiet",                      GOSSIP_SENDER_MAIN + 2, GOSSIP_ACTION_INFO_DEF);
-            pPlayer->SEND_GOSSIP_MENU(7361, pCreature->GetGUID());
-            break;
-        case GOSSIP_ACTION_INFO_DEF+4:
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Speak against your brother openly", GOSSIP_SENDER_MAIN + 6, GOSSIP_ACTION_INFO_DEF);
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Help your brother in",              GOSSIP_SENDER_MAIN + 7, GOSSIP_ACTION_INFO_DEF);
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Keep your brother out without letting him know", GOSSIP_SENDER_MAIN + 8, GOSSIP_ACTION_INFO_DEF);
-            pPlayer->SEND_GOSSIP_MENU(7362, pCreature->GetGUID());
-            break;
-        case GOSSIP_ACTION_INFO_DEF+5:
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Take credit, keep gold",            GOSSIP_SENDER_MAIN + 5, GOSSIP_ACTION_INFO_DEF);
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Take credit, share the gold",       GOSSIP_SENDER_MAIN + 4, GOSSIP_ACTION_INFO_DEF);
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Let the knight take credit",        GOSSIP_SENDER_MAIN + 3, GOSSIP_ACTION_INFO_DEF);
-            pPlayer->SEND_GOSSIP_MENU(7363, pCreature->GetGUID());
-            break;
-        case GOSSIP_ACTION_INFO_DEF:
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Thanks",                            GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 6);
-            pPlayer->SEND_GOSSIP_MENU(7364, pCreature->GetGUID());
-            break;
-        case GOSSIP_ACTION_INFO_DEF+6:
-            pCreature->CastSpell(pPlayer, SPELL_FORTUNE, true);
-            pPlayer->SEND_GOSSIP_MENU(7365, pCreature->GetGUID());
-            break;
-    }
-}
-
-bool GossipSelect_npc_sayge(Player* pPlayer, Creature* pCreature, uint32 uiSender, uint32 uiAction)
-{
-    switch (uiSender)
-    {
-        case GOSSIP_SENDER_MAIN:
-            SendAction_npc_sayge(pPlayer, pCreature, uiAction);
-            break;
-        case GOSSIP_SENDER_MAIN+1:
-            pCreature->CastSpell(pPlayer, SPELL_DMG, true);
-            pPlayer->AddSpellCooldown(SPELL_DMG, 0, time(nullptr) + 7200);
-            SendAction_npc_sayge(pPlayer, pCreature, uiAction);
-            break;
-        case GOSSIP_SENDER_MAIN+2:
-            pCreature->CastSpell(pPlayer, SPELL_RES, true);
-            pPlayer->AddSpellCooldown(SPELL_RES, 0, time(nullptr) + 7200);
-            SendAction_npc_sayge(pPlayer, pCreature, uiAction);
-            break;
-        case GOSSIP_SENDER_MAIN+3:
-            pCreature->CastSpell(pPlayer, SPELL_ARM, true);
-            pPlayer->AddSpellCooldown(SPELL_ARM, 0, time(nullptr) + 7200);
-            SendAction_npc_sayge(pPlayer, pCreature, uiAction);
-            break;
-        case GOSSIP_SENDER_MAIN+4:
-            pCreature->CastSpell(pPlayer, SPELL_SPI, true);
-            pPlayer->AddSpellCooldown(SPELL_SPI, 0, time(nullptr) + 7200);
-            SendAction_npc_sayge(pPlayer, pCreature, uiAction);
-            break;
-        case GOSSIP_SENDER_MAIN+5:
-            pCreature->CastSpell(pPlayer, SPELL_INT, true);
-            pPlayer->AddSpellCooldown(SPELL_INT, 0, time(nullptr) + 7200);
-            SendAction_npc_sayge(pPlayer, pCreature, uiAction);
-            break;
-        case GOSSIP_SENDER_MAIN+6:
-            pCreature->CastSpell(pPlayer, SPELL_STM, true);
-            pPlayer->AddSpellCooldown(SPELL_STM, 0, time(nullptr) + 7200);
-            SendAction_npc_sayge(pPlayer, pCreature, uiAction);
-            break;
-        case GOSSIP_SENDER_MAIN+7:
-            pCreature->CastSpell(pPlayer, SPELL_STR, true);
-            pPlayer->AddSpellCooldown(SPELL_STR, 0, time(nullptr) + 7200);
-            SendAction_npc_sayge(pPlayer, pCreature, uiAction);
-            break;
-        case GOSSIP_SENDER_MAIN+8:
-            pCreature->CastSpell(pPlayer, SPELL_AGI, true);
-            pPlayer->AddSpellCooldown(SPELL_AGI, 0, time(nullptr) + 7200);
-            SendAction_npc_sayge(pPlayer, pCreature, uiAction);
-            break;
-    }
-    return true;
-}
-
 /*
  * Rat of the depths
  */
@@ -1190,23 +815,24 @@ struct rat_des_profondeursAI : public ScriptedAI
             QuestFinishCheck_Timer -= uiDiff;
     }
 
-    void SpellHit(Unit* pCaster, SpellEntry const* pSpellInfo) override
+    void SpellHit(SpellCaster* pCaster, SpellEntry const* pSpellInfo) override
     {
         // Ce rat est deja pris !
         if (!m_FollowingPlayerGuid.IsEmpty())
             return;
         if (!pSpellInfo || pSpellInfo->Id != SPELL_EXTASE_MELODIEUSE)
             return;
-        if (!pCaster->IsPlayer())
+        Player* pCasterPlayer = pCaster->ToPlayer();
+        if (!pCasterPlayer)
             return;
-        if (pCaster->ToPlayer()->GetQuestStatus(QUEST_CHASSE_AU_RAT) != QUEST_STATUS_INCOMPLETE)
+        if (pCasterPlayer->GetQuestStatus(QUEST_CHASSE_AU_RAT) != QUEST_STATUS_INCOMPLETE)
             return;
-        m_FollowingPlayerGuid = pCaster->GetObjectGuid();
+        m_FollowingPlayerGuid = pCasterPlayer->GetObjectGuid();
         m_creature->UpdateEntry(NPC_RAT_ENSORCELE);
         m_creature->CastSpell(m_creature, SPELL_EXTASE_MELO_VISU, true);
         m_creature->GetMotionMaster()->Clear(false);
-        m_creature->GetMotionMaster()->MoveFollow(pCaster, 1.0f, M_PI_F);
-        pCaster->ToPlayer()->RewardPlayerAndGroupAtCast(m_creature, SPELL_EXTASE_MELODIEUSE);
+        m_creature->GetMotionMaster()->MoveFollow(pCasterPlayer, 1.0f, M_PI_F);
+        pCasterPlayer->RewardPlayerAndGroupAtCast(m_creature, SPELL_EXTASE_MELODIEUSE);
     }
 
     void JustDied(Unit* pKiller) override
@@ -1576,7 +1202,7 @@ enum
     NPC_CLUSTER_CREDIT_MARKER       = 15894,
     GO_OMEN_CLUSTER_LAUNCHER        = 180874,
 
-    SPELL_LUNAR_FORTUNE             = 26522
+    SPELL_LUNAR_FORTUNE             = 26522,
 };
 
 struct FireworkStruct
@@ -1612,10 +1238,10 @@ std::array<FireworkStruct, 25> const Fireworks =
     { 15914, {26505, 26504, 26503, 26502, 26501}, true }, // Large Red Firework Cluster
     { 15915, {26510, 26509, 26508, 26507, 26506}, true }, // Large White Firework Cluster
     { 15916, {26515, 26514, 26513, 26512, 26511}, true }, // Large Yellow Firework Cluster
-    { 15918, {26487, 26509, 26508, 26507, 26483}, true }, // Lucky Rocket Cluster
+    { 15918, {26487, 26509, 26508, 26484, 26483}, true }, // Lucky Rocket Cluster
 }};
 
-std::array<uint32, 7> const Launcher = { { 180772, 180859, 180869, 180874, 180771, 180850, 180868 } };
+static std::array<uint32, 7> const Launcher = { { 180772, 180859, 180869, 180874, 180771, 180850, 180868 } };
 
 struct npc_pats_firework_guyAI : ScriptedAI
 {
@@ -1668,7 +1294,7 @@ struct npc_pats_firework_guyAI : ScriptedAI
         {
             if (auto pGo = GetClosestGameObjectWithEntry(m_creature, goEntry, CONTACT_DISTANCE))
             {
-                pGo->SendGameObjectCustomAnim();
+                pGo->SendGameObjectCustomAnim(3); // SendGameObjectCustomAnim(2) is sniffed too, but it has no animation.
                 break;
             }
         }
@@ -1682,21 +1308,21 @@ struct npc_pats_firework_guyAI : ScriptedAI
             {
                 switch (i)
                 {
-                    case 0:
-                        m_creature->NearTeleportTo(x, y, z + 7.0f, 0.0f);
-                        break;
-                    case 1:
-                        m_creature->NearTeleportTo(x - 1.5f, y + 1.5f, z + 5.0f, 0.0f);
-                        break;
-                    case 2:
-                        m_creature->NearTeleportTo(x - 1.5f, y - 1.5f, z + 5.0f, 0.0f);
-                        break;
-                    case 3:
-                        m_creature->NearTeleportTo(x + 1.5f, y, z + 5.0f, 0.0f);
-                        break;
-                    case 4:
-                        m_creature->NearTeleportTo(x, y + 1.5f, z + 3.0f, 0.0f);
-                        break;
+                case 0:
+                    m_creature->NearTeleportTo(x, y, z + 7.0f, 0.0f);
+                    break;
+                case 1:
+                    m_creature->NearTeleportTo(x - 1.5f, y + 1.5f, z + 5.0f, 0.0f);
+                    break;
+                case 2:
+                    m_creature->NearTeleportTo(x - 1.5f, y - 1.5f, z + 5.0f, 0.0f);
+                    break;
+                case 3:
+                    m_creature->NearTeleportTo(x + 1.5f, y, z + 5.0f, 0.0f);
+                    break;
+                case 4:
+                    m_creature->NearTeleportTo(x, y + 1.5f, z + 3.0f, 0.0f);
+                    break;
                 }
                 m_creature->CastSpell(m_creature, Fireworks[m_uiIndex].m_uiSpellEntry[i], true);
             }
@@ -1704,8 +1330,15 @@ struct npc_pats_firework_guyAI : ScriptedAI
         else
             m_creature->CastSpell(m_creature, Fireworks[m_uiIndex].m_uiSpellEntry[0], true);
 
+        // Lunar Fortune is casted 3 seconds later.
         if (m_bisLucky)
-            m_creature->CastSpell(m_creature, SPELL_LUNAR_FORTUNE, true);
+        {
+            Creature* caster = m_creature;
+            m_creature->m_Events.AddLambdaEventAtOffset([caster]
+            {
+                caster->CastSpell(caster, SPELL_LUNAR_FORTUNE, true);
+            }, 3 * IN_MILLISECONDS);
+        }
 
         if (m_creature->IsTemporarySummon())
         {
@@ -1763,7 +1396,7 @@ CreatureAI* GetAI_npc_summon_possessed(Creature* pCreature)
 }
 
 /*
- * Riggle Bassbait
+ * Riggle Bassbait (Stranglethorn Vale Fishing Extravaganza)
  */
 
 enum
@@ -1772,9 +1405,9 @@ enum
 
     EVENT_TOURNAMENT        = 15,
 
-    YELL_BEGIN              = -1900100,
-    YELL_WINNER             = -1900101,
-    YELL_OVER               = -1900102,
+    YELL_BEGIN              = 10608, // Let the Fishing Tournament BEGIN!
+    YELL_WINNER             = 10609, // We have a winner! $n has won FIRST PLACE in the tournament!
+    YELL_OVER               = 10610, // And the Tastyfish have gone for the week! I will remain for another hour to allow you to turn in your fish!
 };
 
 struct npc_riggle_bassbaitAI : ScriptedAI
@@ -1997,7 +1630,7 @@ struct npc_shahramAI : ScriptedPetAI
         m_creature->SetCanModifyStats(true);
 
         m_creature->ToPet()->InitStatsForLevel(63);
-        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
 
         if (m_creature->GetCharmInfo())
             m_creature->GetCharmInfo()->SetReactState(REACT_AGGRESSIVE);
@@ -2260,7 +1893,7 @@ struct npc_sickly_critterAI : CritterAI
         m_uiTimer = 1500;
     }
 
-    void SpellHit(Unit* pCaster, SpellEntry const* pSpell) override
+    void SpellHit(SpellCaster* pCaster, SpellEntry const* pSpell) override
     {
         if (pSpell->Id != SPELL_APPLY_SALVE)
         {
@@ -2466,25 +2099,31 @@ CreatureAI* GetAI_npc_explosive_sheep(Creature* pCreature)
 
 enum
 {
-    EVENT_VALENTINE_KWEE = 140,
+    EVENT_LOVE_IS_IN_THE_AIR                                    = 8,
+    EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_DARNASSUS           = 110,
+    EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_IRONFORGE           = 111,
+    EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_STORMWIND           = 112,
+    EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_ORGRIMMAR           = 113,
+    EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_THUNDER_BLUFF       = 114,
+    EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_UNDERCITY           = 115,
 
-    SPELL_SMITTEN = 27572,
-    QUEST_GIFT_H = 8981,
-    QUEST_GIFT_A = 8993,
+    SPELL_SMITTEN       = 27572,
+    QUEST_GIFT_H        = 8981,
+    QUEST_GIFT_A        = 8993,
 
-    VAR_KWEE_THRALL = 2200,
-    VAR_KWEE_CAIRNE = 2201,
-    VAR_KWEE_SYLVANAS = 2202,
-    VAR_KWEE_HORDE = 2207,
+    VAR_KWEE_THRALL     = 2200,
+    VAR_KWEE_CAIRNE     = 2201,
+    VAR_KWEE_SYLVANAS   = 2202,
+    VAR_KWEE_HORDE      = 2207,
 
-    VAR_KWEE_BOLVAR = 2203,
-    VAR_KWEE_MAGNI = 2204,
-    VAR_KWEE_TYRANDE = 2205,
-    VAR_KWEE_ALLIANCE = 2206,
+    VAR_KWEE_BOLVAR     = 2203,
+    VAR_KWEE_MAGNI      = 2204,
+    VAR_KWEE_TYRANDE    = 2205,
+    VAR_KWEE_ALLIANCE   = 2206,
 
-    TEXT_ID_VICTORY_A = 8315,
-    TEXT_ID_VICTORY_H = 8316,
-    TEXT_ID_TIE = 8318,
+    TEXT_ID_VICTORY_A   = 8315,
+    TEXT_ID_VICTORY_H   = 8316,
+    TEXT_ID_TIE         = 8320,
 
 };
 
@@ -2502,12 +2141,11 @@ struct npc_kwee_peddlefeetAI : public ScriptedAI
 {
     npc_kwee_peddlefeetAI(Creature* pCreature) : ScriptedAI(pCreature), winningFaction(0), winningZone(0)
     {
-        if (sGameEventMgr.CheckOneGameEvent(EVENT_VALENTINE_KWEE, time(nullptr)))
+        // If event 8 (Love is in the Air) isn't active, Kwee Q. Peddlefeet is summoned by a winner event and should not have the Quest giver flag.
+        if (!sGameEventMgr.IsActiveEvent(EVENT_LOVE_IS_IN_THE_AIR))
         {
             SetVariables();
             m_creature->RemoveFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_QUESTGIVER);
-            if (m_creature->GetZoneId() != winningZone && winningZone != 0)
-                m_creature->DespawnOrUnsummon();
         }
         Reset();
     }
@@ -2515,7 +2153,7 @@ struct npc_kwee_peddlefeetAI : public ScriptedAI
     uint32 winningFaction;
     uint32 winningZone;
 
-    void Reset() override { }
+    void Reset() override {}
 
     void SetVariables()
     {
@@ -2549,6 +2187,74 @@ struct npc_kwee_peddlefeetAI : public ScriptedAI
         }
     }
 
+    void ResetVariablesAndDisableWinnerEvents()
+    {
+        // Reset all variables if available.
+        for (uint32 i = VAR_KWEE_THRALL; i < VAR_KWEE_HORDE; i++)
+        {
+            if (sObjectMgr.GetSavedVariable(i, 0))
+                sObjectMgr.SetSavedVariable(i, 0, true);
+        }
+
+        // Disable all Winner events.
+        for (uint32 i = EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_DARNASSUS; i < EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_UNDERCITY; i++)
+        {
+            sGameEventMgr.EnableEvent(i, false);
+        }
+    }
+
+    void OnRemoveFromWorld() override
+    {
+        SetVariables();
+
+        // If Kwee Q. Peddlefeet has no quest giver flag, he is already summoned by a contest Winner event.
+        // If he despawns without the flag, the variables should be reseted for next Year's votings.
+        // Also the Winner events needs to be disabled again.
+        if (!m_creature->HasFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_QUESTGIVER))
+        {
+            ResetVariablesAndDisableWinnerEvents();
+            return;
+        }
+
+        if (m_creature->GetZoneId() != winningZone && winningZone != 0)
+            return;
+        
+        // If Kwee Q. Peddlefeet is in the winner Zone, start the winner event here.
+        switch (winningZone)
+        {
+            case 1637: // Orgrimmar
+            {
+                sGameEventMgr.EnableEvent(EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_ORGRIMMAR, true);
+                break;
+            }
+            case 1638: // Thunder Bluff
+            {
+                sGameEventMgr.EnableEvent(EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_THUNDER_BLUFF, true);
+                break;
+            }
+            case 1497: // Undercity
+            {
+                sGameEventMgr.EnableEvent(EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_UNDERCITY, true);
+                break;
+            }
+            case 1519: // Stormwind
+            {
+                sGameEventMgr.EnableEvent(EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_STORMWIND, true);
+                break;
+            }
+            case 1537: // Ironforge
+            {
+                sGameEventMgr.EnableEvent(EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_IRONFORGE, true);
+                break;
+            }
+            case 1657: // Darnassus
+            {
+                sGameEventMgr.EnableEvent(EVENT_LOVE_IS_IN_THE_AIR_CONTEST_WINNER_DARNASSUS, true);
+                break;
+            }
+        }
+    }
+
     void ReceiveEmote(Player* pPlayer, uint32 uiEmote) override
     {
         if (uiEmote == TEXTEMOTE_KISS)
@@ -2566,16 +2272,12 @@ CreatureAI* GetAI_npc_kwee_peddlefeet(Creature* pCreature)
 
 bool GossipHello_npc_kwee_peddlefeet(Player* pPlayer, Creature* pCreature)
 {
-    pPlayer->SendUpdateWorldState(VAR_KWEE_THRALL, sObjectMgr.GetSavedVariable(VAR_KWEE_THRALL, 0));
-    pPlayer->SendUpdateWorldState(VAR_KWEE_CAIRNE, sObjectMgr.GetSavedVariable(VAR_KWEE_CAIRNE, 0));
-    pPlayer->SendUpdateWorldState(VAR_KWEE_SYLVANAS, sObjectMgr.GetSavedVariable(VAR_KWEE_SYLVANAS, 0));
-    pPlayer->SendUpdateWorldState(VAR_KWEE_HORDE, sObjectMgr.GetSavedVariable(VAR_KWEE_HORDE, 0));
-    pPlayer->SendUpdateWorldState(VAR_KWEE_BOLVAR, sObjectMgr.GetSavedVariable(VAR_KWEE_BOLVAR, 0));
-    pPlayer->SendUpdateWorldState(VAR_KWEE_MAGNI, sObjectMgr.GetSavedVariable(VAR_KWEE_MAGNI, 0));
-    pPlayer->SendUpdateWorldState(VAR_KWEE_TYRANDE, sObjectMgr.GetSavedVariable(VAR_KWEE_TYRANDE, 0));
-    pPlayer->SendUpdateWorldState(VAR_KWEE_ALLIANCE, sObjectMgr.GetSavedVariable(VAR_KWEE_ALLIANCE, 0));
+    for (uint32 i = VAR_KWEE_THRALL; i < VAR_KWEE_HORDE; i++)
+    {
+        pPlayer->SendUpdateWorldState(i, sObjectMgr.GetSavedVariable(i, 0));
+    }
 
-    if (sGameEventMgr.IsActiveEvent(EVENT_VALENTINE_KWEE))
+    if (!sGameEventMgr.IsActiveEvent(EVENT_LOVE_IS_IN_THE_AIR))
     {
         if (npc_kwee_peddlefeetAI* kweeAI = dynamic_cast<npc_kwee_peddlefeetAI*>(pCreature->AI()))
         {
@@ -2641,7 +2343,7 @@ struct npc_oozeling_jubjubAI : public ScriptedPetAI
         m_uiReturnTimer = 0;
     }
 
-    void SpellHit(Unit* pUnit, SpellEntry const* pSpell) override
+    void SpellHit(SpellCaster*, SpellEntry const* pSpell) override
     {
         if (pSpell->Id == SPELL_DARK_IRON_MUG)
             m_uiReturnTimer = 10000;
@@ -2711,11 +2413,6 @@ void AddSC_npcs_special()
     newscript->RegisterSelf();
 
     newscript = new Script;
-    newscript->Name = "npc_garments_of_quests";
-    newscript->GetAI = &GetAI_npc_garments_of_quests;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
     newscript->Name = "npc_tonk_mine";
     newscript->GetAI = &GetAI_npc_tonk_mine;
     newscript->RegisterSelf();
@@ -2734,12 +2431,6 @@ void AddSC_npcs_special()
     newscript->Name = "npc_lunaclaw_spirit";
     newscript->pGossipHello =  &GossipHello_npc_lunaclaw_spirit;
     newscript->pGossipSelect = &GossipSelect_npc_lunaclaw_spirit;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
-    newscript->Name = "npc_sayge";
-    newscript->pGossipHello = &GossipHello_npc_sayge;
-    newscript->pGossipSelect = &GossipSelect_npc_sayge;
     newscript->RegisterSelf();
 
     newscript = new Script;

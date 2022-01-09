@@ -18,7 +18,7 @@
 
 #include "PetEventAI.h"
 #include "Pet.h"
-#include "CreatureEventAI.h"
+#include "Player.h"
 
 PetEventAI::PetEventAI(Creature* pCreature) : CreatureEventAI(pCreature)
 {}
@@ -33,18 +33,12 @@ int PetEventAI::Permissible(Creature const* creature)
 
 void PetEventAI::MoveInLineOfSight(Unit* pWho)
 {
-    if (!pWho)
-        return;
-
     if (m_creature->GetVictim())
         return;
 
     //Check for OOC LOS Event
     if (!m_bEmptyList)
         UpdateEventsOn_MoveInLineOfSight(pWho);
-
-    if (!m_creature->HasReactState(REACT_AGGRESSIVE))
-        return;
 
     if (m_creature->GetCharmInfo() && m_creature->GetCharmInfo()->IsReturning())
         return;
@@ -59,10 +53,10 @@ void PetEventAI::MoveInLineOfSight(Unit* pWho)
         return;
 #endif
 
-    if (m_creature->CanInitiateAttack() && pWho->IsTargetableForAttack())
+    if (m_creature->CanInitiateAttack() && pWho->IsTargetableBy(m_creature))
     {
         float const attackRadius = m_creature->GetAttackDistance(pWho);
-        if (m_creature->IsWithinDistInMap(pWho, attackRadius) && m_creature->IsHostileTo(pWho) &&
+        if (m_creature->IsWithinDistInMap(pWho, attackRadius, true, false) && m_creature->IsHostileTo(pWho) &&
             pWho->IsInAccessablePlaceFor(m_creature) && m_creature->IsWithinLOSInMap(pWho))
             AttackStart(pWho);
     }
@@ -139,7 +133,7 @@ bool PetEventAI::FindTargetForAttack()
     Unit::AttackerSet attackers = m_creature->GetAttackers();
     for (const auto& itr : attackers)
     {
-        if (itr->IsInMap(m_creature) && itr->IsTargetableForAttack() && !itr->HasAuraPetShouldAvoidBreaking())
+        if (itr->IsInMap(m_creature) && m_creature->IsValidAttackTarget(itr) && !itr->HasAuraPetShouldAvoidBreaking())
         {
             AttackStart(itr);
             return true;
@@ -166,7 +160,7 @@ bool PetEventAI::FindTargetForAttack()
             Unit::AttackerSet owner_attackers = pOwner->GetAttackers();
             for (const auto& itr : owner_attackers)
             {
-                if (itr->IsInMap(m_creature) && itr->IsTargetableForAttack() && !itr->HasAuraPetShouldAvoidBreaking())
+                if (itr->IsInMap(m_creature) && m_creature->IsValidAttackTarget(itr) && !itr->HasAuraPetShouldAvoidBreaking())
                 {
                     AttackStart(itr);
                     return true;

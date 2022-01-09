@@ -22,70 +22,10 @@
  EndScriptData */
 
 /* ContentData
- npc_bunthen_plainswind
  npc_great_bear_spirit
- npc_silva_filnaveth
  EndContentData */
 
 #include "scriptPCH.h"
-
-/*######
- ## npc_bunthen_plainswind
- ######*/
-
-enum BunthenPlainswindData
-{
-    QUEST_SEA_LION_HORDE = 30,
-    QUEST_SEA_LION_ALLY  = 272,
-    TAXI_PATH_ID_ALLY    = 315,
-    TAXI_PATH_ID_HORDE   = 316,
-    GOSSIP_ITEM_AQ_END   = 8036,
-    GOSSIP_ITEM_THUNDER  = 12804,
-};
-
-bool GossipHello_npc_bunthen_plainswind(Player* pPlayer, Creature* pCreature)
-{
-    if (pPlayer->GetClass() != CLASS_DRUID)
-        pPlayer->SEND_GOSSIP_MENU(4916, pCreature->GetGUID());
-    else if (pPlayer->GetTeam() != HORDE)
-    {
-        if (pPlayer->GetQuestStatus(QUEST_SEA_LION_ALLY) == QUEST_STATUS_INCOMPLETE)
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_ITEM_AQ_END, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 2);
-
-        pPlayer->SEND_GOSSIP_MENU(4917, pCreature->GetGUID());
-    }
-    else if (pPlayer->GetClass() == CLASS_DRUID && pPlayer->GetTeam() == HORDE)
-    {
-        pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_ITEM_THUNDER, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 1);
-
-        if (pPlayer->GetQuestStatus(QUEST_SEA_LION_HORDE) == QUEST_STATUS_INCOMPLETE)
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_ITEM_AQ_END, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 3);
-
-        pPlayer->SEND_GOSSIP_MENU(4918, pCreature->GetGUID());
-    }
-    return true;
-}
-
-bool GossipSelect_npc_bunthen_plainswind(Player* pPlayer, Creature* pCreature, uint32 uiSender, uint32 uiAction)
-{
-    switch (uiAction)
-    {
-        case GOSSIP_ACTION_INFO_DEF + 1:
-            pPlayer->CLOSE_GOSSIP_MENU();
-
-            if (pPlayer->GetClass() == CLASS_DRUID && pPlayer->GetTeam() == HORDE)
-                pPlayer->ActivateTaxiPathTo(TAXI_PATH_ID_HORDE, 0, true);
-
-            break;
-        case GOSSIP_ACTION_INFO_DEF + 2:
-            pPlayer->SEND_GOSSIP_MENU(5373, pCreature->GetGUID());
-            break;
-        case GOSSIP_ACTION_INFO_DEF + 3:
-            pPlayer->SEND_GOSSIP_MENU(5376, pCreature->GetGUID());
-            break;
-    }
-    return true;
-}
 
 /*######
  ## npc_great_bear_spirit
@@ -135,60 +75,6 @@ bool GossipSelect_npc_great_bear_spirit(Player* pPlayer, Creature* pCreature, ui
                 pPlayer->AreaExploredOrEventHappens(5929);
             if (pPlayer->GetQuestStatus(5930) == QUEST_STATUS_INCOMPLETE)
                 pPlayer->AreaExploredOrEventHappens(5930);
-            break;
-    }
-    return true;
-}
-
-/*######
- ## npc_silva_filnaveth
- ######*/
-
-enum
-{
-    GOSSIP_ITEM_RUTHERAN = 7573,
-    GOSSIP_ITEM_AQ_AGI   = 8035,
-};
-
-bool GossipHello_npc_silva_filnaveth(Player* pPlayer, Creature* pCreature)
-{
-    if (pPlayer->GetClass() != CLASS_DRUID)
-        pPlayer->SEND_GOSSIP_MENU(4913, pCreature->GetGUID());
-    else if (pPlayer->GetTeam() != ALLIANCE)
-    {
-        if (pPlayer->GetQuestStatus(QUEST_SEA_LION_HORDE) == QUEST_STATUS_INCOMPLETE)
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_ITEM_AQ_AGI, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 2);
-
-        pPlayer->SEND_GOSSIP_MENU(4915, pCreature->GetGUID());
-    }
-    else if (pPlayer->GetClass() == CLASS_DRUID && pPlayer->GetTeam() == ALLIANCE)
-    {
-        pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_ITEM_RUTHERAN, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 1);
-
-        if (pPlayer->GetQuestStatus(QUEST_SEA_LION_ALLY) == QUEST_STATUS_INCOMPLETE)
-            pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_ITEM_AQ_AGI, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 3);
-
-        pPlayer->SEND_GOSSIP_MENU(4914, pCreature->GetGUID());
-    }
-    return true;
-}
-
-bool GossipSelect_npc_silva_filnaveth(Player* pPlayer, Creature* pCreature, uint32 uiSender, uint32 uiAction)
-{
-    switch (uiAction)
-    {
-        case GOSSIP_ACTION_INFO_DEF + 1:
-            pPlayer->CLOSE_GOSSIP_MENU();
-
-            if (pPlayer->GetClass() == CLASS_DRUID && pPlayer->GetTeam() == ALLIANCE)
-                pPlayer->ActivateTaxiPathTo(TAXI_PATH_ID_ALLY, 0, true);
-
-            break;
-        case GOSSIP_ACTION_INFO_DEF + 2:
-            pPlayer->SEND_GOSSIP_MENU(5374, pCreature->GetGUID());
-            break;
-        case GOSSIP_ACTION_INFO_DEF + 3:
-            pPlayer->SEND_GOSSIP_MENU(5375, pCreature->GetGUID());
             break;
     }
     return true;
@@ -423,11 +309,10 @@ struct npc_keeper_remulosAI : public npc_escortAI
             case NPC_ERANIKUS_TYRANT:
                 m_uiEranikusGUID = pSummoned->GetObjectGuid();
                 // Make Eranikus unattackable first
-                //pSummoned->SetByteValue(UNIT_FIELD_BYTES_1, 3, UNIT_BYTE1_FLAG_ALWAYS_STAND /*| UNIT_BYTE1_FLAG_UNK_2*/);
                 pSummoned->AddAura(17131); // hover
                 pSummoned->SetFly(true);
                 pSummoned->MonsterMove(aEranikusLocations[0].m_fX, aEranikusLocations[0].m_fY, aEranikusLocations[0].m_fZ);
-                pSummoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                pSummoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
                 pSummoned->SetRespawnDelay(DAY);
                 break;
             case NPC_NIGHTMARE_PHANTASM:
@@ -486,6 +371,9 @@ struct npc_keeper_remulosAI : public npc_escortAI
                 pPlayer->FailQuest(QUEST_WAKING_LEGENDS);
             m_idQuestActive = 0;
         }
+
+        // Remulos is only targetable for friendly player spells during Eranikus event so reset on death
+        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP);
     }
 
     void WaypointReached(uint32 uiPointId) override
@@ -497,6 +385,8 @@ struct npc_keeper_remulosAI : public npc_escortAI
                 case 0:
                     if (Player* pPlayer = GetPlayerForEscort())
                         DoScriptText(SAY_REMULOS_INTRO_1, m_creature, pPlayer);
+                    // Remulos is only targetable for friendly player spells during Eranikus event
+                    m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP);
                     m_creature->SetSpeedRate(MOVE_WALK, 2.2f); //du cout faudrait ptetre aussi revoir la vitesse de course.
                     m_creature->SetWalk(true);
                     break;
@@ -585,6 +475,9 @@ struct npc_keeper_remulosAI : public npc_escortAI
     {
         if (Player* pPlayer = GetPlayerForEscort())
             pPlayer->GroupEventHappens(QUEST_NIGHTMARE_MANIFESTS, pTarget);
+
+        // Remulos is only targetable for friendly player spells during Eranikus event: remove flag on quest completion
+        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP);
 
         m_uiOutroTimer = 3000;
     }
@@ -689,7 +582,6 @@ struct npc_keeper_remulosAI : public npc_escortAI
                         if (Creature* pEranikus = m_creature->GetMap()->GetCreature(m_uiEranikusGUID))
                         {
                             pEranikus->GetMotionMaster()->MovePoint(POINT_ID_ERANIKUS_COMBAT, aEranikusLocations[2].m_fX, aEranikusLocations[2].m_fY, aEranikusLocations[2].m_fZ);
-                            //pEranikus->SetByteFlag(UNIT_FIELD_BYTES_1, 3, 0);
                             pEranikus->RemoveAurasDueToSpell(17131);
                         }
                     }
@@ -709,7 +601,7 @@ struct npc_keeper_remulosAI : public npc_escortAI
                         m_uiTransitionTimer = 0;
 
                         pEranikus->SetWalk(true);
-                        pEranikus->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                        pEranikus->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
                         pEranikus->AI()->AttackStart(m_creature);
                     }
                 }
@@ -1194,7 +1086,7 @@ struct boss_eranikusAI : public ScriptedAI
             // redeem eranikus
             m_uiEventTimer = 5000;
             m_creature->SetFactionTemplateId(FACTION_FRIENDLY);
-            m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_PACIFIED);
+            m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING | UNIT_FLAG_PACIFIED);
         }
         else
         {
@@ -1396,13 +1288,13 @@ struct boss_eranikusAI : public ScriptedAI
         //Alita : make sure he prefers targets he can hit. TO REMOVE WHEN AGGRO MECANICS WILL DO THE JOB.
         Unit* pTarget = m_creature->GetVictim();
 
-        if (!m_creature->IsWithinMeleeRange(pTarget))
+        if (!m_creature->CanReachWithMeleeAutoAttack(pTarget))
         {
             ThreatList const& tList = m_creature->GetThreatManager().getThreatList();
             for (const auto itr : tList)
             {
                 if (Unit* pAttacker = m_creature->GetMap()->GetUnit(itr->getUnitGuid()))
-                    if (m_creature->IsWithinMeleeRange(pAttacker))
+                    if (m_creature->CanReachWithMeleeAutoAttack(pAttacker))
                         m_creature->GetThreatManager().modifyThreatPercent(pAttacker, 5);
             }
         }
@@ -1507,21 +1399,9 @@ void AddSC_moonglade()
     Script* pNewScript;
 
     pNewScript = new Script;
-    pNewScript->Name = "npc_bunthen_plainswind";
-    pNewScript->pGossipHello =  &GossipHello_npc_bunthen_plainswind;
-    pNewScript->pGossipSelect = &GossipSelect_npc_bunthen_plainswind;
-    pNewScript->RegisterSelf();
-
-    pNewScript = new Script;
     pNewScript->Name = "npc_great_bear_spirit";
     pNewScript->pGossipHello =  &GossipHello_npc_great_bear_spirit;
     pNewScript->pGossipSelect = &GossipSelect_npc_great_bear_spirit;
-    pNewScript->RegisterSelf();
-
-    pNewScript = new Script;
-    pNewScript->Name = "npc_silva_filnaveth";
-    pNewScript->pGossipHello =  &GossipHello_npc_silva_filnaveth;
-    pNewScript->pGossipSelect = &GossipSelect_npc_silva_filnaveth;
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;

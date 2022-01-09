@@ -23,7 +23,6 @@
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "World.h"
-#include "ObjectAccessor.h"
 #include "Log.h"
 #include "Opcodes.h"
 #include "Player.h"
@@ -129,7 +128,7 @@ void WorldSession::SendUpdateTrade(bool trader_state /*= true*/)
 //==============================================================
 // transfer the items to the players
 
-void WorldSession::moveItems(Item* myItems[], Item* hisItems[])
+void WorldSession::MoveItems(Item* myItems[], Item* hisItems[])
 {
     Player* trader = _player->GetTrader();
     if (!trader)
@@ -458,18 +457,20 @@ void WorldSession::HandleAcceptTradeOpcode(WorldPacket& recvPacket)
         {
             if (Item* item = myItems[i])
             {
-                item->SetGuidValue(ITEM_FIELD_GIFTCREATOR, _player->GetObjectGuid());
+                if (!item->GetGuidValue(ITEM_FIELD_GIFTCREATOR).IsEmpty())
+                    item->SetGuidValue(ITEM_FIELD_GIFTCREATOR, _player->GetObjectGuid());
                 _player->MoveItemFromInventory(item->GetBagSlot(), item->GetSlot(), true);
             }
             if (Item* item = hisItems[i])
             {
-                item->SetGuidValue(ITEM_FIELD_GIFTCREATOR, trader->GetObjectGuid());
+                if (!item->GetGuidValue(ITEM_FIELD_GIFTCREATOR).IsEmpty())
+                    item->SetGuidValue(ITEM_FIELD_GIFTCREATOR, trader->GetObjectGuid());
                 trader->MoveItemFromInventory(item->GetBagSlot(), item->GetSlot(), true);
             }
         }
 
         // execute trade: 2. store
-        moveItems(myItems, hisItems);
+        MoveItems(myItems, hisItems);
 
         // logging money
         if (sWorld.getConfig(CONFIG_BOOL_GM_LOG_TRADE))
@@ -574,7 +575,7 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
         return;
     }
 
-    if (isLogingOut())
+    if (IsLogingOut())
     {
         SendTradeStatus(TRADE_STATUS_YOU_LOGOUT);
         return;
@@ -618,7 +619,7 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
         return;
     }
 
-    if (pOther->GetSession()->isLogingOut())
+    if (pOther->GetSession()->IsLogingOut())
     {
         SendTradeStatus(TRADE_STATUS_TARGET_LOGOUT);
         return;

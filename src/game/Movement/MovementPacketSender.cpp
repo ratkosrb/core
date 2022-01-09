@@ -17,6 +17,7 @@
 
 #include "MovementPacketSender.h"
 #include "Player.h"
+#include "Opcodes.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "Anticheat.h"
@@ -79,6 +80,7 @@ void MovementPacketSender::SendSpeedChangeToController(Unit* unit, Player* mover
 #endif
     data << float(pendingChange.newValue);
 
+    mover->GetCheatData()->LogMovementPacket(false, data);
     mover->GetSession()->SendPacket(&data);
 }
 
@@ -112,7 +114,7 @@ UnitMoveType MovementPacketSender::GetMoveTypeByChangeType(MovementChangeType mo
     }
 }
 
-void MovementPacketSender::SendSpeedChangeToObservers(Unit* unit, UnitMoveType mtype, float newRate)
+void MovementPacketSender::SendSpeedChangeToObservers(Unit* unit, UnitMoveType mtype, float newSpeed)
 {
     Player* mover = unit->GetPlayerMovingMe();
     if (!mover)
@@ -129,7 +131,7 @@ void MovementPacketSender::SendSpeedChangeToObservers(Unit* unit, UnitMoveType m
     data << unit->GetGUID();
 #endif
     data << unit->m_movementInfo;
-    data << float(newRate);
+    data << float(newSpeed);
     unit->SendMovementMessageToSet(std::move(data), true, mover);
 }
 
@@ -173,10 +175,11 @@ void MovementPacketSender::SendTeleportToController(Unit* unit, float x, float y
 #endif
     data << mi;
 
+    mover->GetCheatData()->LogMovementPacket(false, data);
     mover->GetSession()->SendPacket(&data);
 }
 
-void MovementPacketSender::SendTeleportToObservers(Unit* unit)
+void MovementPacketSender::SendTeleportToObservers(Unit* unit, float x, float y, float z, float ang)
 {
     Player* mover = unit->GetPlayerMovingMe();
     if (!mover)
@@ -191,8 +194,14 @@ void MovementPacketSender::SendTeleportToObservers(Unit* unit)
 #else
     data << unit->GetGUID();
 #endif
-    data << unit->m_movementInfo;
-    unit->SendMovementMessageToSet(std::move(data), true, mover);
+
+    // copy moveinfo to change position to where player is teleporting
+    MovementInfo moveInfo = unit->m_movementInfo;
+    moveInfo.ChangePosition(x, y, z, ang);
+    data << moveInfo;
+
+    // not using SendMovementMessageToSet because we want the packet sent now
+    unit->SendObjectMessageToSet(&data, true, mover);
 }
 
 void MovementPacketSender::SendKnockBackToController(Unit* unit, float vcos, float vsin, float speedXY, float speedZ)
@@ -230,7 +239,8 @@ void MovementPacketSender::SendKnockBackToController(Unit* unit, float vcos, flo
     data << float(vcos);                                    // x direction
     data << float(vsin);                                    // y direction
     data << float(speedXY);                                 // Horizontal speed
-    data << float(speedZ);                                 // Z Movement speed (vertical)
+    data << float(speedZ);                                  // Z Movement speed (vertical)
+    mover->GetCheatData()->LogMovementPacket(false, data);
     mover->GetSession()->SendPacket(&data);
 }
 
@@ -316,7 +326,8 @@ void MovementPacketSender::SendMovementFlagChangeToController(Unit* unit, Player
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_9_4
     data << pendingChange.movementCounter;
 #endif
-
+    
+    mover->GetCheatData()->LogMovementPacket(false, data);
     mover->GetSession()->SendPacket(&data);
 }
 

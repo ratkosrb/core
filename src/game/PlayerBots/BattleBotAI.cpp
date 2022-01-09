@@ -1,16 +1,35 @@
+/*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 2 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+*/
+
 #include "BattleBotAI.h"
 #include "BattleBotWaypoints.h"
 #include "Player.h"
+#include "Group.h"
+#include "CreatureAI.h"
 #include "Log.h"
 #include "MotionMaster.h"
 #include "ObjectMgr.h"
 #include "PlayerBotMgr.h"
+#include "Opcodes.h"
 #include "WorldPacket.h"
+#include "World.h"
 #include "Spell.h"
 #include "SpellAuras.h"
 #include "Chat.h"
 #include "TargetedMovementGenerator.h"
-#include <random>
 
 enum BattleBotSpells
 {
@@ -18,12 +37,6 @@ enum BattleBotSpells
     BB_SPELL_DRINK = 1137,
     BB_SPELL_AUTO_SHOT = 75,
     BB_SPELL_SHOOT_WAND = 5019,
-    BB_SPELL_TAME_BEAST = 13481,
-
-    BB_SPELL_SUMMON_IMP = 688,
-    BB_SPELL_SUMMON_VOIDWALKER = 697,
-    BB_SPELL_SUMMON_FELHUNTER = 691,
-    BB_SPELL_SUMMON_SUCCUBUS = 712,
 
     BB_SPELL_MOUNT_40_HUMAN = 470,
     BB_SPELL_MOUNT_40_NELF = 10787,
@@ -49,24 +62,6 @@ enum BattleBotSpells
     BB_SPELL_MOUNT_40_WARLOCK = 5784,
     BB_SPELL_MOUNT_60_WARLOCK = 23161,
 
-    BB_PET_WOLF    = 565,
-    BB_PET_CAT     = 681,
-    BB_PET_BEAR    = 822,
-    BB_PET_CRAB    = 831,
-    BB_PET_GORILLA = 1108,
-    BB_PET_BIRD    = 1109,
-    BB_PET_BOAR    = 1190,
-    BB_PET_BAT     = 1554,
-    BB_PET_CROC    = 1693,
-    BB_PET_SPIDER  = 1781,
-    BB_PET_OWL     = 1997,
-    BB_PET_STRIDER = 2322,
-    BB_PET_SCORPID = 3127,
-    BB_PET_SERPENT = 3247,
-    BB_PET_RAPTOR  = 3254,
-    BB_PET_TURTLE  = 3461,
-    BB_PET_HYENA   = 4127,
-
     BB_ITEM_ARROW  = 2512,
     BB_ITEM_BULLET = 2516,
 };
@@ -75,42 +70,6 @@ enum BattleBotSpells
 
 #define GO_WSG_DROPPED_SILVERWING_FLAG 179785
 #define GO_WSG_DROPPED_WARSONG_FLAG 179786
-
-void BattleBotAI::AddPremadeGearAndSpells()
-{
-    std::vector<uint32> vSpecs;
-    for (const auto& itr : sObjectMgr.GetPlayerPremadeSpecTemplates())
-    {
-        if (itr.second.requiredClass == me->GetClass())
-            vSpecs.push_back(itr.first);
-    }
-    if (!vSpecs.empty())
-        sObjectMgr.ApplyPremadeSpecTemplateToPlayer(SelectRandomContainerElement(vSpecs), me);
-
-    std::vector<uint32> vGear;
-    for (const auto& itr : sObjectMgr.GetPlayerPremadeGearTemplates())
-    {
-        if (itr.second.requiredClass == me->GetClass())
-            vGear.push_back(itr.first);
-    }
-    if (!vGear.empty())
-        sObjectMgr.ApplyPremadeGearTemplateToPlayer(SelectRandomContainerElement(vGear), me);
-
-    switch (me->GetClass())
-    {
-        case CLASS_HUNTER:
-        {
-            if (Item* pItem = me->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_RANGED))
-            {
-                if (pItem->GetProto()->SubClass == ITEM_SUBCLASS_WEAPON_GUN)
-                    me->StoreNewItemInBestSlots(BB_ITEM_BULLET, 200);
-                else
-                    me->StoreNewItemInBestSlots(BB_ITEM_ARROW, 200);
-            }
-            break;
-        }
-    }
-}
 
 uint32 BattleBotAI::GetMountSpellId() const
 {
@@ -239,7 +198,11 @@ bool BattleBotAI::DrinkAndEat()
             ClearPath();
             StopMoving();
         }
-        me->CastSpell(me, BB_SPELL_FOOD, true);
+        if (SpellEntry const* pSpellEntry = sSpellMgr.GetSpellEntry(BB_SPELL_FOOD))
+        {
+            me->CastSpell(me, pSpellEntry, true);
+            me->RemoveSpellCooldown(*pSpellEntry);
+        }
         return true;
     }
 
@@ -250,7 +213,11 @@ bool BattleBotAI::DrinkAndEat()
             ClearPath();
             StopMoving();
         }
-        me->CastSpell(me, BB_SPELL_DRINK, true);
+        if (SpellEntry const* pSpellEntry = sSpellMgr.GetSpellEntry(BB_SPELL_DRINK))
+        {
+            me->CastSpell(me, pSpellEntry, true);
+            me->RemoveSpellCooldown(*pSpellEntry);
+        }
         return true;
     }
 
@@ -364,6 +331,9 @@ Unit* BattleBotAI::SelectAttackTarget(Unit* pExcept) const
         if (!me->IsWithinDist(pTarget, aggroDistance))
             continue;
 
+        if (me->GetDistanceZ(pTarget) > 10.0f)
+            continue;
+
         if (me->IsWithinLOSInMap(pTarget))
             return pTarget;
     }
@@ -383,11 +353,14 @@ Unit* BattleBotAI::SelectAttackTarget(Unit* pExcept) const
                     continue;
 
                 if (Unit* pAttacker = pMember->GetAttackerForHelper())
-                    if (IsValidHostileTarget(pAttacker) &&
+                {
+                    if (pAttacker != pExcept &&
+                        IsValidHostileTarget(pAttacker) &&
                         me->IsWithinDist(pAttacker, maxAggroDistance * 2.0f) &&
-                        me->IsWithinLOSInMap(pAttacker) && 
-                        pAttacker != pExcept)
+                        me->GetDistanceZ(pAttacker) < 10.0f &&
+                        me->IsWithinLOSInMap(pAttacker))
                         return pAttacker;
+                }
             }
         }
     }
@@ -397,6 +370,10 @@ Unit* BattleBotAI::SelectAttackTarget(Unit* pExcept) const
 
 Unit* BattleBotAI::SelectFollowTarget() const
 {
+    if (me->HasAura(AURA_WARSONG_FLAG) ||
+        me->HasAura(AURA_SILVERWING_FLAG))
+        return nullptr;
+
     std::list<Player*> players;
     me->GetAlivePlayerListInRange(me, players, VISIBILITY_DISTANCE_NORMAL);
     Player* pHealerFollowTarget = nullptr;
@@ -541,7 +518,7 @@ void BattleBotAI::OnPacketReceived(WorldPacket const* packet)
 void BattleBotAI::OnPlayerLogin()
 {
     if (!m_initialized)
-        me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+        me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
 }
 
 void BattleBotAI::UpdateWaypointMovement()
@@ -700,13 +677,24 @@ void BattleBotAI::UpdateAI(uint32 const diff)
 
     if (!m_initialized)
     {
+        if (m_level && m_level != me->GetLevel())
+        {
+            me->GiveLevel(m_level);
+            me->InitTalentForLevel();
+            me->SetUInt32Value(PLAYER_XP, 0);
+        }
+
+        LearnPremadeSpecForClass();
+
+        if (m_role == ROLE_INVALID)
+            AutoAssignRole();
+
+        AutoEquipGear(sWorld.getConfig(CONFIG_UINT32_BATTLE_BOT_AUTO_EQUIP));
         ResetSpellData();
-        AddPremadeGearAndSpells();
-        AutoAssignRole();
         PopulateSpellData();
         AddAllSpellReagents();
         me->UpdateSkillsToMaxSkillsForLevel();
-        me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+        me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
         SummonPetIfNeeded();
         me->SetHealthPercent(100.0f);
         me->SetPowerPercent(me->GetPowerType(), 100.0f);
@@ -872,7 +860,7 @@ void BattleBotAI::UpdateAI(uint32 const diff)
         if (me->IsNonMeleeSpellCasted())
             return;
 
-        if (!pVictim || pVictim->IsDead() || pVictim->HasBreakableByDamageCrowdControlAura())
+        if (!pVictim || !IsValidHostileTarget(pVictim))
         {
             if (pVictim = SelectAttackTarget(pVictim))
             {
@@ -907,7 +895,7 @@ void BattleBotAI::UpdateAI(uint32 const diff)
         return;
     }
 
-    if (!pVictim || pVictim->IsDead() || pVictim->HasBreakableByDamageCrowdControlAura() || 
+    if (!pVictim || !IsValidHostileTarget(pVictim) || 
         !pVictim->IsWithinDist(me, VISIBILITY_DISTANCE_NORMAL))
     {
         if (pVictim = SelectAttackTarget(pVictim))
@@ -926,7 +914,7 @@ void BattleBotAI::UpdateAI(uint32 const diff)
     }
     else
     {
-        if (!me->HasInArc(2 * M_PI_F / 3, pVictim) && !me->IsMoving())
+        if (!me->HasInArc(pVictim, 2 * M_PI_F / 3) && !me->IsMoving())
         {
             me->SetInFront(pVictim);
             me->SendMovementPacket(MSG_MOVE_SET_FACING, false);
@@ -1028,6 +1016,9 @@ void BattleBotAI::UpdateInCombatAI()
             UpdateInCombatAI_Druid();
             break;
     }
+
+    if (me->GetVictim())
+        UseTrinketEffects();
 }
 
 void BattleBotAI::UpdateOutOfCombatAI_Paladin()
@@ -1056,7 +1047,7 @@ void BattleBotAI::UpdateOutOfCombatAI_Paladin()
 
     if (m_isBuffing &&
        (!m_spells.paladin.pBlessingBuff ||
-        !me->GetGlobalCooldownMgr().HasGlobalCooldown(m_spells.paladin.pBlessingBuff)))
+        !me->HasGCD(m_spells.paladin.pBlessingBuff)))
     {
         m_isBuffing = false;
     }
@@ -1375,11 +1366,34 @@ void BattleBotAI::UpdateInCombatAI_Hunter()
             me->GetMotionMaster()->MoveChase(pVictim, 25.0f);
         }
 
+        if (me->HasSpell(BB_SPELL_AUTO_SHOT) &&
+            !me->IsMoving() &&
+            (me->GetCombatDistance(pVictim) > 8.0f) &&
+            !me->IsNonMeleeSpellCasted())
+        {
+            switch (me->CastSpell(pVictim, BB_SPELL_AUTO_SHOT, false))
+            {
+                case SPELL_FAILED_NEED_AMMO:
+                case SPELL_FAILED_NO_AMMO:
+                {
+                    AddHunterAmmo();
+                    break;
+                }
+            }
+        }
+
         if (m_spells.hunter.pConcussiveShot &&
             pVictim->IsMoving() && (pVictim->GetVictim() == me) &&
             CanTryToCastSpell(pVictim, m_spells.hunter.pConcussiveShot))
         {
             if (DoCastSpell(pVictim, m_spells.hunter.pConcussiveShot) == SPELL_CAST_OK)
+                return;
+        }
+
+        if (m_spells.hunter.pAimedShot &&
+            CanTryToCastSpell(pVictim, m_spells.hunter.pAimedShot))
+        {
+            if (DoCastSpell(pVictim, m_spells.hunter.pAimedShot) == SPELL_CAST_OK)
                 return;
         }
 
@@ -1401,13 +1415,6 @@ void BattleBotAI::UpdateInCombatAI_Hunter()
             CanTryToCastSpell(pVictim, m_spells.hunter.pMultiShot))
         {
             if (DoCastSpell(pVictim, m_spells.hunter.pMultiShot) == SPELL_CAST_OK)
-                return;
-        }
-
-        if (m_spells.hunter.pAimedShot &&
-            CanTryToCastSpell(pVictim, m_spells.hunter.pAimedShot))
-        {
-            if (DoCastSpell(pVictim, m_spells.hunter.pAimedShot) == SPELL_CAST_OK)
                 return;
         }
 
@@ -1469,15 +1476,9 @@ void BattleBotAI::UpdateInCombatAI_Hunter()
             if (!me->IsStopped())
                 me->StopMoving();
             me->GetMotionMaster()->Clear();
-            me->GetMotionMaster()->MoveDistance(pVictim, 25.0f);
-            return;
+            if (me->GetMotionMaster()->MoveDistance(pVictim, 25.0f))
+                return;
         }
-
-        if (me->HasSpell(BB_SPELL_AUTO_SHOT) &&
-           !me->IsMoving() &&
-           (me->GetCombatDistance(pVictim) > 8.0f) &&
-           !me->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL))
-            me->CastSpell(pVictim, BB_SPELL_AUTO_SHOT, false);
     }
 }
 
@@ -1522,6 +1523,13 @@ void BattleBotAI::UpdateInCombatAI_Mage()
 {
     if (Unit* pVictim = me->GetVictim())
     {
+        if (m_spells.mage.pCombustion &&
+            CanTryToCastSpell(me, m_spells.mage.pCombustion))
+        {
+            if (DoCastSpell(me, m_spells.mage.pCombustion) == SPELL_CAST_OK)
+                return;
+        }
+
         if (m_spells.mage.pPyroblast &&
             m_spells.mage.pPresenceOfMind &&
             me->HasAura(m_spells.mage.pPresenceOfMind->Id) &&
@@ -1594,9 +1602,8 @@ void BattleBotAI::UpdateInCombatAI_Mage()
                     DoCastSpell(me, m_spells.mage.pFrostNova);
                 }
 
-                me->GetMotionMaster()->MoveDistance(pVictim, 25.0f);
-
-                return;
+                if (me->GetMotionMaster()->MoveDistance(pVictim, 25.0f))
+                    return;
             }
         }
 
@@ -1790,7 +1797,7 @@ void BattleBotAI::UpdateOutOfCombatAI_Priest()
 
     if (m_isBuffing &&
        (!m_spells.priest.pPowerWordFortitude ||
-        !me->GetGlobalCooldownMgr().HasGlobalCooldown(m_spells.priest.pPowerWordFortitude)))
+        !me->HasGCD(m_spells.priest.pPowerWordFortitude)))
     {
         m_isBuffing = false;
     }
@@ -1909,7 +1916,7 @@ void BattleBotAI::UpdateInCombatAI_Priest()
         }
 
         if (m_spells.priest.pPsychicScream &&
-            pVictim->CanReachWithMeleeAutoAttack(me) &&
+            GetAttackersInRangeCount(10.0f) &&
             CanTryToCastSpell(me, m_spells.priest.pPsychicScream))
         {
             if (DoCastSpell(me, m_spells.priest.pPsychicScream) == SPELL_CAST_OK)
@@ -1925,7 +1932,7 @@ void BattleBotAI::UpdateInCombatAI_Priest()
         }
 
         if (m_spells.priest.pMindFlay &&
-           !pVictim->CanReachWithMeleeAutoAttack(me) &&
+           (!GetAttackersInRangeCount(10.0f) || me->HasAuraType(SPELL_AURA_SCHOOL_ABSORB)) &&
             CanTryToCastSpell(pVictim, m_spells.priest.pMindFlay))
         {
             if (DoCastSpell(pVictim, m_spells.priest.pMindFlay) == SPELL_CAST_OK)
@@ -1938,13 +1945,22 @@ void BattleBotAI::UpdateInCombatAI_Priest()
             me->GetMotionMaster()->MoveChase(pVictim, 25.0f);
         }
 
-        if (m_spells.priest.pHolyNova &&
-            me->GetShapeshiftForm() == FORM_NONE &&
-            GetAttackersInRangeCount(10.0f) > 2 &&
-            CanTryToCastSpell(me, m_spells.priest.pHolyNova))
+        if (me->GetShapeshiftForm() == FORM_NONE)
         {
-            if (DoCastSpell(me, m_spells.priest.pHolyNova) == SPELL_CAST_OK)
-                return;
+            if (m_spells.priest.pHolyNova &&
+                GetAttackersInRangeCount(10.0f) > 2 &&
+                CanTryToCastSpell(me, m_spells.priest.pHolyNova))
+            {
+                if (DoCastSpell(me, m_spells.priest.pHolyNova) == SPELL_CAST_OK)
+                    return;
+            }
+
+            if (m_spells.priest.pSmite &&
+                CanTryToCastSpell(pVictim, m_spells.priest.pSmite))
+            {
+                if (DoCastSpell(pVictim, m_spells.priest.pSmite) == SPELL_CAST_OK)
+                    return;
+            }
         }
 
         if (me->HasSpell(BB_SPELL_SHOOT_WAND) &&
@@ -1989,15 +2005,26 @@ void BattleBotAI::UpdateOutOfCombatAI_Warlock()
 
     if (m_isBuffing &&
        (!m_spells.warlock.pDetectInvisibility ||
-        !me->GetGlobalCooldownMgr().HasGlobalCooldown(m_spells.warlock.pDetectInvisibility)))
+        !me->HasGCD(m_spells.warlock.pDetectInvisibility)))
     {
         m_isBuffing = false;
     }
 
-    SummonPetIfNeeded();
-
     if (Unit* pVictim = me->GetVictim())
+    {
+        if (Pet* pPet = me->GetPet())
+        {
+            if (!pPet->GetVictim())
+            {
+                pPet->GetCharmInfo()->SetIsCommandAttack(true);
+                pPet->AI()->AttackStart(pVictim);
+            }
+        }
+
         UpdateInCombatAI_Warlock();
+    }
+    else
+        SummonPetIfNeeded();
 }
 
 void BattleBotAI::UpdateInCombatAI_Warlock()
@@ -2400,7 +2427,7 @@ void BattleBotAI::UpdateInCombatAI_Warrior()
         }
 
         if (m_spells.warrior.pHeroicStrike &&
-           (me->GetPower(POWER_RAGE) > 20) &&
+           (me->GetPower(POWER_RAGE) > 30) &&
             CanTryToCastSpell(pVictim, m_spells.warrior.pHeroicStrike))
         {
             if (DoCastSpell(pVictim, m_spells.warrior.pHeroicStrike) == SPELL_CAST_OK)
@@ -2491,7 +2518,7 @@ void BattleBotAI::UpdateInCombatAI_Rogue()
                 (me->GetHealthPercent() < 10.0f))
             {
                 if (m_spells.rogue.pPreparation &&
-                    me->HasSpellCooldown(m_spells.rogue.pVanish->Id) &&
+                    !me->IsSpellReady(m_spells.rogue.pVanish->Id) &&
                     CanTryToCastSpell(me, m_spells.rogue.pPreparation))
                 {
                     if (DoCastSpell(me, m_spells.rogue.pPreparation) == SPELL_CAST_OK)
@@ -2502,8 +2529,8 @@ void BattleBotAI::UpdateInCombatAI_Rogue()
                 {
                     if (DoCastSpell(me, m_spells.rogue.pVanish) == SPELL_CAST_OK)
                     {
-                        me->GetMotionMaster()->MoveDistance(pVictim, 40.0f);
-                        return;
+                        if (me->GetMotionMaster()->MoveDistance(pVictim, 40.0f))
+                            return;
                     }
                 }
             }
@@ -2703,7 +2730,7 @@ void BattleBotAI::UpdateOutOfCombatAI_Druid()
 
     if (m_isBuffing &&
        (!m_spells.druid.pMarkoftheWild ||
-        !me->GetGlobalCooldownMgr().HasGlobalCooldown(m_spells.druid.pMarkoftheWild)))
+        !me->HasGCD(m_spells.druid.pMarkoftheWild)))
     {
         m_isBuffing = false;
     }
@@ -2864,7 +2891,7 @@ void BattleBotAI::UpdateInCombatAI_Druid()
     {
         if (me->HasUnitState(UNIT_STAT_ROOT) &&
             me->HasAuraType(SPELL_AURA_MOD_SHAPESHIFT))
-            me->RemoveAurasDueToSpellByCancel(me->GetAurasByType(SPELL_AURA_MOD_SHAPESHIFT).front()->GetId());
+            me->RemoveSpellsCausingAura(SPELL_AURA_MOD_SHAPESHIFT);
     }
     
     if (Unit* pVictim = me->GetVictim())
@@ -3058,8 +3085,8 @@ void BattleBotAI::UpdateInCombatAI_Druid()
                             return;
                     }
                     me->SetCasterChaseDistance(25.0f);
-                    me->GetMotionMaster()->MoveDistance(pVictim, 25.0f);
-                    return;
+                    if (me->GetMotionMaster()->MoveDistance(pVictim, 25.0f))
+                        return;
                 }
 
                 if (m_spells.druid.pFaerieFire &&

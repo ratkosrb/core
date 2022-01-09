@@ -30,7 +30,7 @@ EndScriptData */
 enum
 {
     EMOTE_GENERIC_FRENZY_KILL   = 7797,
-    EMOTE_GENERIC_BERSERK       = -1000004,
+    EMOTE_GENERIC_BERSERK       = 4428,
 
     SPELL_ACIDSPIT              = 26050,
     SPELL_FRENZY                = 26051,
@@ -117,14 +117,18 @@ struct boss_huhuranAI : public ScriptedAI
         else
             m_uiFrenzyTimer -= uiDiff;
 
-        // Wyvern Timer
-        if (m_uiWyvernTimer < uiDiff)
+        // No longer cast wyvern string during enrage
+        if (!m_bBerserk)
         {
-            if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_WYVERNSTING) == CAST_OK)
-                m_uiWyvernTimer = urand(15000, 32000);
+            // Wyvern Timer
+            if (m_uiWyvernTimer < uiDiff)
+            {
+                if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_WYVERNSTING) == CAST_OK)
+                    m_uiWyvernTimer = urand(15000, 32000);
+            }
+            else
+                m_uiWyvernTimer -= uiDiff;
         }
-        else
-            m_uiWyvernTimer -= uiDiff;
 
         //Spit Timer
         if (m_uiSpitTimer < uiDiff)

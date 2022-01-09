@@ -26,8 +26,6 @@
 #include "Database/SqlOperations.h"
 #include "Language.h"
 #include "Chat.h"
-#include "GameEventMgr.h"
-#include "ScriptMgr.h"
 #include "AccountMgr.h"
 #include "DBCStores.h"
 #include "Util.h"
@@ -35,6 +33,7 @@
 #include "GuildMgr.h"
 #include "ObjectGuid.h"
 #include "AsyncCommandHandlers.h"
+#include "Anticheat.h"
 
 void PInfoHandler::HandlePInfoCommand(WorldSession* session, Player* target, ObjectGuid& target_guid, std::string& name)
 {
@@ -56,14 +55,18 @@ void PInfoHandler::HandlePInfoCommand(WorldSession* session, Player* target, Obj
         data->target_guid = target->GetObjectGuid();
         data->online = true;
 
+        if (auto const warden = target->GetSession()->GetWarden())
+            warden->GetPlayerInfo(data->warden_clock, data->warden_fingerprint, data->warden_hypervisors,
+                data->warden_endscene, data->warden_proxifier);
+
         HandleDataAfterPlayerLookup(data);
     }
     else
     {
         data->target_guid = target_guid;
         CharacterDatabase.AsyncPQuery(&PInfoHandler::HandlePlayerLookupResult, data,
-            //  0          1      2      3        4     5
-            "SELECT totaltime, level, money, account, race, class FROM characters WHERE guid = '%u'",
+            //       0                    1        2        3          4       5
+            "SELECT `played_time_total`, `level`, `money`, `account`, `race`, `class` FROM `characters` WHERE `guid` = '%u'",
             target_guid.GetCounter());
     }
 }
@@ -93,8 +96,8 @@ void PInfoHandler::HandleDataAfterPlayerLookup(PInfoData *data)
 {
     SqlQueryHolder* charHolder = new SqlQueryHolder;
     charHolder->SetSize(2);
-    charHolder->SetPQuery(PINFO_QUERY_GOLD_SENT, "SELECT SUM(money) FROM mail WHERE sender = %u", data->target_guid.GetCounter());
-    charHolder->SetPQuery(PINFO_QUERY_GOLD_RECEIVED, "SELECT SUM(money) FROM mail WHERE receiver = %u", data->target_guid.GetCounter());
+    charHolder->SetPQuery(PINFO_QUERY_GOLD_SENT, "SELECT SUM(`money`) FROM `mail` WHERE `sender_guid` = %u", data->target_guid.GetCounter());
+    charHolder->SetPQuery(PINFO_QUERY_GOLD_RECEIVED, "SELECT SUM(`money`) FROM `mail` WHERE `receiver_guid` = %u", data->target_guid.GetCounter());
 
     CharacterDatabase.DelayQueryHolder(&PInfoHandler::HandleDelayedMoneyQuery, charHolder, data);
 }
@@ -121,7 +124,7 @@ void PInfoHandler::HandleDelayedMoneyQuery(QueryResult*, SqlQueryHolder *holder,
     // and print the result once it completes. We also read guild info
     // so this cannot be done in an async task
     LoginDatabase.AsyncPQueryUnsafe(&PInfoHandler::HandleAccountInfoResult, data,
-        "SELECT username,last_ip,last_login,locale,locked FROM account WHERE id = '%u'",
+        "SELECT `username`, `last_ip`, `last_login`, `locale`, `locked` FROM `account` WHERE `id` = '%u'",
         data->accId);
 }
 
@@ -172,8 +175,8 @@ void PInfoHandler::HandleAccountInfoResult(QueryResult* result, PInfoData *data)
 // Not threadsafe, executed in thread unsafe callback
 void PInfoHandler::HandleResponse(WorldSession* session, PInfoData *data)
 {
-    char const* raceName = GetRaceName(data->race, session->GetSessionDbcLocale());
-    char const* className = GetClassName(data->class_, session->GetSessionDbcLocale());
+    char const* raceName = GetUnitRaceName(data->race, session->GetSessionDbcLocale());
+    char const* className = GetUnitClassName(data->class_, session->GetSessionDbcLocale());
     if (!raceName)
         raceName = "";
     if (!className)
@@ -219,6 +222,17 @@ void PInfoHandler::HandleResponse(WorldSession* session, PInfoData *data)
     if (Guild* guild = sGuildMgr.GetPlayerGuild(data->target_guid))
         cHandler.PSendSysMessage("Guild: %s", cHandler.playerLink(guild->GetName()).c_str());
 
+    if (!data->warden_clock.empty())
+        cHandler.SendSysMessage(data->warden_clock.c_str());
+    if (!data->warden_fingerprint.empty())
+        cHandler.SendSysMessage(data->warden_fingerprint.c_str());
+    if (!data->warden_hypervisors.empty())
+        cHandler.SendSysMessage(data->warden_hypervisors.c_str());
+    if (!data->warden_endscene.empty())
+        cHandler.SendSysMessage(data->warden_endscene.c_str());
+    if (!data->warden_proxifier.empty())
+        cHandler.SendSysMessage(data->warden_proxifier.c_str());
+
     delete data;
 }
 
@@ -226,11 +240,10 @@ void PInfoHandler::HandleResponse(WorldSession* session, PInfoData *data)
 // the world update
 void PlayerSearchHandler::HandlePlayerAccountSearchResult(QueryResult*, SqlQueryHolder* queryHolder, int)
 {
-    PlayerAccountSearchDisplayTask* task = new PlayerAccountSearchDisplayTask((PlayerSearchQueryHolder*)queryHolder);
-    sWorld.AddAsyncTask(task);
+    sWorld.AddAsyncTask(PlayerAccountSearchDisplayTask((PlayerSearchQueryHolder*)queryHolder));
 }
 
-void PlayerAccountSearchDisplayTask::run()
+void PlayerAccountSearchDisplayTask::operator ()()
 {
     // NOTE: Do not currently support console access for these commands
     WorldSession* session = sWorld.FindSession(holder->GetAccountId());
@@ -296,7 +309,7 @@ void PlayerAccountSearchDisplayTask::run()
     delete holder;
 }
 
-void PlayerCharacterLookupDisplayTask::run()
+void PlayerCharacterLookupDisplayTask::operator()()
 {
     WorldSession* session = sWorld.FindSession(accountId);
     if (!session)
@@ -321,8 +334,7 @@ void PlayerCharacterLookupDisplayTask::run()
 // Handle the result and create a display task to run in the world update
 void PlayerSearchHandler::HandlePlayerCharacterLookupResult(QueryResult* result, uint32 accountId, uint32 limit)
 {
-    PlayerCharacterLookupDisplayTask* task = new PlayerCharacterLookupDisplayTask(result, accountId, limit);
-    sWorld.AddAsyncTask(task);
+    sWorld.AddAsyncTask({PlayerCharacterLookupDisplayTask(result, accountId, limit)});
 }
 
 void PlayerSearchHandler::ShowPlayerListHelper(QueryResult* result, ChatHandler& chatHandler, uint32& count, uint32 limit, bool title)
@@ -393,7 +405,7 @@ bool PlayerSearchQueryHolder::GetAccountInfo(uint32 queryIndex, std::pair<uint32
     return true;
 }
 
-void AccountSearchDisplayTask::run()
+void AccountSearchDisplayTask::operator ()()
 {
     WorldSession* session = sWorld.FindSession(accountId);
     if (!session)
@@ -418,8 +430,7 @@ void AccountSearchDisplayTask::run()
 
 void AccountSearchHandler::HandleAccountLookupResult(QueryResult* result, uint32 accountId, uint32 limit)
 {
-    AccountSearchDisplayTask *task = new AccountSearchDisplayTask(result, accountId, limit);
-    sWorld.AddAsyncTask(task);
+    sWorld.AddAsyncTask({AccountSearchDisplayTask(result, accountId, limit)});
 }
 
 void AccountSearchHandler::ShowAccountListHelper(QueryResult* result, ChatHandler& chatHandler, uint32& count, uint32 limit, bool title)

@@ -17,6 +17,7 @@
 */
 
 #include "GuardEventAI.h"
+#include "Creature.h"
 
 GuardEventAI::GuardEventAI(Creature* pCreature) : CreatureEventAI(pCreature)
 {}
@@ -46,9 +47,6 @@ bool GuardEventAI::IsAttackingPlayerOrFriendly(Unit const* pWho) const
 
 void GuardEventAI::MoveInLineOfSight(Unit* pWho)
 {
-    if (!pWho)
-        return;
-
     if (m_creature->GetVictim())
         return;
 
@@ -72,10 +70,10 @@ void GuardEventAI::MoveInLineOfSight(Unit* pWho)
                 attackRadius = 30.0f;
     }
 
-    if (!m_creature->IsWithinDistInMap(pWho, attackRadius))
+    if (!m_creature->IsWithinDistInMap(pWho, attackRadius, true, false))
         return;
 
-    if (m_creature->CanInitiateAttack() && pWho->IsTargetableForAttack() && m_creature->IsValidAttackTarget(pWho) &&
+    if (m_creature->CanInitiateAttack() && m_creature->IsValidAttackTarget(pWho) &&
         (pWho->IsHostileToPlayers() || m_creature->IsHostileTo(pWho) || isAttackingFriend) &&
         pWho->IsInAccessablePlaceFor(m_creature) && m_creature->IsWithinLOSInMap(pWho))
     {
@@ -87,12 +85,4 @@ void GuardEventAI::EnterCombat(Unit* pWho)
 {
     CreatureEventAI::EnterCombat(pWho);
     m_creature->CallForHelp(30.0f);
-}
-
-void GuardEventAI::JustDied(Unit* pKiller)
-{
-    CreatureEventAI::JustDied(pKiller);
-
-    if (Player* pPlayerKiller = pKiller->GetCharmerOrOwnerPlayerOrPlayerItself())
-        m_creature->SendZoneUnderAttackMessage(pPlayerKiller);
 }

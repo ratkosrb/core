@@ -284,7 +284,7 @@ struct boss_yaujAI : public boss_bug_trioAI
         m_uiRavageTimer = urand(4000, 9000);
     }
 
-    void SpellHit(Unit* /*pCaster*/, SpellEntry const* pSpellEntry) override
+    void SpellHit(SpellCaster* /*pCaster*/, SpellEntry const* pSpellEntry) override
     {
         // Yauj is immune to Curse of Tongues and Mind-Numbing Poison. These spells don't have a mechanic type to set an immunity mask to in vanilla so we simply remove them.
         if (m_creature->HasAuraType(SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK))
@@ -415,7 +415,7 @@ struct boss_vemAI : public boss_bug_trioAI
         // Knock Away
         if (m_uiKnockBackTimer < uiDiff)
         {
-            if (m_creature->IsWithinMeleeRange(m_creature->GetVictim()) && !m_creature->GetVictim()->HasUnitState(UNIT_STAT_STUNNED))
+            if (m_creature->CanReachWithMeleeAutoAttack(m_creature->GetVictim()) && !m_creature->GetVictim()->HasUnitState(UNIT_STAT_STUNNED))
             {
                 if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_KNOCKBACK) == CAST_OK)
                     m_uiKnockBackTimer = urand(10000, 14000);

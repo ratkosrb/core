@@ -23,13 +23,11 @@
 #include "Player.h"
 #include "BattleGround.h"
 #include "BattleGroundWS.h"
-#include "Creature.h"
 #include "GameObject.h"
 #include "ObjectMgr.h"
 #include "BattleGroundMgr.h"
 #include "WorldPacket.h"
 #include "Language.h"
-#include "MapManager.h"
 #include "World.h"
 
 BattleGroundWS::BattleGroundWS()
@@ -182,7 +180,6 @@ void BattleGroundWS::EventPlayerCapturedFlag(Player* Source)
 
     Team winner = TEAM_NONE;
 
-    Source->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_ENTER_PVP_COMBAT);
     if (Source->GetTeam() == ALLIANCE)
     {
         if (!IsHordeFlagPickedup())
@@ -432,7 +429,6 @@ void BattleGroundWS::EventPlayerClickedOnFlag(Player* Source, GameObject* target
         return;
 
     SendMessageToAll(message_id, type, Source);
-    Source->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_ENTER_PVP_COMBAT);
 }
 
 void BattleGroundWS::RemovePlayer(Player* plr, ObjectGuid guid)

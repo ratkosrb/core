@@ -1,12 +1,8 @@
 #include "Database/DatabaseEnv.h"
-#include "World.h"
 #include "Log.h"
-#include "ProgressBar.h"
 #include "Policies/SingletonImp.h"
-#include "Player.h"
 #include "Item.h"
 #include "AuctionHouseMgr.h"
-#include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "AuctionHouseBotMgr.h"
 #include "Config/Config.h"
@@ -132,7 +128,7 @@ void AuctionHouseBotMgr::AddItem(AuctionHouseBotEntry e, AuctionHouseObject *auc
         return;
     }
 
-    Item* item = Item::CreateItem(e.item, 1, nullptr);
+    Item* item = Item::CreateItem(e.item, 1);
     if (!item)
     {
         sLog.outInfo("AHBot::AddItem() : Cannot create item.");

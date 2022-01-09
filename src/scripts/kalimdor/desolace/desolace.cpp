@@ -22,154 +22,13 @@ SDCategory: Desolace
 EndScriptData */
 
 /* ContentData
-npc_aged_dying_ancient_kodo
 go_hand_of_iruxos_crystal
 
 EndContentData */
 
 #include "scriptPCH.h"
 #include "MoveMapSharedDefines.h"
-
-enum
-{
-    SAY_SMEED_HOME_1                = -1000348,
-    SAY_SMEED_HOME_2                = -1000349,
-    SAY_SMEED_HOME_3                = -1000350,
-
-    QUEST_KODO                      = 5561,
-
-    NPC_SMEED                       = 11596,
-    NPC_AGED_KODO                   = 4700,
-    NPC_DYING_KODO                  = 4701,
-    NPC_ANCIENT_KODO                = 4702,
-    NPC_TAMED_KODO                  = 11627,
-
-    SPELL_KODO_KOMBO_ITEM           = 18153,
-    SPELL_KODO_KOMBO_PLAYER_BUFF    = 18172,
-    SPELL_KODO_KOMBO_DESPAWN_BUFF   = 18377,
-    SPELL_KODO_KOMBO_GOSSIP         = 18362,
-    SPELL_KODO_DESPAWN              = 18269
-
-};
-
-struct npc_aged_dying_ancient_kodoAI : ScriptedAI
-{
-    explicit npc_aged_dying_ancient_kodoAI(Creature* pCreature) : ScriptedAI(pCreature)
-    {
-        npc_aged_dying_ancient_kodoAI::Reset();
-        npc_aged_dying_ancient_kodoAI::ResetCreature();
-    }
-
-    bool m_bUsed;
-    ObjectGuid m_playerGuid;
-
-    void Reset() override
-    {
-
-    }
-
-    void ResetCreature() override
-    {
-        m_bUsed = false;
-        m_playerGuid.Clear();
-    }
-
-    void MoveInLineOfSight(Unit* who) override
-    {
-        if (m_bUsed)
-            return;
-
-        if (who->GetEntry() == NPC_SMEED)
-        {
-            if (m_creature->IsWithinDistInMap(who, 10.0f))
-            {
-                switch (urand(0, 2))
-                {
-                case 0:
-                    DoScriptText(SAY_SMEED_HOME_1, who);
-                    break;
-                case 1:
-                    DoScriptText(SAY_SMEED_HOME_2, who);
-                    break;
-                case 2:
-                    DoScriptText(SAY_SMEED_HOME_3, who);
-                    break;
-                }
-
-                //spell have no implemented effect (dummy), so useful to notify spellHit
-                m_creature->CastSpell(m_creature, SPELL_KODO_KOMBO_GOSSIP, true);
-            }
-        }
-    }
-
-    void SpellHit(Unit* pCaster, SpellEntry const* pSpell) override
-    {
-        if (pSpell->Id == SPELL_KODO_KOMBO_GOSSIP)
-        {
-            m_creature->SetFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP);
-            m_creature->ForcedDespawn(MINUTE * IN_MILLISECONDS);
-            m_creature->GetMotionMaster()->Clear();
-            m_creature->GetMotionMaster()->MoveIdle();
-            return;
-        }
-        
-        if (pSpell->Id == SPELL_KODO_KOMBO_ITEM && !m_creature->HasAura(SPELL_KODO_KOMBO_DESPAWN_BUFF) && !pCaster->HasAura(SPELL_KODO_KOMBO_PLAYER_BUFF))
-        {          
-            pCaster->CombatStop(true);
-            m_creature->CombatStop(true);
-
-            pCaster->CastSpell(pCaster, SPELL_KODO_KOMBO_PLAYER_BUFF, true);
-
-            m_creature->UpdateEntry(NPC_TAMED_KODO);
-            m_creature->CastSpell(m_creature, SPELL_KODO_KOMBO_DESPAWN_BUFF, true);
-
-            m_creature->GetMotionMaster()->Clear();
-            m_creature->GetMotionMaster()->MoveFollow(pCaster, PET_FOLLOW_DIST, PET_FOLLOW_ANGLE);
-
-            m_playerGuid = pCaster->ToPlayer()->GetObjectGuid();
-
-            return;
-        }
-
-        if (pSpell->Id == SPELL_KODO_DESPAWN)
-            m_creature->ForcedDespawn();
-    }
-
-    void UpdateAI(uint32 const /*uiDiff*/) override
-    {
-        if (m_creature->GetEntry() == NPC_TAMED_KODO)
-            return;
-
-        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
-            return;
-
-        DoMeleeAttackIfReady();
-    }
-};
-
-CreatureAI* GetAI_npc_aged_dying_ancient_kodo(Creature* pCreature)
-{
-    return new npc_aged_dying_ancient_kodoAI(pCreature);
-}
-
-bool GossipHello_npc_aged_dying_ancient_kodo(Player* pPlayer, Creature* pCreature)
-{
-    auto pKodoAI = static_cast<npc_aged_dying_ancient_kodoAI*>(pCreature->AI());
-
-    if (!pKodoAI || pKodoAI->m_bUsed)
-        return true;
-
-    if (pPlayer->HasAura(SPELL_KODO_KOMBO_PLAYER_BUFF) && pKodoAI->m_playerGuid == pPlayer->GetObjectGuid())
-    {
-        pPlayer->TalkedToCreature(pCreature->GetEntry(), pCreature->GetGUID());
-        pPlayer->RemoveAurasDueToSpell(SPELL_KODO_KOMBO_PLAYER_BUFF);
-
-        pKodoAI->m_bUsed = true;
-    }
-
-    pPlayer->SEND_GOSSIP_MENU(pPlayer->GetGossipTextId(pCreature), pCreature->GetGUID());
-    return true;
-}
+#include "CreatureGroups.h"
 
 /*######
 ## go_hand_of_iruxos_crystal
@@ -276,7 +135,7 @@ struct npc_melizza_brimbuzzleAI : public npc_escortAI
                         // Summon 2 Marauders on each point
                         float fX, fY, fZ;
                         m_creature->GetRandomPoint(i.m_fX, i.m_fY, i.m_fZ, 7.0f, fX, fY, fZ);
-                        m_creature->SummonCreature(NPC_MARAUDINE_MARAUDER, fX, fY, fZ, 0.0f, TEMPSUMMON_DEAD_DESPAWN, 0);
+                        m_creature->SummonCreature(NPC_MARAUDINE_MARAUDER, fX, fY, fZ, 0.0f, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 25000);
                     }
                 }
                 break;
@@ -285,10 +144,10 @@ struct npc_melizza_brimbuzzleAI : public npc_escortAI
                 {
                     float fX, fY, fZ;
                     m_creature->GetRandomPoint(wranglerSpawn.m_fX, wranglerSpawn.m_fY, wranglerSpawn.m_fZ, 10.0f, fX, fY, fZ);
-                    m_creature->SummonCreature(NPC_MARAUDINE_BONEPAW, fX, fY, fZ, 0.0f, TEMPSUMMON_DEAD_DESPAWN, 0);
+                    m_creature->SummonCreature(NPC_MARAUDINE_BONEPAW, fX, fY, fZ, 0.0f, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 25000);
 
                     m_creature->GetRandomPoint(wranglerSpawn.m_fX, wranglerSpawn.m_fY, wranglerSpawn.m_fZ, 10.0f, fX, fY, fZ);
-                    m_creature->SummonCreature(NPC_MARAUDINE_WRANGLER, fX, fY, fZ, 0.0f, TEMPSUMMON_DEAD_DESPAWN, 0);
+                    m_creature->SummonCreature(NPC_MARAUDINE_WRANGLER, fX, fY, fZ, 0.0f, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 25000);
                 }
                 break;
             case 12:
@@ -399,6 +258,12 @@ struct npc_dalinda_malemAI : public npc_escortAI
 
     void Reset() override {}
 
+    void JustRespawned() override
+    {
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+        npc_escortAI::JustRespawned();
+    }
+
     void JustStartedEscort() override
     {
         m_creature->SetStandState(UNIT_STAND_STATE_STAND);
@@ -425,85 +290,14 @@ bool QuestAccept_npc_dalinda_malem(Player* pPlayer, Creature* pCreature, Quest c
     {
         if (npc_dalinda_malemAI* pEscortAI = dynamic_cast<npc_dalinda_malemAI*>(pCreature->AI()))
         {
-            // TODO This faction change needs confirmation, also possible that we need to drop her PASSIVE flag
-            pCreature->SetFactionTemporary(FACTION_ESCORT_A_NEUTRAL_PASSIVE, TEMPFACTION_RESTORE_RESPAWN);//TEMPFACTION_RESTORE_RESPAWN | TEMPFACTION_TOGGLE_PASSIVE
+            pCreature->SetFactionTemporary(FACTION_ESCORT_A_NEUTRAL_PASSIVE, TEMPFACTION_RESTORE_RESPAWN);
+            pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
             pEscortAI->Start(false, pPlayer->GetGUID(), pQuest);
         }
     }
     return true;
 }
-enum
-{
-//guid 12609 entry 177673 Serpant statue
-    NPC_LORD_KRAGARU            = 12369,
-    QUEST_BOOK_OF_THE_ANCIENTS  = 6027
 
-};
-struct go_serpent_statueAI: public GameObjectAI
-{
-    go_serpent_statueAI(GameObject* pGo) : GameObjectAI(pGo)
-    {
-        timer = 0;
-        state = 0;
-        guid_kragaru = 0;
-    }
-    uint64 guid_kragaru;
-    uint32 timer;
-    bool state;//0 = usual, can launch. //1 = in use, cannot launch
-
-    void UpdateAI(uint32 const uiDiff) override
-    {
-        if (state)
-        {
-            if (timer < uiDiff)
-            {
-                state = 0;
-                me->SetGoState(GO_STATE_READY);
-                me->RemoveFlag(GAMEOBJECT_FLAGS, GO_FLAG_IN_USE);
-            }
-            else
-                timer -= uiDiff;
-        }
-    }
-    bool CheckCanStartEvent()
-    {
-        return !state && !me->GetMap()->GetCreature(guid_kragaru);
-    }
-
-    void SetInUse(Creature* kragaru)
-    {
-        guid_kragaru = kragaru->GetGUID();
-        me->SetGoState(GO_STATE_ACTIVE);
-        me->SetFlag(GAMEOBJECT_FLAGS, GO_FLAG_IN_USE);
-        state = 1;
-        timer = 120000;
-    }
-};
-GameObjectAI* GetAIgo_serpent_statue(GameObject *pGo)
-{
-    return new go_serpent_statueAI(pGo);
-}
-bool GOHello_go_serpent_statue(Player* pPlayer, GameObject* pGo)
-{
-    if (go_serpent_statueAI* pMarkAI = dynamic_cast<go_serpent_statueAI*>(pGo->AI()))
-    {
-        if (pMarkAI->CheckCanStartEvent())
-        {
-            if (pGo->GetGoType() == GAMEOBJECT_TYPE_BUTTON)
-            {
-                if (pPlayer->GetQuestStatus(QUEST_BOOK_OF_THE_ANCIENTS) == QUEST_STATUS_INCOMPLETE)
-                {
-                    if (Creature* kragaru = pGo->SummonCreature(NPC_LORD_KRAGARU, 0, 0, 0, 0, TEMPSUMMON_TIMED_DESPAWN_OUT_OF_COMBAT, 310000))
-                    {
-                        kragaru->SetRespawnDelay(350000);
-                        pMarkAI->SetInUse(kragaru);
-                    }
-                }
-            }
-        }
-    }
-    return true;
-}
 enum
 {
     NPC_MAGRAMI_SPECTRE                 = 11560,
@@ -907,17 +701,29 @@ struct npc_cork_gizeltonAI : npc_escortAI
                 if (Creature* pCreature = m_creature->GetMap()->GetCreature(guid))
                 {
                     if (apply)
-                        pCreature->SetFactionTemporary(FACTION_ESCORT_N_NEUTRAL_PASSIVE, TEMPFACTION_NONE);
+                    {
+                        pCreature->SetFactionTemporary(FACTION_ESCORT_N_FRIEND_ACTIVE, TEMPFACTION_NONE);
+                        pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+                    }
                     else
+                    {
                         pCreature->ClearTemporaryFaction();
+                        pCreature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+                    }
                 }
             }
         }
 
         if (apply)
-            m_creature->SetFactionTemporary(FACTION_ESCORT_N_NEUTRAL_PASSIVE, TEMPFACTION_NONE);
+        {
+            m_creature->SetFactionTemporary(FACTION_ESCORT_N_FRIEND_ACTIVE, TEMPFACTION_NONE);
+            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+        }
         else
+        {
             m_creature->ClearTemporaryFaction();
+            m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+        }
     }
 
     void SummonAmbusher(uint8 index) const
@@ -1069,12 +875,8 @@ struct npc_cork_gizeltonAI : npc_escortAI
 
     void DoVendor(bool visible) const
     {
-        auto pVendor = m_creature->FindNearestCreature(m_bRigger ? NPC_SUPER_SELLER_680 : NPC_VENDOR_TRON_1000, 100.0f);
-
-        if (pVendor)
-        {
+        if (Creature* pVendor = m_creature->FindNearestCreature(m_bRigger ? NPC_SUPER_SELLER_680 : NPC_VENDOR_TRON_1000, 100.0f))
             pVendor->SetVisibility(visible ? VISIBILITY_ON : VISIBILITY_OFF);
-        }
     }
 
     void WaypointReached(uint32 uiPoint) override
@@ -1245,43 +1047,9 @@ bool QuestAccept_npc_rigger_gizelton(Player* pPlayer, Creature* pCreature, Quest
     return true;
 }
 
-/*
- * Vendor-Tron 1000, Super-Seller 680 (Gizelton Caravan, Bodyguard For Hire support)
- */
-
-struct npc_caravan_vendorAI : ScriptedAI
-{
-    explicit npc_caravan_vendorAI(Creature* pCreature) : ScriptedAI(pCreature)
-    {
-        npc_caravan_vendorAI::Reset();
-        
-        m_creature->SetVisibility(VISIBILITY_OFF);
-    }
-
-    void Reset() override
-    {
-
-    }
-};
-
-CreatureAI* GetAI_npc_caravan_vendor(Creature* pCreature)
-{
-    return new npc_caravan_vendorAI(pCreature);
-}
-
-/*
- *
- */
-
 void AddSC_desolace()
 {
     Script* newscript;
-
-    newscript = new Script;
-    newscript->Name = "npc_aged_dying_ancient_kodo";
-    newscript->GetAI = &GetAI_npc_aged_dying_ancient_kodo;
-    newscript->pGossipHello = &GossipHello_npc_aged_dying_ancient_kodo;
-    newscript->RegisterSelf();
 
     newscript = new Script;
     newscript->Name = "go_hand_of_iruxos_crystal";
@@ -1298,12 +1066,6 @@ void AddSC_desolace()
     newscript->Name = "npc_dalinda_malem";
     newscript->GetAI = &GetAI_npc_dalinda_malem;
     newscript->pQuestAcceptNPC = &QuestAccept_npc_dalinda_malem;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
-    newscript->Name = "go_serpent_statue";
-    newscript->GOGetAI = &GetAIgo_serpent_statue;
-    newscript->pGOHello = &GOHello_go_serpent_statue;
     newscript->RegisterSelf();
 
     newscript = new Script;
@@ -1325,10 +1087,5 @@ void AddSC_desolace()
     newscript = new Script;
     newscript->Name = "npc_rigger_gizelton";
     newscript->pQuestAcceptNPC = &QuestAccept_npc_rigger_gizelton;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
-    newscript->Name = "npc_caravan_vendor";
-    newscript->GetAI = &GetAI_npc_caravan_vendor;
     newscript->RegisterSelf();
 }

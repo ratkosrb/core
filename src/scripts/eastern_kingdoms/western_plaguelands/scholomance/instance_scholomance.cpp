@@ -47,13 +47,6 @@ struct instance_scholomance : public ScriptedInstance
     uint64 m_uiGateIlluciaGUID;
     uint64 m_uiBrazierKirtonosGUID;
 
-    uint32 m_uiBoneMinionCount0;
-    uint32 m_uiBoneMinionCount1;
-    uint32 m_uiBoneMinionCount2;
-    uint32 m_uiBoneMinionCount3;
-    uint32 m_uiBoneMinionCount4;
-    uint32 m_uiBoneMinionCount5;
-
     void Initialize() override
     {
         memset(&m_auiEncounter, 0, sizeof(m_auiEncounter));
@@ -67,13 +60,6 @@ struct instance_scholomance : public ScriptedInstance
         m_uiGateBarovGUID = 0;
         m_uiGateIlluciaGUID = 0;
         m_uiBrazierKirtonosGUID = 0;
-
-        m_uiBoneMinionCount0 = 0;
-        m_uiBoneMinionCount1 = 0;
-        m_uiBoneMinionCount2 = 0;
-        m_uiBoneMinionCount3 = 0;
-        m_uiBoneMinionCount4 = 0;
-        m_uiBoneMinionCount5 = 0;
 
     }
     void OnCreatureCreate(Creature* pCreature) override
@@ -216,114 +202,6 @@ struct instance_scholomance : public ScriptedInstance
             case TYPE_VIEWING_ROOM_DOOR:
                 m_auiEncounter[uiType] = uiData;
                 break;
-            case TYPE_BONEMINION0:
-                m_auiEncounter[TYPE_BONEMINION0] = uiData; // eventAI a changer : virer le onplayer kill et mettre on evade ou reached home ?
-                if (uiData == IN_PROGRESS)
-                {
-                    m_uiBoneMinionCount0 = 0;
-                    if (GameObject* pGo = instance->GetGameObject(m_uiGatePolkeltGUID))
-                        if (pGo->GetGoState() == GO_STATE_ACTIVE) // ouverte
-                            DoUseDoorOrButton(m_uiGatePolkeltGUID);
-                }
-                else if (uiData == DONE)
-                {
-                    ++m_uiBoneMinionCount0;
-                    if (m_uiBoneMinionCount0 > 2)
-                        if (GameObject* pGo = instance->GetGameObject(m_uiGatePolkeltGUID))
-                            if (pGo->GetGoState() != GO_STATE_ACTIVE) // fermée
-                                DoUseDoorOrButton(m_uiGatePolkeltGUID);
-                }
-                break;
-            case TYPE_BONEMINION1:
-                m_auiEncounter[TYPE_BONEMINION1] = uiData;
-                if (uiData == IN_PROGRESS)
-                {
-                    m_uiBoneMinionCount1 = 0;
-                    if (GameObject* pGo = instance->GetGameObject(m_uiGateTheolenGUID))
-                        if (pGo->GetGoState() == GO_STATE_ACTIVE) // ouverte
-                            DoUseDoorOrButton(m_uiGateTheolenGUID);
-                }
-                else if (uiData == DONE)
-                {
-                    ++m_uiBoneMinionCount1;
-                    if (m_uiBoneMinionCount1 > 3)
-                        if (GameObject* pGo = instance->GetGameObject(m_uiGateTheolenGUID))
-                            if (pGo->GetGoState() != GO_STATE_ACTIVE) // fermée
-                                DoUseDoorOrButton(m_uiGateTheolenGUID);
-                }
-                break;
-            case TYPE_BONEMINION2:
-                m_auiEncounter[TYPE_BONEMINION2] = uiData;
-                if (uiData == IN_PROGRESS)
-                {
-                    m_uiBoneMinionCount2 = 0;
-                    if (GameObject* pGo = instance->GetGameObject(m_uiGateMiliciaGUID))
-                        if (pGo->GetGoState() == GO_STATE_ACTIVE) // ouverte
-                            DoUseDoorOrButton(m_uiGateMiliciaGUID);
-                }
-                else if (uiData == DONE)
-                {
-                    ++m_uiBoneMinionCount2;
-                    if (m_uiBoneMinionCount2 > 2)
-                        if (GameObject* pGo = instance->GetGameObject(m_uiGateMiliciaGUID))
-                            if (pGo->GetGoState() != GO_STATE_ACTIVE) // fermée
-                                DoUseDoorOrButton(m_uiGateMiliciaGUID);
-                }
-                break;
-            case TYPE_BONEMINION3:
-                m_auiEncounter[TYPE_BONEMINION3] = uiData;
-                if (uiData == IN_PROGRESS)
-                {
-                    m_uiBoneMinionCount3 = 0;
-                    if (GameObject* pGo = instance->GetGameObject(m_uiGateIlluciaGUID))
-                        if (pGo->GetGoState() == GO_STATE_ACTIVE) // ouverte
-                            DoUseDoorOrButton(m_uiGateIlluciaGUID);
-                }
-                else if (uiData == DONE)
-                {
-                    ++m_uiBoneMinionCount3;
-                    if (m_uiBoneMinionCount3 > 2)
-                        if (GameObject* pGo = instance->GetGameObject(m_uiGateIlluciaGUID))
-                            if (pGo->GetGoState() != GO_STATE_ACTIVE) // fermée
-                                DoUseDoorOrButton(m_uiGateIlluciaGUID);
-                }
-                break;
-            case TYPE_BONEMINION4:
-                m_auiEncounter[TYPE_BONEMINION4] = uiData;
-                if (uiData == IN_PROGRESS)
-                {
-                    m_uiBoneMinionCount4 = 0;
-                    if (GameObject* pGo = instance->GetGameObject(m_uiGateBarovGUID))
-                        if (pGo->GetGoState() == GO_STATE_ACTIVE) // ouverte
-                            DoUseDoorOrButton(m_uiGateBarovGUID);
-                }
-                else if (uiData == DONE)
-                {
-                    ++m_uiBoneMinionCount4;
-                    if (m_uiBoneMinionCount4 > 3)
-                        if (GameObject* pGo = instance->GetGameObject(m_uiGateBarovGUID))
-                            if (pGo->GetGoState() != GO_STATE_ACTIVE) // fermée
-                                DoUseDoorOrButton(m_uiGateBarovGUID);
-                }
-                break;
-            case TYPE_BONEMINION5:
-                m_auiEncounter[TYPE_BONEMINION5] = uiData;
-                if (uiData == IN_PROGRESS)
-                {
-                    m_uiBoneMinionCount5 = 0;
-                    if (GameObject* pGo = instance->GetGameObject(m_uiGateRavenianGUID))
-                        if (pGo->GetGoState() == GO_STATE_ACTIVE) // ouverte
-                            DoUseDoorOrButton(m_uiGateRavenianGUID);
-                }
-                else if (uiData == DONE)
-                {
-                    ++m_uiBoneMinionCount5;
-                    if (m_uiBoneMinionCount5 > 2)
-                        if (GameObject* pGo = instance->GetGameObject(m_uiGateRavenianGUID))
-                            if (pGo->GetGoState() != GO_STATE_ACTIVE) // fermée
-                                DoUseDoorOrButton(m_uiGateRavenianGUID);
-                }
-                break;
             default:
                 break;
         }
@@ -365,7 +243,7 @@ struct instance_scholomance : public ScriptedInstance
     {
         if (GetData(TYPE_GANDLING) == SPECIAL)
         {
-            instance->SummonCreature(NPC_GANDLING, 180.73f, -9.43856f, 75.507f, 1.61399f, TEMPSUMMON_DEAD_DESPAWN, 0);
+            instance->SummonCreature(NPC_GANDLING, 180.771f, -5.4286f, 75.5702f, 1.29154f, TEMPSUMMON_DEAD_DESPAWN, 0);
             SetData(TYPE_GANDLING, IN_PROGRESS);
         }
     }
@@ -394,88 +272,6 @@ bool GOOpen_brazier_herald(Player* pUser, GameObject *pGo)
     }
 
     return true;
-}
-enum
-{
-    SPELL_MULTI_SHOT        = 20735,
-    SPELL_SHOOT             = 16100,//not used for now
-    SPELL_SHIELD_BASH       = 11972
-};
-struct Locations
-{
-    float x, y, z;
-};
-//tourne en rond.
-static Locations ronde[] =
-{
-    {221.356903f, 133.581757f, 109.640160f},
-    {221.075699f, 160.426987f, 109.640160f},
-    {181.770874f, 159.967178f, 109.604874f},
-    {181.937195f, 133.052261f, 109.602188f}
-};
-
-struct boss_lordblackwoodAI : public ScriptedAI
-{
-    boss_lordblackwoodAI(Creature* pCreature) : ScriptedAI(pCreature)
-    {
-        LastWayPoint = 0;
-        Reset();
-    }
-
-    uint32 ShieldBash_Timer;
-    uint32 MultiShot_Timer;
-    uint32 LastWayPoint;
-
-    void Reset() override
-    {
-        ShieldBash_Timer = 8000;
-        MultiShot_Timer = 1000;
-        m_creature->GetMotionMaster()->MovePoint(LastWayPoint, ronde[LastWayPoint].x, ronde[LastWayPoint].y, ronde[LastWayPoint].z);
-    }
-
-    void MovementInform(uint32 uiType, uint32 uiPointId) override
-    {
-        if (!m_creature->GetVictim())
-        {
-            m_creature->SetWalk(true);
-            if (uiPointId < 3)
-                m_creature->GetMotionMaster()->MovePoint(uiPointId + 1, ronde[uiPointId + 1].x, ronde[uiPointId + 1].y, ronde[uiPointId + 1].z);
-            else if (uiPointId == 3)
-                m_creature->GetMotionMaster()->MovePoint(0, ronde[0].x, ronde[0].y, ronde[0].z);
-        }
-        if (uiPointId >= 0 && uiPointId < 4)
-            LastWayPoint = uiPointId;
-    }
-
-    void UpdateAI(uint32 const diff) override
-    {
-        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
-            return;
-
-        if (!m_creature->IsWithinMeleeRange(m_creature->GetVictim()))
-        {
-            if (MultiShot_Timer < diff)
-            {
-                if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_MULTI_SHOT) == CAST_OK)
-                    MultiShot_Timer = 2000;
-            }
-            else
-                MultiShot_Timer -= diff;
-        }
-        if (ShieldBash_Timer < diff)
-        {
-            if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_SHIELD_BASH) == CAST_OK)
-                ShieldBash_Timer = 8000;
-        }
-        else
-            ShieldBash_Timer -= diff;
-        DoMeleeAttackIfReady();
-    }
-};
-
-CreatureAI* GetAI_boss_lordblackwood(Creature* pCreature)
-{
-    return new boss_lordblackwoodAI(pCreature);
 }
 
 struct go_viewing_room_door : public GameObjectAI
@@ -507,11 +303,6 @@ void AddSC_instance_scholomance()
     newscript = new Script;
     newscript->Name = "go_brazier_herald";
     newscript->GOOpen = &GOOpen_brazier_herald;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
-    newscript->Name = "boss_lord_blackwood";
-    newscript->GetAI = &GetAI_boss_lordblackwood;
     newscript->RegisterSelf();
 
     newscript = new Script;

@@ -24,34 +24,6 @@ EndScriptData */
 #include "scriptPCH.h"
 
 /*######
-## npc_gregan_brewspewer
-######*/
-
-bool GossipHello_npc_gregan_brewspewer(Player* pPlayer, Creature* pCreature)
-{
-    if (pCreature->IsQuestGiver())
-        pPlayer->PrepareQuestMenu(pCreature->GetGUID());
-
-    if (pCreature->IsVendor() && pPlayer->GetQuestStatus(3909) == QUEST_STATUS_INCOMPLETE)
-        pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Buy somethin', will ya?", GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 1);
-
-    pPlayer->SEND_GOSSIP_MENU(2433, pCreature->GetGUID());
-    return true;
-}
-
-bool GossipSelect_npc_gregan_brewspewer(Player* pPlayer, Creature* pCreature, uint32 uiSender, uint32 uiAction)
-{
-    if (uiAction == GOSSIP_ACTION_INFO_DEF + 1)
-    {
-        pPlayer->ADD_GOSSIP_ITEM(GOSSIP_ICON_VENDOR, GOSSIP_TEXT_BROWSE_GOODS, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_TRADE);
-        pPlayer->SEND_GOSSIP_MENU(2434, pCreature->GetGUID());
-    }
-    if (uiAction == GOSSIP_ACTION_TRADE)
-        pPlayer->SEND_VENDORLIST(pCreature->GetGUID());
-    return true;
-}
-
-/*######
 ## npc_screecher_spirit
 ######*/
 
@@ -104,6 +76,12 @@ struct npc_shay_leafrunnerAI : public FollowerAI
     {
         m_bIsRecalled = false;
         m_bIsComplete = false;
+    }
+
+    void JustRespawned() override
+    {
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+        FollowerAI::JustRespawned();
     }
 
     void MoveInLineOfSight(Unit* pWho) override
@@ -241,6 +219,7 @@ bool QuestAccept_npc_shay_leafrunner(Player* pPlayer, Creature* pCreature, Quest
     if (pQuest->GetQuestId() == QUEST_ID_WANDERING_SHAY)
     {
         DoScriptText(SAY_ESCORT_START, pCreature);
+        pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
         if (npc_shay_leafrunnerAI* leafrunnerAI = dynamic_cast<npc_shay_leafrunnerAI*>(pCreature->AI()))
             leafrunnerAI->BeforeStartFollow(pPlayer, pPlayer->GetFactionTemplateId(), pQuest);
     }
@@ -626,6 +605,15 @@ enum
 
     SPELL_MANA_BURN                 = 11981,
 
+    SAY_KINDAL_BEGIN                = 4079,
+    SAY_KINDAL_SUCCESS              = 4080,
+    SAY_KINDAL_FAIL_SPRITES         = 4081,
+    SAY_KINDAL_FAIL_TIMER           = 5285,
+    SAY_KINDAL_AGGRO1               = 4122,
+    SAY_KINDAL_AGGRO2               = 4123,
+    SAY_KINDAL_AGGRO3               = 4124,
+    SAY_KINDAL_AGGRO4               = 4125,
+
     FACTION_ESCORTEE_SPRITE         = 10,
     FACTION_ESCORTEE_KINDAL         = 231,
 };
@@ -684,11 +672,28 @@ struct npc_kindal_moonweaverAI : public FollowerAI
             m_eventStarted = false;
     }
 
+    void JustRespawned() override
+    {
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+        FollowerAI::JustRespawned();
+    }
+
     void JustDied(Unit* pWho) override
     {
         FollowerAI::JustDied(pWho);
 
         m_creature->SetRespawnTime(10);
+    }
+
+    void OnEscortFailed(bool bDied) override
+    {
+        if (!bDied)
+            DoScriptText(SAY_KINDAL_FAIL_TIMER, m_creature);
+    }
+
+    void EnterCombat(Unit* pVictim) override
+    {
+        DoScriptText(urand(SAY_KINDAL_AGGRO1, SAY_KINDAL_AGGRO4), m_creature, pVictim);
     }
 
     void BeginEvent();
@@ -869,7 +874,10 @@ void npc_kindal_moonweaverAI::SpriteSaved()
         if (Player* pPlayer = GetLeaderForFollower())
         {
             if (pPlayer->GetQuestStatus(QUEST_FREEDOM_FOR_ALL_CREATURES) == QUEST_STATUS_INCOMPLETE)
+            {
                 pPlayer->GroupEventHappens(QUEST_FREEDOM_FOR_ALL_CREATURES, m_creature);
+                DoScriptText(SAY_KINDAL_SUCCESS, m_creature, pPlayer);
+            }  
         }
 
         SetFollowComplete(true);
@@ -888,7 +896,10 @@ void npc_kindal_moonweaverAI::SpriteDied()
         if (Player* pPlayer = GetLeaderForFollower())
         {
             if (pPlayer->GetQuestStatus(QUEST_FREEDOM_FOR_ALL_CREATURES) == QUEST_STATUS_INCOMPLETE)
+            {
                 pPlayer->FailQuest(QUEST_FREEDOM_FOR_ALL_CREATURES);
+                DoScriptText(SAY_KINDAL_FAIL_SPRITES, m_creature, pPlayer);
+            } 
         }
 
         SetFollowComplete(false);
@@ -920,9 +931,22 @@ bool QuestAccept_npc_kindal_moonweaver(Player* pPlayer, Creature* pCreature, Que
     {
         if (auto pKindalAI = dynamic_cast<npc_kindal_moonweaverAI*>(pCreature->AI()))
         {
-            pKindalAI->StartFollow(pPlayer, FACTION_ESCORTEE_KINDAL, pQuest);
             pCreature->SetStandState(UNIT_STAND_STATE_STAND);
+            pCreature->SetFacingToObject(pPlayer);
+            pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+            DoScriptText(SAY_KINDAL_BEGIN, pCreature, pPlayer);
+            pKindalAI->StartFollow(pPlayer, FACTION_ESCORTEE_KINDAL, pQuest);
             pKindalAI->BeginEvent();
+            pKindalAI->SetFollowPaused(true);
+
+            pCreature->m_Events.AddLambdaEventAtOffset([pCreature]
+            {
+                if (!pCreature->IsAlive())
+                    return;
+
+                if (auto pKindalAI = dynamic_cast<npc_kindal_moonweaverAI*>(pCreature->AI()))
+                    pKindalAI->SetFollowPaused(false);
+            }, 3000);
         }
     }
 
@@ -950,12 +974,6 @@ void AddSC_feralas()
     newscript = new Script;
     newscript->Name = "boss_therazza";
     newscript->GetAI = &GetAI_TheRazza;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
-    newscript->Name = "npc_gregan_brewspewer";
-    newscript->pGossipHello = &GossipHello_npc_gregan_brewspewer;
-    newscript->pGossipSelect = &GossipSelect_npc_gregan_brewspewer;
     newscript->RegisterSelf();
 
     newscript = new Script;

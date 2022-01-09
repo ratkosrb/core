@@ -24,6 +24,8 @@
 #include "CreatureAIImpl.h"
 #include "NullCreatureAI.h"
 #include "GameEventMgr.h"
+#include "ObjectMgr.h"
+#include "Group.h"
 
 // Script commands should return false by default.
 // If they return true the rest of the script is aborted.
@@ -77,17 +79,41 @@ bool Map::ScriptCommand_Emote(ScriptInfo const& script, WorldObject* source, Wor
         return ShouldAbortScript(script);
     }
 
-    // find the emote
-    std::vector<uint32> emotes;
-    emotes.push_back(script.emote.emoteId);
-    for (uint32 emoteId : script.emote.randomEmotes)
-    {
-        if (!emoteId)
-            continue;
-        emotes.push_back(uint32(emoteId));
-    }
+    uint32 emoteCount = 1;
+    for (; emoteCount < MAX_EMOTE_ID && script.emote.emoteId[emoteCount]; ++emoteCount);
+    uint32 const emoteId = script.emote.emoteId[urand(0, emoteCount - 1)];
 
-    pSource->HandleEmote(emotes[urand(0, emotes.size() - 1)]);
+    // This is a targeted emote.
+    if (script.emote.isTargeted)
+    {
+        Creature* pCreatureSource = pSource->ToCreature();
+        if (!pCreatureSource)
+        {
+            sLog.outError("SCRIPT_COMMAND_EMOTE (script id %u) call for targeted emote with non-creature source (TypeId: %u), skipping.", script.id, source ? source->GetTypeId() : 0);
+            return ShouldAbortScript(script);
+        }
+
+        Unit* pTarget = ToUnit(target);
+        if (!pTarget)
+        {
+            sLog.outError("SCRIPT_COMMAND_EMOTE (script id %u) call for targeted emote with non-unit target (TypeId: %u), skipping.", script.id, target ? target->GetTypeId() : 0);
+            return ShouldAbortScript(script);
+        }
+
+        // Abort if target is in combat, or already doing a targeted emote.
+        if (pCreatureSource->IsInCombat() || pCreatureSource->HasCreatureState(CSTATE_TARGETED_EMOTE))
+            return ShouldAbortScript(script);
+
+        pCreatureSource->PauseOutOfCombatMovement(8 * IN_MILLISECONDS);
+        pCreatureSource->AddCreatureState(CSTATE_TARGETED_EMOTE);
+
+        TargetedEmoteEvent *pEmoteEvent = new TargetedEmoteEvent(*pCreatureSource, pTarget->GetObjectGuid(), emoteId);
+        pCreatureSource->m_Events.AddEvent(pEmoteEvent, pCreatureSource->m_Events.CalculateTime(2000));
+        TargetedEmoteCleanupEvent *pCleanupEvent = new TargetedEmoteCleanupEvent(*pCreatureSource, pCreatureSource->GetOrientation());
+        pCreatureSource->m_Events.AddEvent(pCleanupEvent, pCreatureSource->m_Events.CalculateTime(6000));
+    }
+    else
+        pSource->HandleEmote(emoteId);
 
     return false;
 }
@@ -131,34 +157,44 @@ bool Map::ScriptCommand_MoveTo(ScriptInfo const& script, WorldObject* source, Wo
     float y = script.y;
     float z = script.z;
 
-    if (script.moveTo.coordinatesType)
+    switch (script.moveTo.coordinatesType)
     {
-        if (WorldObject* pTarget = target)
+        case SO_MOVETO_COORDINATES_RELATIVE_TO_TARGET:
         {
-            switch (script.moveTo.coordinatesType)
+            if (WorldObject* pTarget = target)
             {
-                case SO_MOVETO_COORDINATES_RELATIVE_TO_TARGET:
-                {
-                    // Coordinates are added to those of the target.
-                    x += pTarget->GetPositionX();
-                    y += pTarget->GetPositionY();
-                    z += pTarget->GetPositionZ();
-                    break;
-                }
-                case SO_MOVETO_COORDINATES_DISTANCE_FROM_TARGET:
-                {
-                    // X is distance from the target.
-                    float distance = x;
-                    float angle = script.o < 0.0f ? pTarget->GetAngle(pSource) : frand(0, 2 * M_PI_F);
-                    pTarget->GetNearPoint(pSource, x, y, z, 0, distance, angle);
-                    break;
-                }
+                // Coordinates are added to those of the target.
+                x += pTarget->GetPositionX();
+                y += pTarget->GetPositionY();
+                z += pTarget->GetPositionZ();
             }
+            else
+            {
+                sLog.outError("SCRIPT_COMMAND_MOVE_TO (script id %u) call with datalong = %u for a nullptr or non-worldobject target, skipping.", script.id, script.moveTo.coordinatesType);
+                return ShouldAbortScript(script);
+            }
+            break;
         }
-        else
+        case SO_MOVETO_COORDINATES_DISTANCE_FROM_TARGET:
         {
-            sLog.outError("SCRIPT_COMMAND_MOVE_TO (script id %u) call with datalong = %u for a nullptr or non-worldobject target, skipping.", script.id, script.moveTo.coordinatesType);
-            return ShouldAbortScript(script);
+            if (WorldObject* pTarget = target)
+            {
+                // X is distance from the target.
+                float distance = x;
+                float angle = script.o < 0.0f ? pTarget->GetAngle(pSource) : frand(0, 2 * M_PI_F);
+                pTarget->GetNearPoint(pSource, x, y, z, 0, distance, angle);
+            }
+            else
+            {
+                sLog.outError("SCRIPT_COMMAND_MOVE_TO (script id %u) call with datalong = %u for a nullptr or non-worldobject target, skipping.", script.id, script.moveTo.coordinatesType);
+                return ShouldAbortScript(script);
+            }
+            break;
+        }
+        case SO_MOVETO_COORDINATES_RANDOM_POINT:
+        {
+            pSource->GetRandomPoint(x, y, z, script.o, x, y, z);
+            break;
         }
     }
 
@@ -168,6 +204,10 @@ bool Map::ScriptCommand_MoveTo(ScriptInfo const& script, WorldObject* source, Wo
 
     float speed = script.moveTo.travelTime != 0 ? pSource->GetDistance(x, y, z) / ((float)script.moveTo.travelTime * 0.001f) : 0.0f;
     float orientation = script.o > 0.0f ? script.o : -10.0f;
+
+    // o is distance in this case
+    if (script.moveTo.coordinatesType == SO_MOVETO_COORDINATES_RANDOM_POINT)
+        orientation = -10.0f;
 
     if (script.moveTo.flags & SF_MOVETO_POINT_MOVEGEN)
         pSource->GetMotionMaster()->MovePoint(script.moveTo.pointId, x, y, z, script.moveTo.movementOptions, speed, orientation);
@@ -323,7 +363,7 @@ bool Map::ScriptCommand_RespawnGameObject(ScriptInfo const& script, WorldObject*
 
     if (!pGo)
     {
-        sLog.outError("SCRIPT_COMMAND_RESPAWN_GAMEOBJECT (script id %u) failed for gameobject(guid: %u).", script.id, guidlow);
+        sLog.outError("SCRIPT_COMMAND_RESPAWN_GAMEOBJECT (script id %u) failed for gameobject (guid: %u).", script.id, guidlow);
         return ShouldAbortScript(script);
     }
 
@@ -404,31 +444,17 @@ bool Map::ScriptCommand_SummonCreature(ScriptInfo const& script, WorldObject* so
     if (script.summonCreature.flags & SF_SUMMONCREATURE_SET_RUN)
         pCreature->SetWalk(false);
 
-    switch (script.summonCreature.attackTarget)
+    if (script.summonCreature.attackTarget >= 0)
     {
-        case TARGET_T_OWNER_OR_SELF:
-            break;
-        default:
+        if (Unit* pAttackTarget = ToUnit(GetTargetByType(pSummoner, ToUnit(target), this, script.summonCreature.attackTarget)))
         {
-            if (Unit* pAttackTarget = ToUnit(GetTargetByType(pSummoner, ToUnit(target), script.summonCreature.attackTarget)))
-            {
-                if (pCreature->AI())
-                {
-                    // Hack: there is a visual bug where the melee animation
-                    // does not play for summoned units if they enter combat
-                    // immediately and their target is within melee range.
-                    // Sending the packet a second time fixes the animation.
-                    if (pCreature->AI()->IsMeleeAttackEnabled())
-                        pCreature->SendMeleeAttackStart(pAttackTarget);
-
-                    pCreature->AI()->AttackStart(pAttackTarget);
-                }
-            }
+            if (pCreature->AI())
+                pCreature->AI()->AttackStart(pAttackTarget);
         }
     }
 
     if (script.summonCreature.scriptId)
-        ScriptsStart(sEventScripts, script.summonCreature.scriptId, pCreature, target);
+        ScriptsStart(sGenericScripts, script.summonCreature.scriptId, pCreature->GetObjectGuid(), target ? target->GetObjectGuid() : ObjectGuid());
 
     return false;
 }
@@ -454,7 +480,7 @@ bool Map::ScriptCommand_OpenDoor(ScriptInfo const& script, WorldObject* source, 
 
     if (!pDoor)
     {
-        sLog.outError("SCRIPT_COMMAND_OPEN_DOOR (script id %u) failed for gameobject(guid: %u).", script.id, guidlow);
+        sLog.outError("SCRIPT_COMMAND_OPEN_DOOR (script id %u) failed for gameobject (guid: %u).", script.id, guidlow);
         return ShouldAbortScript(script);
     }
 
@@ -498,7 +524,7 @@ bool Map::ScriptCommand_CloseDoor(ScriptInfo const& script, WorldObject* source,
 
     if (!pDoor)
     {
-        sLog.outError("SCRIPT_COMMAND_CLOSE_DOOR (script id %u) failed for gameobject(guid: %u).", script.id, guidlow);
+        sLog.outError("SCRIPT_COMMAND_CLOSE_DOOR (script id %u) failed for gameobject (guid: %u).", script.id, guidlow);
         return ShouldAbortScript(script);
     }
     if (pDoor->GetGoType() != GAMEOBJECT_TYPE_DOOR)
@@ -560,27 +586,34 @@ bool Map::ScriptCommand_RemoveAura(ScriptInfo const& script, WorldObject* source
 // SCRIPT_COMMAND_CAST_SPELL (15)
 bool Map::ScriptCommand_CastSpell(ScriptInfo const& script, WorldObject* source, WorldObject* target)
 {
-    Unit* pUnitSource = ToUnit(source);
-    Unit* pUnitTarget = ToUnit(target);
-    
+    SpellCaster* pTarget = ToSpellCaster(target);
+
     if (!source)
     {
         sLog.outError("SCRIPT_COMMAND_CAST_SPELL (script id %u) call for a nullptr source, skipping.", script.id);
         return ShouldAbortScript(script);
     }
 
-    if (!pUnitTarget)
+    SpellCaster* pSource = source->ToSpellCaster();
+    if (!pSource)
+    {
+        sLog.outError("SCRIPT_COMMAND_CAST_SPELL (script id %u) call for a non-unit and non-gameobject source, skipping.", script.id);
+        return ShouldAbortScript(script);
+    }
+
+    if (!pTarget)
         return ShouldAbortScript(script);
 
-    if ((script.castSpell.flags & CF_INTERRUPT_PREVIOUS) && pUnitSource && pUnitSource->IsNonMeleeSpellCasted(false))
-        pUnitSource->InterruptNonMeleeSpells(false);
+    if ((script.castSpell.flags & CF_INTERRUPT_PREVIOUS) && pSource->IsNonMeleeSpellCasted(false))
+        pSource->InterruptNonMeleeSpells(false);
 
+    Unit* pUnitTarget = pTarget->ToUnit();
     Creature* pCreatureSource = source->ToCreature();
 
-    if (pCreatureSource)
+    if (pCreatureSource && pUnitTarget)
         pCreatureSource->TryToCast(pUnitTarget, script.castSpell.spellId, script.castSpell.flags, 0u);
     else
-        source->CastSpell(pUnitTarget, script.castSpell.spellId, (script.castSpell.flags & CF_TRIGGERED) != 0);
+        pSource->CastSpell(pTarget, script.castSpell.spellId, (script.castSpell.flags & CF_TRIGGERED) != 0);
 
     return false;
 }
@@ -623,7 +656,7 @@ bool Map::ScriptCommand_CreateItem(ScriptInfo const& script, WorldObject* source
         return ShouldAbortScript(script);
     }
 
-    if (Item* pItem = pReceiver->StoreNewItemInInventorySlot(script.createItem.itemEntry, script.createItem.amount))
+    if (Item* pItem = pReceiver->StoreNewItemInInventorySlot(script.createItem.itemId, script.createItem.amount))
         pReceiver->SendNewItem(pItem, script.createItem.amount, true, false);
 
     return false;
@@ -716,7 +749,7 @@ bool Map::ScriptCommand_SetMovementType(ScriptInfo const& script, WorldObject* s
         case WAYPOINT_MOTION_TYPE:
             if (script.movement.clear)
                 pSource->GetMotionMaster()->Clear(false, true);
-            pSource->GetMotionMaster()->MoveWaypoint(0, script.movement.intParam, 0, 0, 0, script.movement.boolParam);
+            pSource->GetMotionMaster()->MoveWaypoint(script.movement.intParam, 0, 0, 0, 0, script.movement.boolParam);
             break;
         case CONFUSED_MOTION_TYPE:
             pSource->GetMotionMaster()->MoveConfused();
@@ -901,7 +934,7 @@ bool Map::ScriptCommand_AttackStart(ScriptInfo const& script, WorldObject* sourc
     if (!pAttacker->IsAlive())
         return ShouldAbortScript(script);
 
-    if (pAttacker->IsFriendlyTo(pTarget) || !pTarget->IsTargetableForAttack() || !pAttacker->IsInMap(pTarget))
+    if (!pAttacker->IsValidAttackTarget(pTarget))
     {
         sLog.outError("SCRIPT_COMMAND_ATTACK_START (script id %u) for an invalid attack target, skipping.", script.id);
         return ShouldAbortScript(script);
@@ -909,6 +942,8 @@ bool Map::ScriptCommand_AttackStart(ScriptInfo const& script, WorldObject* sourc
 
     if (pAttacker->AI())
         pAttacker->AI()->AttackStart(pTarget);
+    else
+        return ShouldAbortScript(script);
 
     return false;
 }
@@ -925,7 +960,7 @@ bool Map::ScriptCommand_UpdateEntry(ScriptInfo const& script, WorldObject* sourc
     }
 
     if (pSource->GetEntry() != script.updateEntry.creatureEntry)
-        pSource->UpdateEntry(script.updateEntry.creatureEntry, script.updateEntry.team ? HORDE : ALLIANCE);
+        pSource->UpdateEntry(script.updateEntry.creatureEntry);
 
     return false;
 }
@@ -969,7 +1004,7 @@ bool Map::ScriptCommand_ModifyThreat(ScriptInfo const& script, WorldObject* sour
     }
     else
     {
-        if (Unit* pTarget = ToUnit(GetTargetByType(pSource, target, script.modThreat.target)))
+        if (Unit* pTarget = ToUnit(GetTargetByType(pSource, target, this, script.modThreat.target)))
             pSource->GetThreatManager().modifyThreatPercent(pTarget, script.x);
     }
 
@@ -1029,7 +1064,7 @@ bool Map::ScriptCommand_TerminateCondition(ScriptInfo const& script, WorldObject
     WorldObject* pSource = source;
     WorldObject* pTarget = target;
 
-    bool terminateResult = sObjectMgr.IsConditionSatisfied(script.terminateCond.conditionId, pTarget, this, pSource, CONDITION_FROM_DBSCRIPTS);
+    bool terminateResult = IsConditionSatisfied(script.terminateCond.conditionId, pTarget, this, pSource, CONDITION_FROM_DBSCRIPTS);
     
     if (script.terminateCond.flags & SF_TERMINATECONDITION_WHEN_FALSE)
         terminateResult = !terminateResult;
@@ -1058,6 +1093,8 @@ bool Map::ScriptCommand_Evade(ScriptInfo const& script, WorldObject* source, Wor
 
     if (pSource->AI() && pSource->IsAlive())
         pSource->AI()->EnterEvadeMode();
+    else
+        return ShouldAbortScript(script);
 
     return false;
 }
@@ -1240,7 +1277,7 @@ bool Map::ScriptCommand_StartScript(ScriptInfo const& script, WorldObject* sourc
     }
 
     if (chosenId)
-        ScriptsStart(sEventScripts, chosenId, source, target);
+        ScriptsStart(sGenericScripts, chosenId, source ? source->GetObjectGuid() : ObjectGuid(), target ? target->GetObjectGuid() : ObjectGuid());
     else
         return ShouldAbortScript(script);
 
@@ -1258,7 +1295,7 @@ bool Map::ScriptCommand_RemoveItem(ScriptInfo const& script, WorldObject* source
         return ShouldAbortScript(script);
     }
 
-    pPlayer->DestroyItemCount(script.createItem.itemEntry, script.createItem.amount, true);
+    pPlayer->DestroyItemCount(script.createItem.itemId, script.createItem.amount, true);
 
     return false;
 }
@@ -1292,6 +1329,8 @@ bool Map::ScriptCommand_SetMeleeAttack(ScriptInfo const& script, WorldObject* so
 
     if (pSource->AI())
         pSource->AI()->SetMeleeAttack(script.enableMelee.enabled);
+    else
+        return ShouldAbortScript(script);
 
     return false;
 }
@@ -1309,6 +1348,8 @@ bool Map::ScriptCommand_SetCombatMovement(ScriptInfo const& script, WorldObject*
 
     if (pSource->AI())
         pSource->AI()->SetCombatMovement(script.combatMovement.enabled);
+    else
+        return ShouldAbortScript(script);
 
     return false;
 }
@@ -1625,7 +1666,8 @@ bool Map::ScriptCommand_AddSpellCooldown(ScriptInfo const& script, WorldObject* 
         return ShouldAbortScript(script);
     }
 
-    pSource->AddSpellCooldown(script.addCooldown.spellId, 0, time(nullptr) + script.addCooldown.cooldown);
+    if (SpellEntry const* pSpellEntry = sSpellMgr.GetSpellEntry(script.addCooldown.spellId))
+    pSource->AddCooldown(*pSpellEntry, nullptr, false, script.addCooldown.cooldown * IN_MILLISECONDS);
     if (Player* pPlayer = pSource->ToPlayer())
         pPlayer->SendSpellCooldown(script.addCooldown.spellId, script.addCooldown.cooldown * IN_MILLISECONDS, pPlayer->GetObjectGuid());
 
@@ -1646,7 +1688,7 @@ bool Map::ScriptCommand_RemoveSpellCooldown(ScriptInfo const& script, WorldObjec
     if (script.removeCooldown.spellId)
         pSource->RemoveSpellCooldown(script.removeCooldown.spellId, true);
     else
-        pSource->RemoveAllSpellCooldown();
+        pSource->RemoveAllCooldowns();
 
     return false;
 }
@@ -1682,7 +1724,7 @@ bool Map::ScriptCommand_StartWaypoints(ScriptInfo const& script, WorldObject* so
         return ShouldAbortScript(script);
 
     pSource->GetMotionMaster()->Clear(false, true);
-    pSource->GetMotionMaster()->MoveWaypoint(script.startWaypoints.pathId, script.startWaypoints.startPoint, script.startWaypoints.wpSource, script.startWaypoints.initialDelay, script.startWaypoints.overwriteEntry, script.startWaypoints.canRepeat);
+    pSource->GetMotionMaster()->MoveWaypoint(script.startWaypoints.startPoint, script.startWaypoints.wpSource, script.startWaypoints.initialDelay, script.startWaypoints.overwriteGuid, script.startWaypoints.overwriteEntry, script.startWaypoints.canRepeat);
 
     return false;
 }
@@ -1772,7 +1814,7 @@ bool Map::ScriptCommand_RemoveMapEventTarget(ScriptInfo const& script, WorldObje
             {
                 if (WorldObject* pObject = GetWorldObject(itr->target))
                 {
-                    if (sObjectMgr.IsConditionSatisfied(script.removeMapEventTarget.conditionId, source, this, pObject, CONDITION_FROM_DBSCRIPTS))
+                    if (IsConditionSatisfied(script.removeMapEventTarget.conditionId, source, this, pObject, CONDITION_FROM_DBSCRIPTS))
                     {
                         itr = pEvent->m_vTargets.erase(itr);
                         if (script.removeMapEventTarget.targets == SO_REMOVETARGET_ONE_FIT_CONDITION)
@@ -1933,7 +1975,7 @@ bool Map::ScriptCommand_StartScriptForAll(ScriptInfo const& script, WorldObject*
         }
 
         if (!script.startScriptForAll.objectEntry || (pWorldObject->GetEntry() == script.startScriptForAll.objectEntry))
-            ScriptsStart(sEventScripts, script.startScriptForAll.scriptId, pWorldObject, target);
+            ScriptsStart(sGenericScripts, script.startScriptForAll.scriptId, pWorldObject->GetObjectGuid(), target ? target->GetObjectGuid() : ObjectGuid());
     }
     
     return false;
@@ -2025,27 +2067,13 @@ bool Map::ScriptCommand_AssistUnit(ScriptInfo const& script, WorldObject* source
         return ShouldAbortScript(script);
     }
 
-    if (!pSource->IsInMap(pTarget))
-        return ShouldAbortScript(script);
-
     Unit* pAttacker = pTarget->GetAttackerForHelper();
 
     if (!pAttacker)
         return false;
 
-    if (Unit* pVictim = pSource->GetVictim())
-    {
-        if (pVictim == pAttacker)
-            return false;
-
-        if (!pSource->IsFriendlyTo(pAttacker) && pAttacker->IsTargetableForAttack() && pSource->IsWithinDistInMap(pAttacker, 40.0f))
-            pSource->AddThreat(pAttacker);
-    }
-    else
-    {
-        if (pSource->AI() && !pSource->IsFriendlyTo(pAttacker) && pAttacker->IsTargetableForAttack() && pSource->IsWithinDistInMap(pAttacker, 40.0f))
-            pSource->AI()->AttackStart(pAttacker);
-    }
+    if (pSource->IsValidAttackTarget(pAttacker) && pSource->IsWithinDistInMap(pAttacker, 40.0f))
+        pSource->EnterCombatWithTarget(pAttacker);
 
     return false;
 }
@@ -2108,7 +2136,7 @@ bool Map::ScriptCommand_AddThreat(ScriptInfo const& script, WorldObject* source,
         return ShouldAbortScript(script);
     }
 
-    if (pTarget->IsTargetableForAttack() && pSource->IsInMap(pTarget) && !pSource->IsFriendlyTo(pTarget))
+    if (pSource->IsValidAttackTarget(pTarget))
         pSource->AddThreat(pTarget);
 
     return false;
@@ -2225,7 +2253,7 @@ bool Map::ScriptCommand_DespawnGameObject(ScriptInfo const& script, WorldObject*
 
     if (!pGo)
     {
-        sLog.outError("SCRIPT_COMMAND_DESPAWN_GAMEOBJECT (script id %u) failed for gameobject(guid: %u).", script.id, guidlow);
+        sLog.outError("SCRIPT_COMMAND_DESPAWN_GAMEOBJECT (script id %u) failed for gameobject (guid: %u).", script.id, guidlow);
         return ShouldAbortScript(script);
     }
 
@@ -2253,11 +2281,116 @@ bool Map::ScriptCommand_LoadGameObject(ScriptInfo const& script, WorldObject* so
     if (GetGameObject(ObjectGuid(HIGHGUID_GAMEOBJECT, pGameObjectData->id, script.loadGo.goGuid)))
         return ShouldAbortScript(script); // already spawned
 
-    GameObject* pGameobject = new GameObject;
+    GameObject* pGameobject = GameObject::CreateGameObject(pGameObjectData->id);
     if (!pGameobject->LoadFromDB(script.loadGo.goGuid, this))
         delete pGameobject;
     else
         Add(pGameobject);
+
+    return false;
+}
+
+// SCRIPT_COMMAND_QUEST_CREDIT (83)
+bool Map::ScriptCommand_QuestCredit(ScriptInfo const& script, WorldObject* source, WorldObject* target)
+{
+    Player* pPlayer;
+
+    if (!((pPlayer = ToPlayer(target)) || (pPlayer = ToPlayer(source))))
+    {
+        sLog.outError("SCRIPT_COMMAND_QUEST_CREDIT (script id %u) call for a nullptr player, skipping.", script.id);
+        return ShouldAbortScript(script);
+    }
+
+    WorldObject* pWorldObject = source && !source->IsPlayer() ? source : (target && !target->IsPlayer() ? target : nullptr);
+    if (!pWorldObject)
+    {
+        sLog.outError("SCRIPT_COMMAND_QUEST_CREDIT (script id %u) call for a nullptr target, skipping.", script.id);
+        return ShouldAbortScript(script);
+    }
+
+    pPlayer->TalkedToCreature(pWorldObject->GetEntry(), pWorldObject->GetObjectGuid());
+
+    return false;
+}
+
+// SCRIPT_COMMAND_SET_GOSSIP_MENU (84)
+bool Map::ScriptCommand_SetGossipMenu(ScriptInfo const& script, WorldObject* source, WorldObject* target)
+{
+    Creature* pSource = ToCreature(source);
+
+    if (!pSource)
+    {
+        sLog.outError("SCRIPT_COMMAND_SET_GOSSIP_MENU (script id %u) call for a nullptr or non-creature source (TypeId: %u), skipping.", script.id, source ? source->GetTypeId() : 0);
+        return ShouldAbortScript(script);
+    }
+
+    pSource->SetDefaultGossipMenuId(script.setGossipMenu.gossipMenuId);
+
+    return false;
+}
+
+// SCRIPT_COMMAND_SEND_SCRIPT_EVENT (85)
+bool Map::ScriptCommand_SendScriptEvent(ScriptInfo const& script, WorldObject* source, WorldObject* target)
+{
+    Creature* pSource = ToCreature(source);
+
+    if (!pSource)
+    {
+        sLog.outError("SCRIPT_COMMAND_SEND_SCRIPT_EVENT (script id %u) call for a nullptr or non-creature source (TypeId: %u), skipping.", script.id, source ? source->GetTypeId() : 0);
+        return ShouldAbortScript(script);
+    }
+
+    if (pSource->AI())
+        pSource->AI()->OnScriptEventHappened(script.sendScriptEvent.eventId, script.sendScriptEvent.eventData, target);
+    else
+        return ShouldAbortScript(script);
+
+    return false;
+}
+
+// SCRIPT_COMMAND_SET_PVP (86)
+bool Map::ScriptCommand_SetPvP(ScriptInfo const& script, WorldObject* source, WorldObject* target)
+{
+    Player* pSource;
+
+    if (!((pSource = ToPlayer(target)) || (pSource = ToPlayer(source))))
+    {
+        sLog.outError("SCRIPT_COMMAND_SET_PVP (script id %u) call for a nullptr or non-player object (TypeIdSource: %u)(TypeIdTarget: %u), skipping.", script.id, source ? source->GetTypeId() : 0, target ? target->GetTypeId() : 0);
+        return ShouldAbortScript(script);
+    }
+
+    pSource->UpdatePvP(script.setPvP.enabled);
+
+    return false;
+}
+
+// SCRIPT_COMMAND_RESET_DOOR_OR_BUTTON (87)
+bool Map::ScriptCommand_ResetDoorOrButton(ScriptInfo const& script, WorldObject* source, WorldObject* target)
+{
+    GameObject* pGo = nullptr;
+
+    if (!((pGo = ToGameObject(target)) || (pGo = ToGameObject(source))))
+    {
+        sLog.outError("SCRIPT_COMMAND_RESET_DOOR_OR_BUTTON (script id %u) call for a nullptr gameobject, skipping.", script.id);
+        return ShouldAbortScript(script);
+    }
+
+    pGo->ResetDoorOrButton();
+    return false;
+}
+
+// SCRIPT_COMMAND_SET_COMMAND_STATE (88)
+bool Map::ScriptCommand_SetCommandState(ScriptInfo const& script, WorldObject* source, WorldObject* target)
+{
+    Creature* pSource = ToCreature(source);
+
+    if (!pSource)
+    {
+        sLog.outError("SCRIPT_COMMAND_SET_COMMAND_STATE (script id %u) call for a nullptr or non-creature source (TypeId: %u), skipping.", script.id, source ? source->GetTypeId() : 0);
+        return ShouldAbortScript(script);
+    }
+
+    pSource->HandlePetCommand((CommandStates)script.setCommandState.commandState, ToUnit(target));
 
     return false;
 }

@@ -20,10 +20,12 @@
  */
 
 #include "Common.h"
+#include "Opcodes.h"
 #include "WorldPacket.h"
 #include "Log.h"
 #include "Corpse.h"
 #include "GameObject.h"
+#include "GameObjectAI.h"
 #include "Player.h"
 #include "ObjectAccessor.h"
 #include "ObjectGuid.h"
@@ -31,8 +33,8 @@
 #include "LootMgr.h"
 #include "Object.h"
 #include "Group.h"
-#include "GameObjectAI.h"
 #include "World.h"
+#include "ScriptMgr.h"
 #include "Util.h"
 #include "Anticheat.h"
 
@@ -46,6 +48,9 @@ void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recv_data)
     Item* pItem = nullptr;
 
     recv_data >> lootSlot;
+
+    if (lguid.IsEmpty())
+        return;
 
     switch (lguid.GetHigh())
     {
@@ -310,6 +315,9 @@ void WorldSession::HandleLootOpcode(WorldPacket& recv_data)
     if (!_player->IsInWorld())
         return;
 
+    if (_player->IsNonMeleeSpellCasted())
+        _player->InterruptNonMeleeSpells(false);
+
     GetPlayer()->SendLoot(guid, LOOT_CORPSE);
 }
 
@@ -327,11 +335,14 @@ void WorldSession::HandleLootReleaseOpcode(WorldPacket& recv_data)
 
 void WorldSession::DoLootRelease(ObjectGuid lguid)
 {
-    Player  *player = GetPlayer();
-    Loot    *loot;
+    Player*  player = GetPlayer();
+    Loot*    loot;
 
     player->SetLootGuid(ObjectGuid());
-    player->SendLootRelease(lguid);
+
+    // for disenchanted items first show loot as removed before release
+    if (lguid.GetHigh() != HIGHGUID_ITEM)
+        player->SendLootRelease(lguid);
 
     player->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_LOOTING);
 
@@ -342,13 +353,18 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
     {
         case HIGHGUID_GAMEOBJECT:
         {
-            GameObject* go = GetPlayer()->GetMap()->GetGameObject(lguid);
-
-            // not check distance for GO in case owned GO (fishing bobber case, for example) or Fishing hole GO
-            if (!go || ((go->GetOwnerGuid() != _player->GetObjectGuid() && go->GetGoType() != GAMEOBJECT_TYPE_FISHINGHOLE) && !go->IsWithinDistInMap(_player, INTERACTION_DISTANCE)))
+            GameObject* go = player->GetMap()->GetGameObject(lguid);
+            if (!go)
                 return;
 
             loot = &go->loot;
+
+            // Don't despawn temporarily spawned chests that contain group wide quest items.
+            if (loot->HasFFAQuestItems() && !go->isSpawnedByDefault() && go->GetGoType() == GAMEOBJECT_TYPE_CHEST)
+            {
+                go->SetLootState(GO_READY);
+                break;
+            }
 
             if (go->GetGoType() == GAMEOBJECT_TYPE_DOOR)
             {
@@ -371,7 +387,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
                         DEBUG_LOG("Chest ScriptStart id %u for GO %u", go->GetGOInfo()->chest.eventId, go->GetGUIDLow());
 
                         if (!sScriptMgr.OnProcessEvent(go->GetGOInfo()->chest.eventId, _player, go, true))
-                            go->GetMap()->ScriptsStart(sEventScripts, go->GetGOInfo()->chest.eventId, _player, go);
+                            go->GetMap()->ScriptsStart(sEventScripts, go->GetGOInfo()->chest.eventId, _player->GetObjectGuid(), go->GetObjectGuid());
                     }
 
                     // only vein pass this check
@@ -432,7 +448,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
         case HIGHGUID_CORPSE:                               // ONLY remove insignia at BG
         {
             Corpse* corpse = _player->GetMap()->GetCorpse(lguid);
-            if (!corpse || !corpse->IsWithinDistInMap(_player, INTERACTION_DISTANCE))
+            if (!corpse)
                 return;
 
             loot = &corpse->loot;
@@ -476,14 +492,13 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
                     break;
                 }
             }
+            player->SendLootRelease(lguid);
             return;                                         // item can be looted only single player
         }
         case HIGHGUID_UNIT:
         {
-            Creature* creature = GetPlayer()->GetMap()->GetCreature(lguid);
-
-            bool ok_loot = creature && creature->IsAlive() == (player->GetClass() == CLASS_ROGUE && creature->lootForPickPocketed);
-            if (!ok_loot || !creature->IsWithinDistInMap(_player, INTERACTION_DISTANCE))
+            Creature* creature = player->GetMap()->GetCreature(lguid);
+            if (!creature)
                 return;
 
             loot = &creature->loot;
@@ -526,7 +541,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
         }
     }
 
-    //Player is not looking at loot list, he doesn't need to see updates on the loot list
+    // Player is not looking at loot list, he doesn't need to see updates on the loot list
     loot->RemoveLooter(player->GetObjectGuid());
 }
 

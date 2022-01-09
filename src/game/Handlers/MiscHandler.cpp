@@ -27,29 +27,23 @@
 #include "Opcodes.h"
 #include "Log.h"
 #include "Player.h"
+#include "Group.h"
 #include "World.h"
 #include "GuildMgr.h"
 #include "ObjectMgr.h"
 #include "WorldSession.h"
-#include "Auth/BigNumber.h"
-#include "Auth/Sha1.h"
-#include "UpdateData.h"
-#include "LootMgr.h"
-#include "Chat.h"
 #include "ScriptMgr.h"
-#include <zlib/zlib.h>
+#include <zlib.h>
 #include "ObjectAccessor.h"
 #include "Object.h"
 #include "BattleGround.h"
 #include "BattleGroundMgr.h"
-#include "Pet.h"
 #include "SocialMgr.h"
 #include "Spell.h"
 #include "ZoneScript.h"
+#include "Conditions.h"
 #include "Anticheat.h"
 #include "MasterPlayer.h"
-#include "GossipDef.h"
-#include "GameEventMgr.h"
 
 void WorldSession::HandleRepopRequestOpcode(WorldPacket& /*recv_data*/)
 {
@@ -74,10 +68,10 @@ void WorldSession::HandleRepopRequestOpcode(WorldPacket& /*recv_data*/)
     }
 
     player->BuildPlayerRepop();
-    player->RepopAtGraveyard();
+    player->ScheduleRepopAtGraveyard();
 }
 
-class WhoListClientQueryTask: public AsyncTask
+class WhoListClientQueryTask
 {
 public:
     uint32 accountId;
@@ -85,7 +79,7 @@ public:
     uint32 zoneids[10];                                     // 10 is client limit
     std::wstring str[4];                                    // 4 is client limit
     std::wstring wplayer_name, wguild_name;
-    void run()
+    void operator()()
     {
         WorldSession* sess = sWorld.FindSession(accountId);
         if (!sess)
@@ -125,7 +119,7 @@ public:
             }
 
             // skip bots
-            if (!showBotsInWhoList && pPlayer->GetSession()->GetBot())
+            if (!showBotsInWhoList && pPlayer->IsBot())
                 continue;
 
             // do not process players which are not in world
@@ -243,71 +237,71 @@ void WorldSession::HandleWhoOpcode(WorldPacket& recv_data)
         return;
     //recv_data.hexlike();
 
-    WhoListClientQueryTask* task = new WhoListClientQueryTask();
-    task->accountId = GetAccountId();
+    WhoListClientQueryTask task;
+    task.accountId = GetAccountId();
     std::string player_name, guild_name;
 
 
-    recv_data >> task->level_min;                               // maximal player level, default 0
-    recv_data >> task->level_max;                               // minimal player level, default 100 (MAX_LEVEL)
+    recv_data >> task.level_min;                               // maximal player level, default 0
+    recv_data >> task.level_max;                               // minimal player level, default 100 (MAX_LEVEL)
     recv_data >> player_name;                                   // player name, case sensitive...
 
     recv_data >> guild_name;                                    // guild name, case sensitive...
 
-    recv_data >> task->racemask;                                // race mask
-    recv_data >> task->classmask;                               // class mask
-    recv_data >> task->zones_count;                             // zones count, client limit=10 (2.0.10)
+    recv_data >> task.racemask;                                // race mask
+    recv_data >> task.classmask;                               // class mask
+    recv_data >> task.zones_count;                             // zones count, client limit=10 (2.0.10)
 
-    if (task->zones_count > 10)
+    if (task.zones_count > 10)
     {
-        delete task;
+        // delete task;
         return;                                                 // can't be received from real client or broken packet
     }
-    for (uint32 i = 0; i < task->zones_count; ++i)
+    for (uint32 i = 0; i < task.zones_count; ++i)
     {
         uint32 temp;
         recv_data >> temp;                                  // zone id, 0 if zone is unknown...
-        task->zoneids[i] = temp;
-        DEBUG_LOG("Zone %u: %u", i, task->zoneids[i]);
+        task.zoneids[i] = temp;
+        DEBUG_LOG("Zone %u: %u", i, task.zoneids[i]);
     }
 
-    recv_data >> task->str_count;                                 // user entered strings count, client limit=4 (checked on 2.0.10)
+    recv_data >> task.str_count;                                 // user entered strings count, client limit=4 (checked on 2.0.10)
 
-    if (task->str_count > 4)
+    if (task.str_count > 4)
     {
-        delete task;
+        // delete task;
         return;                                             // can't be received from real client or broken packet
     }
-    DEBUG_LOG("Minlvl %u, maxlvl %u, name %s, guild %s, racemask %u, classmask %u, zones %u, strings %u", task->level_min, task->level_max, player_name.c_str(), guild_name.c_str(), task->racemask, task->classmask, task->zones_count, task->str_count);
+    DEBUG_LOG("Minlvl %u, maxlvl %u, name %s, guild %s, racemask %u, classmask %u, zones %u, strings %u", task.level_min, task.level_max, player_name.c_str(), guild_name.c_str(), task.racemask, task.classmask, task.zones_count, task.str_count);
 
-    for (uint32 i = 0; i < task->str_count; ++i)
+    for (uint32 i = 0; i < task.str_count; ++i)
     {
         std::string temp;
         recv_data >> temp;                                  // user entered string, it used as universal search pattern(guild+player name)?
 
-        if (!Utf8toWStr(temp, task->str[i]))
+        if (!Utf8toWStr(temp, task.str[i]))
             continue;
 
-        wstrToLower(task->str[i]);
+        wstrToLower(task.str[i]);
 
         DEBUG_LOG("String %u: %s", i, temp.c_str());
     }
 
-    if (!(Utf8toWStr(player_name, task->wplayer_name) && Utf8toWStr(guild_name, task->wguild_name)))
+    if (!(Utf8toWStr(player_name, task.wplayer_name) && Utf8toWStr(guild_name, task.wguild_name)))
     {
-        delete task;
+        // delete task;
         return;
     }
-    wstrToLower(task->wplayer_name);
-    wstrToLower(task->wguild_name);
+    wstrToLower(task.wplayer_name);
+    wstrToLower(task.wguild_name);
 
     // client send in case not set max level value 100 but mangos support 255 max level,
     // update it to show GMs with characters after 100 level
-    if (task->level_max >= MAX_LEVEL)
-        task->level_max = PLAYER_STRONG_MAX_LEVEL;
+    if (task.level_max >= MAX_LEVEL)
+        task.level_max = PLAYER_STRONG_MAX_LEVEL;
 
     SetReceivedWhoRequest(true);
-    sWorld.AddAsyncTask(task);
+    sWorld.AddAsyncTask(std::move(task));
 }
 
 void WorldSession::HandleLFGOpcode(WorldPacket& recv_data)
@@ -346,8 +340,9 @@ void WorldSession::HandleLogoutRequestOpcode(WorldPacket& /*recv_data*/)
     }
 
     // instant logout in taverns/cities or on taxi or for admins, gm's, mod's if its enabled in mangosd.conf
-    if (GetPlayer()->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_RESTING) || GetPlayer()->IsTaxiFlying() ||
-            GetSecurity() >= (AccountTypes)sWorld.getConfig(CONFIG_UINT32_INSTANT_LOGOUT))
+    if (GetPlayer()->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_RESTING) ||
+        GetPlayer()->IsTaxiFlying() ||
+        GetSecurity() >= (AccountTypes)sWorld.getConfig(CONFIG_UINT32_INSTANT_LOGOUT))
     {
         WorldPacket data(SMSG_LOGOUT_RESPONSE, 1 + 4);
         data << uint32(0);
@@ -360,8 +355,9 @@ void WorldSession::HandleLogoutRequestOpcode(WorldPacket& /*recv_data*/)
     // not set flags if player can't free move to prevent lost state at logout cancel
     if (GetPlayer()->CanFreeMove())
     {
-        float height = GetPlayer()->GetMap()->GetHeight(GetPlayer()->GetPositionX(), GetPlayer()->GetPositionY(), GetPlayer()->GetPositionZ());
-        if ((GetPlayer()->GetPositionZ() < height + 0.1f) && !(GetPlayer()->IsInWater()) && GetPlayer()->GetStandState() == UNIT_STAND_STATE_STAND)
+        if (GetPlayer()->GetStandState() == UNIT_STAND_STATE_STAND &&
+           !GetPlayer()->IsMounted() &&
+           !(GetPlayer()->GetUnitMovementFlags() & (MOVEFLAG_SWIMMING | MOVEFLAG_SPLINE_ENABLED)))
             GetPlayer()->SetStandState(UNIT_STAND_STATE_SIT);
 
         GetPlayer()->SetRooted(true);
@@ -438,7 +434,7 @@ void WorldSession::HandleZoneUpdateOpcode(WorldPacket& recv_data)
     // Trigger a client camera reset by sending an `SMSG_STANDSTATE_UPDATE'
     // event. See `WorldSession::HandleMoveWorldportAckOpcode'.
     // Note: There might be a better place to perform this trigger
-    if (_clientOS == CLIENT_OS_MAC && GetPlayer()->m_movementInfo.HasMovementFlag(MOVEFLAG_ONTRANSPORT))
+    if (m_clientOS == CLIENT_OS_MAC && GetPlayer()->m_movementInfo.HasMovementFlag(MOVEFLAG_ONTRANSPORT))
     {
         WorldPacket data(SMSG_STANDSTATE_UPDATE, 1);
         data << GetPlayer()->GetStandState();
@@ -485,7 +481,7 @@ void WorldSession::HandleSetSelectionOpcode(WorldPacket& recv_data)
     // Update autoshot if need
     if (Spell* pSpell = _player->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL))
     {
-        if (!unit || unit == _player)
+        if (!unit || !_player->IsValidAttackTarget(unit))
         {
             pSpell->m_targets.setUnitTarget(nullptr);
             pSpell->cancel();
@@ -493,9 +489,6 @@ void WorldSession::HandleSetSelectionOpcode(WorldPacket& recv_data)
         }
 
         if (!unit->IsInWorld() || unit->GetMap() != _player->GetMap())
-            return;
-
-        if (!_player->IsValidAttackTarget(unit))
             return;
 
         pSpell->m_targets.setUnitTarget(unit);
@@ -519,9 +512,12 @@ void WorldSession::HandleStandStateChangeOpcode(WorldPacket& recv_data)
             return;
     }
 
-    // Delay stand state changes to recreate the retail trick which let
-    // things like Reckoning proc while sitting if you spam the X button.
-    _player->ScheduleStandStateChange(animstate);
+    if (_player->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PREVENT_ANIM))
+        return;
+
+    _player->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_ANIM_CANCELS);
+    _player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_ANIM_CANCELS);
+    _player->SetStandState(animstate);
 }
 
 void WorldSession::HandleFriendListOpcode(WorldPacket& recv_data)
@@ -818,7 +814,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
         }
 
         pPlayer->SetBattleGroundEntryPoint(pBgEntrance->exit_mapId, pBgEntrance->exit_X, pBgEntrance->exit_Y, pBgEntrance->exit_Z, pBgEntrance->exit_Orientation);
-        SendBattlegGroundList(pPlayer->GetObjectGuid(), pBgEntrance->bgTypeId);
+        SendBattleGroundList(pPlayer->GetObjectGuid(), pBgEntrance->bgTypeId);
         return;
     }
 
@@ -887,10 +883,6 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
         if (pTeleTrigger->destination.mapId != corpseMapId)
             if (AreaTriggerTeleport const* corpseAt = sObjectMgr.GetMapEntranceTrigger(corpseMapId))
                 pTeleTrigger = corpseAt;
-
-        // now we can resurrect player, and then check teleport requirements
-        pPlayer->ResurrectPlayer(0.5f);
-        pPlayer->SpawnCorpseBones();
     }
 
     if (!pPlayer->IsGameMaster() && !pPlayer->HasCheatOption(PLAYER_CHEAT_TRIGGER_PASS))
@@ -987,7 +979,7 @@ void WorldSession::HandleSetActionBarTogglesOpcode(WorldPacket& recv_data)
         return;
     }
 
-    GetPlayer()->SetByteValue(PLAYER_FIELD_BYTES, 2, actionBar);
+    GetPlayer()->SetByteValue(PLAYER_FIELD_BYTES, PLAYER_FIELD_BYTES_OFFSET_ACTION_BARS, actionBar);
 }
 
 void WorldSession::HandlePlayedTime(WorldPacket& /*recv_data*/)
@@ -1066,10 +1058,10 @@ void WorldSession::HandleInspectHonorStatsOpcode(WorldPacket& recv_data)
     data << (uint16)0;
 
     // Lifetime Honorable Kills
-    data << pTarget->GetUInt32Value(PLAYER_FIELD_LIFETIME_HONORABLE_KILLS);
+    data << pTarget->GetUInt32Value(PLAYER_FIELD_LIFETIME_HONORBALE_KILLS);
 
     // Lifetime Dishonorable Kills
-    data << pTarget->GetUInt32Value(PLAYER_FIELD_LIFETIME_DISHONORABLE_KILLS);
+    data << pTarget->GetUInt32Value(PLAYER_FIELD_LIFETIME_DISHONORBALE_KILLS);
 
     // Yesterday Honor
     data << pTarget->GetUInt32Value(PLAYER_FIELD_YESTERDAY_CONTRIBUTION);
@@ -1084,7 +1076,7 @@ void WorldSession::HandleInspectHonorStatsOpcode(WorldPacket& recv_data)
     data << pTarget->GetUInt32Value(PLAYER_FIELD_LAST_WEEK_RANK);
 
     // Rank progress bar
-    data << (uint8)pTarget->GetByteValue(PLAYER_FIELD_BYTES2, 0);
+    data << (uint8)pTarget->GetByteValue(PLAYER_FIELD_BYTES2, PLAYER_FIELD_BYTES_2_OFFSET_HONOR_RANK_BAR);
 
     SendPacket(&data);
 }
@@ -1175,7 +1167,7 @@ void WorldSession::HandleWhoisOpcode(WorldPacket& recv_data)
 
     uint32 accid = plr->GetSession()->GetAccountId();
 
-    QueryResult* result = LoginDatabase.PQuery("SELECT username,email,last_ip FROM account WHERE id=%u", accid);
+    QueryResult* result = LoginDatabase.PQuery("SELECT `username`, `email`, `last_ip` FROM `account` WHERE `id`=%u", accid);
     if (!result)
     {
         SendNotification(LANG_ACCOUNT_FOR_PLAYER_NOT_FOUND, charname.c_str());
@@ -1259,5 +1251,5 @@ void WorldSession::HandleWardenDataOpcode(WorldPacket& recv_data)
         return;
     }
 
-    m_warden->HandleWardenDataOpcode(recv_data);
+    m_warden->HandlePacket(recv_data);
 }

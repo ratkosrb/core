@@ -90,7 +90,6 @@ void Camera::SetView(WorldObject* obj, bool update_far_sight_field /*= true*/)
         m_owner.SetGuidValue(PLAYER_FARSIGHT, (m_source == &m_owner ? ObjectGuid() : m_source->GetObjectGuid()));
 
     UpdateForCurrentViewPoint();
-    m_owner.SendCreateUpdateToPlayer(&m_owner);
 }
 
 void Camera::Event_ViewPointVisibilityChanged()
@@ -154,9 +153,9 @@ void Camera::UpdateVisibilityForOwner()
     if (!m_source->FindMap())
         return;
 
-    GetOwner()->m_visibleGUIDs_lock.acquire_read();
+    std::shared_lock<std::shared_timed_mutex> lock(GetOwner()->m_visibleGUIDs_lock);
     MaNGOS::VisibleNotifier notifier(*this); // Will copy m_clientGUIDs
-    GetOwner()->m_visibleGUIDs_lock.release();
+    lock.unlock();
     Cell::VisitAllObjects(m_source, notifier, m_source->GetMap()->GetVisibilityDistance());
     notifier.Notify();
 }

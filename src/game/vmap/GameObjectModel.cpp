@@ -25,6 +25,7 @@
 #include "World.h"
 #include "GameObjectModel.h"
 #include "DBCStores.h"
+#include "ModelInstance.h"
 
 struct GameobjectModelData
 {
@@ -69,8 +70,6 @@ void LoadGameObjectModelList()
 
 GameObjectModel::~GameObjectModel()
 {
-    if (iModel)
-        ((VMAP::VMapManager2*)VMAP::VMapFactory::createOrGetVMapManager())->releaseModelInstance(name);
 }
 
 bool GameObjectModel::initialize(GameObject const* const pGo, GameObjectDisplayInfoEntry const* pDisplayInfo)
@@ -91,6 +90,9 @@ bool GameObjectModel::initialize(GameObject const* const pGo, GameObjectDisplayI
 
     if (!iModel)
         return false;
+
+    if (it->second.name.find(".m2") != std::string::npos)
+        iModel->setModelFlags(VMAP::MOD_M2);
 
     name = it->second.name;
     iPos = Vector3(pGo->GetPositionX(), pGo->GetPositionY(), pGo->GetPositionZ());
@@ -133,6 +135,8 @@ GameObjectModel* GameObjectModel::construct(GameObject const* const object)
             return nullptr;
         if (gobjInfo->type == GAMEOBJECT_TYPE_GOOBER && gobjInfo->goober.losOK)
             return nullptr;
+        if (gobjInfo->IsServerOnly())
+            return nullptr;
     }
     GameObjectDisplayInfoEntry const* info = sGameObjectDisplayInfoStore.LookupEntry(object->GetDisplayId());
     if (!info)
@@ -148,7 +152,7 @@ GameObjectModel* GameObjectModel::construct(GameObject const* const object)
     return mdl;
 }
 
-bool GameObjectModel::intersectRay(G3D::Ray const& ray, float& MaxDist, bool StopAtFirstHit) const
+bool GameObjectModel::intersectRay(G3D::Ray const& ray, float& MaxDist, bool StopAtFirstHit, bool ignoreM2Model) const
 {
     if (!collision_enabled)
         return false;
@@ -161,7 +165,7 @@ bool GameObjectModel::intersectRay(G3D::Ray const& ray, float& MaxDist, bool Sto
     Vector3 p = iInvRot * (ray.origin() - iPos) * iInvScale;
     Ray modRay(p, iInvRot * ray.direction());
     float distance = MaxDist * iInvScale;
-    bool hit = iModel->IntersectRay(modRay, distance, StopAtFirstHit);
+    bool hit = iModel->IntersectRay(modRay, distance, StopAtFirstHit, ignoreM2Model);
     if (hit)
     {
         distance *= iScale;

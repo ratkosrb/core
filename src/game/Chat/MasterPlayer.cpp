@@ -4,8 +4,10 @@
 #include "SocialMgr.h"
 #include "Item.h"
 #include "Mail.h"
+#include "Bag.h"
 #include "ObjectAccessor.h"
 #include "WorldPacket.h"
+#include "Opcodes.h"
 
 MasterPlayer::MasterPlayer(WorldSession* s):
     m_speakTime(0), m_speakCount(0), m_social(nullptr), 
@@ -26,10 +28,10 @@ MasterPlayer::~MasterPlayer()
         delete itr.second;                                //if item is duplicated... then server may crash ... but that item should be deallocated
 }
 
-void MasterPlayer::Create(Player* player)
+void MasterPlayer::Create(ObjectGuid playerGuid, uint8 raceId, uint32 classId)
 {
-    guid = player->GetObjectGuid();
-    PlayerInfo const* info = sObjectMgr.GetPlayerInfo(player->GetRace(), player->GetClass());
+    guid = playerGuid;
+    PlayerInfo const* info = sObjectMgr.GetPlayerInfo(raceId, classId);
     ASSERT(info);
 
     // original action bar
@@ -67,7 +69,7 @@ void MasterPlayer::Update()
     // undelivered mail
     if (m_nextMailDelivereTime && m_nextMailDelivereTime <= time(nullptr))
     {
-        SendNewMail();
+        GetSession()->SendNewMail();
         ++unReadMails;
 
         // It will be recalculate at mailbox open (for unReadMails important non-0 until mailbox open, it also will be recalculated)
@@ -99,7 +101,7 @@ void MasterPlayer::SaveMails()
         Mail *m = (*itr);
         if (m->state == MAIL_STATE_CHANGED)
         {
-            SqlStatement stmt = CharacterDatabase.CreateStatement(updateMail, "UPDATE mail SET itemTextId = ?,has_items = ?, expire_time = ?, deliver_time = ?, money = ?, cod = ?, checked = ? WHERE id = ?");
+            SqlStatement stmt = CharacterDatabase.CreateStatement(updateMail, "UPDATE `mail` SET `item_text_id` = ?, `has_items` = ?, `expire_time` = ?, `deliver_time` = ?, `money` = ?, `cod` = ?, `checked` = ? WHERE `id` = ?");
             stmt.addUInt32(m->itemTextId);
             stmt.addUInt32(m->HasItems() ? 1 : 0);
             stmt.addUInt64(uint64(m->expire_time));
@@ -112,7 +114,7 @@ void MasterPlayer::SaveMails()
 
             if (!m->removedItems.empty())
             {
-                stmt = CharacterDatabase.CreateStatement(deleteMailItems, "DELETE FROM mail_items WHERE item_guid = ?");
+                stmt = CharacterDatabase.CreateStatement(deleteMailItems, "DELETE FROM `mail_items` WHERE `item_guid` = ?");
 
                 for (const auto removedItem : m->removedItems)
                     stmt.PExecute(removedItem);
@@ -125,21 +127,21 @@ void MasterPlayer::SaveMails()
         {
             if (m->HasItems())
             {
-                SqlStatement stmt = CharacterDatabase.CreateStatement(deleteItem, "DELETE FROM item_instance WHERE guid = ?");
+                SqlStatement stmt = CharacterDatabase.CreateStatement(deleteItem, "DELETE FROM `item_instance` WHERE `guid` = ?");
                 for (const auto& item : m->items)
-                    stmt.PExecute(item.item_guid);
+                    stmt.PExecute(item.itemGuid);
             }
 
             if (m->itemTextId && m->stationery != MAIL_STATIONERY_DEFAULT)
             {
-                SqlStatement stmt = CharacterDatabase.CreateStatement(deleteItemText, "DELETE FROM item_text WHERE id = ?");
+                SqlStatement stmt = CharacterDatabase.CreateStatement(deleteItemText, "DELETE FROM `item_text` WHERE `id` = ?");
                 stmt.PExecute(m->itemTextId);
             }
 
-            SqlStatement stmt = CharacterDatabase.CreateStatement(deleteMain, "DELETE FROM mail WHERE id = ?");
+            SqlStatement stmt = CharacterDatabase.CreateStatement(deleteMain, "DELETE FROM `mail` WHERE `id` = ?");
             stmt.PExecute(m->messageID);
 
-            stmt = CharacterDatabase.CreateStatement(deleteItems, "DELETE FROM mail_items WHERE mail_id = ?");
+            stmt = CharacterDatabase.CreateStatement(deleteItems, "DELETE FROM `mail_items` WHERE `mail_id` = ?");
             stmt.PExecute(m->messageID);
         }
     }
@@ -174,30 +176,6 @@ void MasterPlayer::RemoveMail(uint32 id)
     }
 }
 
-void MasterPlayer::SendMailResult(uint32 mailId, MailResponseType mailAction, MailResponseResult mailError, uint32 equipError, uint32 item_guid, uint32 item_count)
-{
-    WorldPacket data(SMSG_SEND_MAIL_RESULT, (4 + 4 + 4 + (mailError == MAIL_ERR_EQUIP_ERROR ? 4 : (mailAction == MAIL_ITEM_TAKEN ? 4 + 4 : 0))));
-    data << (uint32) mailId;
-    data << (uint32) mailAction;
-    data << (uint32) mailError;
-    if (mailError == MAIL_ERR_EQUIP_ERROR)
-        data << (uint32) equipError;
-    else if (mailAction == MAIL_ITEM_TAKEN)
-    {
-        data << (uint32) item_guid;                         // item guid low?
-        data << (uint32) item_count;                        // item count?
-    }
-    GetSession()->SendPacket(&data);
-}
-
-void MasterPlayer::SendNewMail()
-{
-    // deliver undelivered mail
-    WorldPacket data(SMSG_RECEIVED_MAIL, 4);
-    data << (uint32) 0;
-    GetSession()->SendPacket(&data);
-}
-
 void MasterPlayer::UpdateNextMailTimeAndUnreads()
 {
     // calculate next delivery time (min. from non-delivered mails
@@ -222,7 +200,7 @@ void MasterPlayer::AddNewMailDeliverTime(time_t deliver_time)
     if (deliver_time <= time(nullptr))                         // ready now
     {
         ++unReadMails;
-        SendNewMail();
+        GetSession()->SendNewMail();
     }
     else                                                    // not ready and no have ready mails
     {
@@ -236,8 +214,8 @@ void MasterPlayer::AddNewMailDeliverTime(time_t deliver_time)
 void MasterPlayer::LoadMailedItems(QueryResult* result)
 {
     // data needs to be at first place for Item::LoadFromDB
-    //         0                1        2         3       4       5       6           7               8           9       10     11        12            13
-    // creatorGuid, giftCreatorGuid, count, duration, charges, flags, enchantments, randomPropertyId, durability, text, mail_id, item_guid, itemEntry, generated_loot
+    // 0             1                  2      3         4        5      6             7                   8           9     10       11         12       13
+    // creator_guid, gift_creator_guid, count, duration, charges, flags, enchantments, random_property_id, durability, text, mail_id, item_guid, item_id, generated_loot
     if (!result)
         return;
 
@@ -245,22 +223,22 @@ void MasterPlayer::LoadMailedItems(QueryResult* result)
     {
         Field* fields = result->Fetch();
         uint32 mail_id       = fields[10].GetUInt32();
-        uint32 item_guid_low = fields[11].GetUInt32();
-        uint32 item_template = fields[12].GetUInt32();
+        uint32 itemGuidLow = fields[11].GetUInt32();
+        uint32 itemId = fields[12].GetUInt32();
 
         Mail* mail = GetMail(mail_id);
         if (!mail)
             continue;
-        mail->AddItem(item_guid_low, item_template);
+        mail->AddItem(itemGuidLow, itemId);
 
-        ItemPrototype const* proto = ObjectMgr::GetItemPrototype(item_template);
+        ItemPrototype const* proto = ObjectMgr::GetItemPrototype(itemId);
 
         if (!proto)
         {
-            sLog.outError("Player %u has unknown item_template (ProtoType) in mailed items(GUID: %u template: %u) in mail (%u), deleted.", GetGUIDLow(), item_guid_low, item_template, mail->messageID);
-            CharacterDatabase.PExecute("INSERT INTO character_deleted_items (player_guid, item_entry, stack_count) VALUES ('%u', '%u', '%u')", GetGUIDLow(), item_template, fields[2].GetUInt32());
-            CharacterDatabase.PExecute("DELETE FROM mail_items WHERE item_guid = '%u'", item_guid_low);
-            CharacterDatabase.PExecute("DELETE FROM item_instance WHERE guid = '%u'", item_guid_low);
+            sLog.outError("Player %u has unknown item Id (ProtoType) in mailed items (GUID: %u Id: %u) in mail (%u), deleted.", GetGUIDLow(), itemGuidLow, itemId, mail->messageID);
+            CharacterDatabase.PExecute("INSERT INTO `character_deleted_items` (`player_guid`, `item_id`, `stack_count`) VALUES ('%u', '%u', '%u')", GetGUIDLow(), itemId, fields[2].GetUInt32());
+            CharacterDatabase.PExecute("DELETE FROM `mail_items` WHERE `item_guid` = '%u'", itemGuidLow);
+            CharacterDatabase.PExecute("DELETE FROM `item_instance` WHERE `guid` = '%u'", itemGuidLow);
             continue;
         }
 
@@ -272,10 +250,10 @@ void MasterPlayer::LoadMailedItems(QueryResult* result)
          */
         item->SetGeneratedLoot(fields[13].GetBool());
 
-        if (!item->LoadFromDB(item_guid_low, GetObjectGuid(), fields, item_template))
+        if (!item->LoadFromDB(itemGuidLow, GetObjectGuid(), fields, itemId))
         {
-            sLog.outError("Player::_LoadMailedItems - Item in mail (%u) doesn't exist !!!! - item guid: %u, deleted from mail", mail->messageID, item_guid_low);
-            CharacterDatabase.PExecute("DELETE FROM mail_items WHERE item_guid = '%u'", item_guid_low);
+            sLog.outError("Player::_LoadMailedItems - Item in mail (%u) doesn't exist !!!! - item guid: %u, deleted from mail", mail->messageID, itemGuidLow);
+            CharacterDatabase.PExecute("DELETE FROM `mail_items` WHERE `item_guid` = '%u'", itemGuidLow);
             item->FSetState(ITEM_REMOVED);
             item->SaveToDB();                               // it also deletes item object !
             continue;
@@ -291,8 +269,8 @@ void MasterPlayer::LoadMails(QueryResult* result)
     m_mail.clear();
     Player* player = GetSession()->GetPlayer();
     ASSERT(player);
-    //        0  1           2      3        4       5          6           7            8     9   10      11         12             13
-    //"SELECT id,messageType,sender,receiver,subject,itemTextId,expire_time,deliver_time,money,cod,checked,stationery,mailTemplateId,has_items FROM mail WHERE receiver = '%u' ORDER BY id DESC",GetGUIDLow()
+    //        0   1             2            3              4        5             6            7             8      9    10       11          12                13
+    //"SELECT id, message_type, sender_guid, receiver_guid, subject, item_text_id, expire_time, deliver_time, money, cod, checked, stationery, mail_template_id, has_items FROM mail WHERE receiver_guid = '%u' ORDER BY id DESC",GetGUIDLow()
     if (!result)
         return;
 
@@ -421,7 +399,7 @@ void MasterPlayer::SaveActions()
         {
             case ACTIONBUTTON_NEW:
             {
-                SqlStatement stmt = CharacterDatabase.CreateStatement(insertAction, "INSERT INTO character_action (guid,button,action,type) VALUES (?, ?, ?, ?)");
+                SqlStatement stmt = CharacterDatabase.CreateStatement(insertAction, "INSERT INTO `character_action` (`guid`, `button`, `action`, `type`) VALUES (?, ?, ?, ?)");
                 stmt.addUInt32(GetGUIDLow());
                 stmt.addUInt32(uint32(itr->first));
                 stmt.addUInt32(itr->second.GetAction());
@@ -433,7 +411,7 @@ void MasterPlayer::SaveActions()
             break;
             case ACTIONBUTTON_CHANGED:
             {
-                SqlStatement stmt = CharacterDatabase.CreateStatement(updateAction, "UPDATE character_action  SET action = ?, type = ? WHERE guid = ? AND button = ?");
+                SqlStatement stmt = CharacterDatabase.CreateStatement(updateAction, "UPDATE `character_action`  SET `action` = ?, `type` = ? WHERE `guid` = ? AND `button` = ?");
                 stmt.addUInt32(itr->second.GetAction());
                 stmt.addUInt32(uint32(itr->second.GetType()));
                 stmt.addUInt32(GetGUIDLow());
@@ -445,7 +423,7 @@ void MasterPlayer::SaveActions()
             break;
             case ACTIONBUTTON_DELETED:
             {
-                SqlStatement stmt = CharacterDatabase.CreateStatement(deleteAction, "DELETE FROM character_action WHERE guid = ? AND button = ?");
+                SqlStatement stmt = CharacterDatabase.CreateStatement(deleteAction, "DELETE FROM `character_action` WHERE `guid` = ? AND `button` = ?");
                 stmt.addUInt32(GetGUIDLow());
                 stmt.addUInt32(uint32(itr->first));
                 stmt.Execute();

@@ -22,6 +22,7 @@ SDCategory: Scholomance
 EndScriptData */
 
 #include "scriptPCH.h"
+#include "CreatureGroups.h"
 #include "scholomance.h"
 
 enum
@@ -227,7 +228,7 @@ struct npc_scholomance_studentAI : public ScriptedAI
 
     void Reset() override {}
 
-    void SpellHit(Unit *pCaster, SpellEntry const* pSpell) override
+    void SpellHit(SpellCaster*, SpellEntry const* pSpell) override
     {
         if (pSpell->Id == SPELL_VIEWING_ROOM_STUDENT_TRANSFORM_EFFECT)
         {
@@ -253,7 +254,7 @@ struct npc_scholomance_studentAI : public ScriptedAI
             pMarduck->SetFactionTemplateId(FACTION_MONSTER);
 
         if (Creature* pVectus = m_creature->FindNearestCreature(NPC_VECTUS, 100.0f))
-			pVectus->SetFactionTemplateId(FACTION_MONSTER);
+            pVectus->SetFactionTemplateId(FACTION_MONSTER);
     }
 
     void JustDied(Unit* Killer) override

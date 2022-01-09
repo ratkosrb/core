@@ -1,11 +1,32 @@
+/*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 2 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+*/
+
 #include "BattleBotAI.h"
 #include "BattleBotWaypoints.h"
 #include "WorldPacket.h"
+#include "Opcodes.h"
 #include "Player.h"
+#include "GameObject.h"
 #include "MotionMaster.h"
 #include "Spell.h"
 #include "Battlegrounds/BattleGround.h"
 #include "BattleGroundAV.h"
+#include "Geometry.h"
+
+using namespace Geometry;
 
 enum GameObjectsAB
 {
@@ -1612,6 +1633,13 @@ BattleBotPath vPath_AV_Stormpike_Crossroad_to_Stormpike_Flag =
     { 667.173f, -295.225f, 30.29f, &AV_AtFlag },
 };
 
+BattleBotPath vPath_AV_Stormpike_Graveyard_to_Stormpike_Flag =
+{
+    { 676.0f, -374.0f, 29.782f, nullptr },
+    { 665.922f, -347.777f, 29.493f, nullptr },
+    { 667.173f, -295.225f, 30.29f, &AV_AtFlag },
+};
+
 BattleBotPath vPath_AV_Alliance_Cave_Slop_Crossroad_to_Alliance_Slope_Crossroad =
 {
     { 450.8f, -434.864f, 30.5126f, nullptr },
@@ -1715,6 +1743,7 @@ std::vector<BattleBotPath*> const vPaths_AV =
     &vPath_AV_Alliance_Slope_Crossroad_to_Stormpike_Crossroad,
     &vPath_AV_Stormpike_Crossroad_to_Alliance_Base_Bunker_First_Crossroad,
     &vPath_AV_Stormpike_Crossroad_to_Stormpike_Flag,
+    &vPath_AV_Stormpike_Graveyard_to_Stormpike_Flag,
     &vPath_AV_Alliance_Base_Bunker_First_Crossroad_to_Alliance_Base_North_Bunker,
     &vPath_AV_Alliance_Base_Bunker_First_Crossroad_to_Alliance_Base_Bunker_Second_Crossroad,
     &vPath_AV_Alliance_Base_Bunker_Second_Crossroad_to_Alliance_Base_South_Bunker,
@@ -1740,6 +1769,7 @@ std::vector<BattleBotPath*> const vPaths_NoReverseAllowed =
     &vPath_AV_Alliance_Cave_to_Alliance_Cave_Slop_Crossroad,
     &vPath_AV_Horde_Cave_to_Frostwolf_Graveyard_Flag,
     &vPath_AV_Alliance_Cave_Slop_Crossroad_to_Alliance_Slope_Crossroad,
+    &vPath_AV_Stormpike_Graveyard_to_Stormpike_Flag,
 };
 
 void BattleBotAI::MovementInform(uint32 movementType, uint32 data)
@@ -1807,7 +1837,7 @@ bool BattleBotAI::StartNewPathFromBeginning()
             break;
         }
         default:
-            break;
+            return false;
     }
 
     for (const auto& pPath : *vPaths)
@@ -1861,7 +1891,7 @@ void BattleBotAI::StartNewPathFromAnywhere()
             break;
         }
         default:
-            break;
+            return;
     }
 
     for (const auto& pPath : *vPaths)
@@ -1886,16 +1916,6 @@ void BattleBotAI::StartNewPathFromAnywhere()
     m_movingInReverse = false;
     m_currentPoint = closestPoint-1;
     MoveToNextPoint();
-}
-
-template<class A, class B>
-float GetDistance3D(A const& from, B const& to)
-{
-    float dx = from.x - to.x;
-    float dy = from.y - to.y;
-    float dz = from.z - to.z;
-    float dist = sqrt((dx * dx) + (dy * dy) + (dz * dz));
-    return (dist > 0 ? dist : 0);
 }
 
 bool BattleBotAI::StartNewPathToPosition(Position const& targetPosition, std::vector<BattleBotPath*> const& vPaths)
