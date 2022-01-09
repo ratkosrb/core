@@ -1,13 +1,12 @@
 #include <string>
 #include <tbb/concurrent_queue.h>
 #include <chrono>
+#include <thread>
 
 #include "Util.h"
 #include "World.h"
 #include "ChannelMgr.h"
 #include "Anticheat.h"
-
-typedef std::chrono::high_resolution_clock Clock;
 
 enum NormalizeFlags
 {
@@ -94,8 +93,8 @@ class Antispam : public AntispamInterface
         Antispam();
         ~Antispam()
         {
-            if (m_worker)
-                m_worker->wait();
+            if (m_worker.joinable())
+                m_worker.join();
         }
         
         void loadFromDB();
@@ -162,33 +161,7 @@ class Antispam : public AntispamInterface
         MessageCounters m_messageCounters[A_CHAT_TYPE_MAX];
         MessageRepeats m_messageRepeats[A_CHAT_TYPE_MAX];
 
-        ACE_Based::Thread *m_worker;
-};
-
-class AntispamAsyncWorker : public ACE_Based::Runnable
-{
-    public:
-        AntispamAsyncWorker(Antispam *antispam) : m_antispam(antispam)
-        {
-        }
-
-        virtual void run()
-        {
-            LoginDatabase.ThreadStart();
-            LogsDatabase.ThreadStart();
-            auto prevNow = Clock::now();
-            while (!sWorld.IsStopped())
-            {
-                auto currNow = Clock::now();
-                auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(currNow - prevNow).count();
-                m_antispam->processMessages(diff);
-                prevNow = currNow;
-                ACE_Based::Thread::Sleep(50);
-            }
-            LogsDatabase.ThreadEnd();
-            LoginDatabase.ThreadEnd();
-        }
-        Antispam* m_antispam;
+        std::thread m_worker;
 };
 
 #define sAntispam ACE_Singleton<Antispam, ACE_Null_Mutex>::instance()
