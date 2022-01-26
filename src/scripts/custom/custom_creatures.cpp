@@ -17,6 +17,8 @@
 #include "scriptPCH.h"
 #include "custom.h"
 #include "ScriptedAI.h"
+#include "PartyBotAI.h"
+#include "PlayerBotMgr.h"
 #include <ctime>
 
 // TELEPORT NPC
@@ -954,14 +956,18 @@ bool GossipSelect_ProfessionNPC(Player* player, Creature* creature, uint32 sende
 */
 
 #define SPELL_LIGHTNING_VISUAL 24240
+#define GEAR_TOKEN 60021 
 
 bool GossipHello_PremadeGearNPC(Player* player, Creature* creature)
 {
-    for (auto itr : sObjectMgr.GetPlayerPremadeGearTemplates())
+    if (player->HasItemCount(GEAR_TOKEN))
     {
-        if (itr.second.requiredClass == player->GetClass())
+        for (auto itr : sObjectMgr.GetPlayerPremadeGearTemplates())
         {
-            player->ADD_GOSSIP_ITEM(GOSSIP_ICON_INTERACT_2, itr.second.name.c_str(), GOSSIP_SENDER_MAIN, itr.first);
+            if (itr.second.requiredClass == player->GetClass())
+            {
+                player->ADD_GOSSIP_ITEM(GOSSIP_ICON_INTERACT_2, itr.second.name.c_str(), GOSSIP_SENDER_MAIN, itr.first);
+            }
         }
     }
 
@@ -972,6 +978,7 @@ bool GossipHello_PremadeGearNPC(Player* player, Creature* creature)
 bool GossipSelect_PremadeGearNPC(Player* player, Creature* creature, uint32 sender, uint32 action)
 {
     player->SendSpellGo(player, SPELL_LIGHTNING_VISUAL);
+    player->DestroyItemCount(GEAR_TOKEN, 1, true);
     sObjectMgr.ApplyPremadeGearTemplateToPlayer(action, player);
     player->CLOSE_GOSSIP_MENU();
     return true;
@@ -1142,9 +1149,41 @@ CreatureAI* GetAI_custom_summon_debug(Creature *creature)
     return new npc_summon_debugAI(creature);
 }
 
+#define BOT_TOKEN 60020
+
+bool OnGossipHello_BottSummon(Player* pPlayer, Creature* pCreature)
+{
+    if (pPlayer->HasItemCount(BOT_TOKEN))
+    {
+        uint8 botRace = pPlayer->GetRace();
+        uint8 botClass = pPlayer->GetClass();
+
+        float x, y, z;
+        pPlayer->GetNearPoint(pPlayer, x, y, z, 0, 5.0f, frand(0.0f, 6.0f));
+
+        PartyBotAI* ai = new PartyBotAI(pPlayer, pPlayer, ROLE_INVALID, botRace, botClass, pPlayer->GetLevel(), pPlayer->GetMapId(), pPlayer->GetMap()->GetInstanceId(), x, y, z, pPlayer->GetOrientation());
+        if (sPlayerBotMgr.AddBot(ai))
+        {
+            pPlayer->DestroyItemCount(BOT_TOKEN, 1, true);
+            pPlayer->GetSession()->SendAreaTriggerMessage("You have paid for a bot.");
+        }
+        else
+            pPlayer->GetSession()->SendAreaTriggerMessage("Error summoning bot.");
+    }
+    else
+        pPlayer->GetSession()->SendAreaTriggerMessage("You need a token to summon bots.");
+
+    return true;
+}
+
 void AddSC_custom_creatures()
 {
     Script* newscript;
+
+    newscript = new Script;
+    newscript->Name = "custom_bot_token";
+    newscript->pGossipHello = &OnGossipHello_BottSummon;
+    newscript->RegisterSelf(false);
 
     newscript = new Script;
     newscript->Name = "custom_teleport_npc";
