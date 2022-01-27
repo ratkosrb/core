@@ -18,6 +18,7 @@
 #include "custom.h"
 #include "ScriptedAI.h"
 #include "PartyBotAI.h"
+#include "BattleBotAI.h"
 #include "PlayerBotMgr.h"
 #include <ctime>
 
@@ -1176,6 +1177,78 @@ bool OnGossipHello_BottSummon(Player* pPlayer, Creature* pCreature)
     return true;
 }
 
+#define AV_TOKEN 60022
+#define WSG_TOKEN 60023
+#define AB_TOKEN 60024
+
+bool OnGossipHello_BattlebotSpawner(Player* pPlayer, Creature* pCreature)
+{
+    if (pPlayer->HasItemCount(AV_TOKEN))
+        pPlayer->ADD_GOSSIP_ITEM(5, "Alterac Valley", GOSSIP_SENDER_MAIN, 1);
+    if (pPlayer->HasItemCount(WSG_TOKEN))
+        pPlayer->ADD_GOSSIP_ITEM(5, "Warsong Gulch", GOSSIP_SENDER_MAIN, 2);
+    if (pPlayer->HasItemCount(AB_TOKEN))
+        pPlayer->ADD_GOSSIP_ITEM(5, "Arathi Basin", GOSSIP_SENDER_MAIN, 3);
+    pPlayer->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, pCreature->GetGUID());
+
+    return true;
+}
+
+uint8 SelectRandomRaceForClass(uint8 playerClass, Team playerTeam);
+
+void SpawnBattleBot(Team botTeam, uint32 botLevel, uint8 bg, uint32 mapId, Position pos)
+{
+    std::vector<uint32> dpsClasses = { CLASS_WARRIOR, CLASS_HUNTER, CLASS_ROGUE, CLASS_MAGE, CLASS_WARLOCK, CLASS_PRIEST, CLASS_DRUID };
+    if (botTeam == HORDE)
+        dpsClasses.push_back(CLASS_SHAMAN);
+    else
+        dpsClasses.push_back(CLASS_PALADIN);
+    uint8 botClass = SelectRandomContainerElement(dpsClasses);
+    uint8 botRace = SelectRandomRaceForClass(botClass, botTeam);
+
+    // Spawn bot on GM Island
+    BattleBotAI* ai = new BattleBotAI(botRace, botClass, botLevel, mapId, 0, pos.x, pos.y, pos.z, pos.o, bg);
+    sPlayerBotMgr.AddBot(ai);
+}
+
+bool GossipSelect_BattlebotSpawner(Player *pPlayer, Creature *pCreature, uint32 sender, uint32 action)
+{
+    // Main menu
+    if (sender != GOSSIP_SENDER_MAIN)
+        return true;
+
+    switch (action)
+    {
+        case 1:
+            pPlayer->DestroyItemCount(AV_TOKEN, 1, true);
+            for (uint32 i = 0; i < 20; i++)
+                SpawnBattleBot(HORDE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_AV, pPlayer->GetMapId(), pPlayer->GetPosition());
+            for (uint32 i = 0; i < 20; i++)
+                SpawnBattleBot(ALLIANCE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_AV, pPlayer->GetMapId(), pPlayer->GetPosition());
+            pPlayer->GetSession()->SendAreaTriggerMessage("Added bots to AV.");
+            break;
+        case 2:
+            pPlayer->DestroyItemCount(WSG_TOKEN, 1, true);
+            for (uint32 i = 0; i < 5; i++)
+                SpawnBattleBot(HORDE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_WS, pPlayer->GetMapId(), pPlayer->GetPosition());
+            for (uint32 i = 0; i < 5; i++)
+                SpawnBattleBot(ALLIANCE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_WS, pPlayer->GetMapId(), pPlayer->GetPosition());
+            pPlayer->GetSession()->SendAreaTriggerMessage("Added bots to WS.");
+            break;
+        case 3:
+            pPlayer->DestroyItemCount(AB_TOKEN, 1, true);
+            for (uint32 i = 0; i < 6; i++)
+                SpawnBattleBot(HORDE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_AB, pPlayer->GetMapId(), pPlayer->GetPosition());
+            for (uint32 i = 0; i < 6; i++)
+                SpawnBattleBot(ALLIANCE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_AB, pPlayer->GetMapId(), pPlayer->GetPosition());
+            pPlayer->GetSession()->SendAreaTriggerMessage("Added bots to AB.");
+            break;
+    }
+
+    pPlayer->CLOSE_GOSSIP_MENU();
+    return true;
+}
+
 void AddSC_custom_creatures()
 {
     Script* newscript;
@@ -1183,6 +1256,12 @@ void AddSC_custom_creatures()
     newscript = new Script;
     newscript->Name = "custom_bot_token";
     newscript->pGossipHello = &OnGossipHello_BottSummon;
+    newscript->RegisterSelf(false);
+
+    newscript = new Script;
+    newscript->Name = "custom_battlebot_spawner";
+    newscript->pGossipHello = &OnGossipHello_BattlebotSpawner;
+    newscript->pGossipSelect = &GossipSelect_BattlebotSpawner;
     newscript->RegisterSelf(false);
 
     newscript = new Script;
