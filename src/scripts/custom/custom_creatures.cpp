@@ -1196,7 +1196,7 @@ bool OnGossipHello_BattlebotSpawner(Player* pPlayer, Creature* pCreature)
 
 uint8 SelectRandomRaceForClass(uint8 playerClass, Team playerTeam);
 
-void SpawnBattleBot(Team botTeam, uint32 botLevel, uint8 bg, uint32 mapId, Position pos)
+void SpawnBattleBot(Team botTeam, uint32 botLevel, uint8 bg)
 {
     std::vector<uint32> dpsClasses = { CLASS_WARRIOR, CLASS_HUNTER, CLASS_ROGUE, CLASS_MAGE, CLASS_WARLOCK, CLASS_PRIEST, CLASS_DRUID };
     if (botTeam == HORDE)
@@ -1207,7 +1207,7 @@ void SpawnBattleBot(Team botTeam, uint32 botLevel, uint8 bg, uint32 mapId, Posit
     uint8 botRace = SelectRandomRaceForClass(botClass, botTeam);
 
     // Spawn bot on GM Island
-    BattleBotAI* ai = new BattleBotAI(botRace, botClass, botLevel, mapId, 0, pos.x, pos.y, pos.z, pos.o, bg);
+    BattleBotAI* ai = new BattleBotAI(botRace, botClass, botLevel, 1, 0, 16224.356f, 16284.763f, 13.175f, 4.56f, bg);
     sPlayerBotMgr.AddBot(ai);
 }
 
@@ -1222,25 +1222,25 @@ bool GossipSelect_BattlebotSpawner(Player *pPlayer, Creature *pCreature, uint32 
         case 1:
             pPlayer->DestroyItemCount(AV_TOKEN, 1, true);
             for (uint32 i = 0; i < 20; i++)
-                SpawnBattleBot(HORDE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_AV, pPlayer->GetMapId(), pPlayer->GetPosition());
+                SpawnBattleBot(HORDE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_AV);
             for (uint32 i = 0; i < 20; i++)
-                SpawnBattleBot(ALLIANCE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_AV, pPlayer->GetMapId(), pPlayer->GetPosition());
+                SpawnBattleBot(ALLIANCE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_AV);
             pPlayer->GetSession()->SendAreaTriggerMessage("Added bots to AV.");
             break;
         case 2:
             pPlayer->DestroyItemCount(WSG_TOKEN, 1, true);
             for (uint32 i = 0; i < 5; i++)
-                SpawnBattleBot(HORDE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_WS, pPlayer->GetMapId(), pPlayer->GetPosition());
+                SpawnBattleBot(HORDE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_WS);
             for (uint32 i = 0; i < 5; i++)
-                SpawnBattleBot(ALLIANCE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_WS, pPlayer->GetMapId(), pPlayer->GetPosition());
+                SpawnBattleBot(ALLIANCE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_WS);
             pPlayer->GetSession()->SendAreaTriggerMessage("Added bots to WS.");
             break;
         case 3:
             pPlayer->DestroyItemCount(AB_TOKEN, 1, true);
             for (uint32 i = 0; i < 6; i++)
-                SpawnBattleBot(HORDE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_AB, pPlayer->GetMapId(), pPlayer->GetPosition());
+                SpawnBattleBot(HORDE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_AB);
             for (uint32 i = 0; i < 6; i++)
-                SpawnBattleBot(ALLIANCE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_AB, pPlayer->GetMapId(), pPlayer->GetPosition());
+                SpawnBattleBot(ALLIANCE, pPlayer->GetLevel(), BATTLEGROUND_QUEUE_AB);
             pPlayer->GetSession()->SendAreaTriggerMessage("Added bots to AB.");
             break;
     }
