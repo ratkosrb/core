@@ -835,6 +835,26 @@ bool ChatHandler::HandleSetSkillCommand(char* args)
     return true;
 }
 
+bool ChatHandler::HandleBuffCommand(char* args)
+{
+    Player* target = GetSelectedPlayer();
+    if (!target)
+    {
+        SendSysMessage(LANG_NO_CHAR_SELECTED);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    static std::vector<uint32> const spells = { 7594, 15366, 16609, 16877, 21564, 21850, 22817, 22818, 22820, 22888, 23028, 24425, 25898, 27681 };
+    for (auto spellId : spells)
+    {
+        if (!target->HasAura(spellId))
+            target->CastSpell(target, spellId, true);
+    }
+
+    return true;
+}
+
 bool ChatHandler::HandleRemoveRidingCommand(char* args)
 {
     static std::unordered_map<std::string, uint32> const skills

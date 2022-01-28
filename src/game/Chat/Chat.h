@@ -965,6 +965,7 @@ class ChatHandler
         bool HandleMaxSkillCommand(char* args);
         bool HandleSetSkillCommand(char* args);
         bool HandleRespawnCommand(char* args);
+        bool HandleBuffCommand(char* args);
         bool HandleChargeCommand(char* args);
         bool HandleComeToMeCommand(char* args);
         bool HandleCombatStopCommand(char* args);

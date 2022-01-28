@@ -1124,6 +1124,7 @@ ChatCommand * ChatHandler::getCommandTable()
     {
         { "account",        SEC_PLAYER,         true, nullptr,                                         "", accountCommandTable  },
         { "auction",        SEC_TICKETMASTER,   false, nullptr,                                        "", auctionCommandTable  },
+        { "buff",           SEC_PLAYER,         false, &ChatHandler::HandleBuffCommand,                "", nullptr },
         { "cast",           SEC_DEVELOPER,      false, nullptr,                                        "", castCommandTable     },
         { "character",      SEC_TICKETMASTER,   true, nullptr,                                         "", characterCommandTable},
         { "charge",         SEC_GAMEMASTER,     false, &ChatHandler::HandleChargeCommand,              "", nullptr },
