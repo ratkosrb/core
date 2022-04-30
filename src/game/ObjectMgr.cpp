@@ -11345,10 +11345,11 @@ void ObjectMgr::ApplyPremadeSpecTemplateToPlayer(uint32 entry, Player* pPlayer) 
 
 extern DBCStorage <WorldMapAreaEntry>  sWorldMapAreaStore;
 
+/*
 void ObjectMgr::AssignZoneIdsToSpawns()
 {
     printf("Loading mangos.gameobject...\n");
-    std::ofstream myfile("gobject_zones.sql");
+    std::ofstream myfile("gobject_zones_mangos.sql");
     if (!myfile.is_open())
         return;
 
@@ -11363,6 +11364,9 @@ void ObjectMgr::AssignZoneIdsToSpawns()
         sLog.outString(">> Loaded 0 gameobject spawns, table is empty!");
         return;
     }
+
+    std::map<uint32, std::set<uint32>> guidsPerZone;
+    std::map<uint32, std::set<uint32>> guidsPerArea;
 
     do
     {
@@ -11379,35 +11383,64 @@ void ObjectMgr::AssignZoneIdsToSpawns()
             uint32 zoneId = 0;
             uint32 areaId = 0;
             map->GetTerrain()->GetZoneAndAreaId(zoneId, areaId, x, y, z);
-            //if (WorldMapAreaEntry const* zone_data = sWorldMapAreaStore.LookupEntry(zoneId))
-                myfile << "UPDATE `gameobject` SET `zone_id`=" << zoneId << ", `area_id`=" << areaId << " WHERE `guid`=" << guid << ";\n";
-            //else
-            //    printf("Unable to determine zone for %u! (zone %u, area %u)\n", guid, zoneId, areaId);
+            guidsPerZone[zoneId].insert(guid);
+            guidsPerArea[areaId].insert(guid);
         }
         else
             printf("Cannot find map %u!\n", mapId);
 
     } while (result->NextRow());
 
+    for (auto const& itr : guidsPerZone)
+    {
+        myfile << "UPDATE `gameobject` SET `zone_id`=" << itr.first << " WHERE `guid` IN (";
+        uint32 count = 0;
+        for (auto guid : itr.second)
+        {
+            if (count)
+                myfile << ", ";
+            myfile << guid;
+            count++;
+        }
+        myfile << ");\n";
+    }
+
+    for (auto const& itr : guidsPerArea)
+    {
+        myfile << "UPDATE `gameobject` SET `area_id`=" << itr.first << " WHERE `guid` IN (";
+        uint32 count = 0;
+        for (auto guid : itr.second)
+        {
+            if (count)
+                myfile << ", ";
+            myfile << guid;
+            count++;
+        }
+        myfile << ");\n";
+    }
+
     myfile.close();
 }
+*/
 
-/*
 void ObjectMgr::AssignZoneIdsToSpawns()
 {
-    printf("Loading sniffs_combined2.gameobject_unique...\n");
-    std::ofstream myfile("gobject_zones.sql");
+    printf("Loading sniffs_combined3.gameobject...\n");
+    std::ofstream myfile("gobject_zones_sniff.sql");
     if (!myfile.is_open())
-    return;
+        return;
 
     //                                                               0       1      2             3             4             5          6
-    std::unique_ptr<QueryResult> result(WorldDatabase.Query("SELECT `guid`, `map`, `position_x`, `position_y`, `position_z`, `zone_id`, `area_id` FROM `sniffs_combined2`.`gameobject_unique` WHERE `map` IN (0, 1)"));
+    std::unique_ptr<QueryResult> result(WorldDatabase.Query("SELECT `guid`, `map`, `position_x`, `position_y`, `position_z`, `zone_id`, `area_id` FROM `sniffs_combined3`.`gameobject` WHERE `map` IN (0, 1)"));
 
     if (!result)
     {
         sLog.outString(">> Loaded 0 gameobject spawns, table is empty!");
         return;
     }
+
+    std::map<uint32, std::set<uint32>> guidsPerZone;
+    std::map<uint32, std::set<uint32>> guidsPerArea;
 
     do
     {
@@ -11427,15 +11460,44 @@ void ObjectMgr::AssignZoneIdsToSpawns()
             uint32 zoneId = 0;
             uint32 areaId = 0;
             map->GetTerrain()->GetZoneAndAreaId(zoneId, areaId, x, y, z);
-
             if (zoneId != currentZoneId || areaId != currentAreaId)
-                myfile << "UPDATE `gameobject_unique` SET `zone_id`=" << zoneId << ", `area_id`=" << areaId << " WHERE `guid`=" << guid << ";\n";
+            {
+                guidsPerZone[zoneId].insert(guid);
+                guidsPerArea[areaId].insert(guid);
+            }
         }
         else
             printf("Cannot find map %u!\n", mapId);
 
     } while (result->NextRow());
 
+    for (auto const& itr : guidsPerZone)
+    {
+        myfile << "UPDATE `gameobject` SET `zone_id`=" << itr.first << " WHERE `guid` IN (";
+        uint32 count = 0;
+        for (auto guid : itr.second)
+        {
+            if (count)
+                myfile << ", ";
+            myfile << guid;
+            count++;
+        }
+        myfile << ");\n";
+    }
+
+    for (auto const& itr : guidsPerArea)
+    {
+        myfile << "UPDATE `gameobject` SET `area_id`=" << itr.first << " WHERE `guid` IN (";
+        uint32 count = 0;
+        for (auto guid : itr.second)
+        {
+            if (count)
+                myfile << ", ";
+            myfile << guid;
+            count++;
+        }
+        myfile << ");\n";
+    }
+
     myfile.close();
 }
-*/
