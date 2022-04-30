@@ -434,7 +434,7 @@ struct cthunTentacle : public ScriptedAI
             Unit* caster = (*it)->GetCaster();
             if (!caster) continue;
 
-            if (caster->IsInMap(m_creature) && caster->IsTargetable(true, false) && m_creature->CanReachWithMeleeAutoAttack(caster))
+            if (caster->IsInMap(m_creature) && caster->IsTargetableBy(m_creature) && m_creature->CanReachWithMeleeAutoAttack(caster))
             {
                 target = caster;
                 break;
@@ -461,7 +461,7 @@ struct cthunTentacle : public ScriptedAI
         if (target)
         {
             // Nostalrius : Correction bug sheep/fear
-            if (!m_creature->HasUnitState(UNIT_STAT_STUNNED | UNIT_STAT_PENDING_STUNNED | UNIT_STAT_DIED | UNIT_STAT_CONFUSED | UNIT_STAT_FLEEING) 
+            if (!m_creature->HasUnitState(UNIT_STAT_STUNNED | UNIT_STAT_PENDING_STUNNED | UNIT_STAT_FEIGN_DEATH | UNIT_STAT_CONFUSED | UNIT_STAT_FLEEING) 
                 && (!m_creature->HasAuraType(SPELL_AURA_MOD_FEAR) || m_creature->HasAuraType(SPELL_AURA_PREVENTS_FLEEING)) && !m_creature->HasAuraType(SPELL_AURA_MOD_CONFUSE))
             {
                 m_creature->SetInFront(target);
@@ -1043,7 +1043,7 @@ struct eye_of_cthunAI : public ScriptedAI
         IsAlreadyPulled = false;
 
         if (m_creature) {
-            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
             // need to reset the orientation in case of wipe during glare phase
             m_creature->SetOrientation(3.44f);
             RemoveGlarePhaseSpells();
@@ -1242,7 +1242,7 @@ struct cthunAI : public ScriptedAI
             sLog.outError("SD0: No Instance for cthunAI");
 
         if (Creature* pPortal = DoSpawnCreature(MOB_CTHUN_PORTAL, 0.0f, 0.0f, 0.0f, 0.0f, TEMPSUMMON_CORPSE_DESPAWN, 0)) {
-            pPortal->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_NON_ATTACKABLE);
+            pPortal->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_SPAWNING);
         }
 
         Reset();
@@ -1309,7 +1309,7 @@ struct cthunAI : public ScriptedAI
         m_creature->DeMorph();
 
         m_creature->SetVisibility(VISIBILITY_ON);
-        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_NON_ATTACKABLE);
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_SPAWNING);
                 
         
         // Hack to allow eye-respawning with .respawn chat-command. 
@@ -1590,7 +1590,7 @@ struct cthunAI : public ScriptedAI
         UpdateStomachGrab(diff);
 
         if (cthunEmergeTimer < diff) {
-            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
             m_creature->SetInCombatWithZone();
 
             currentPhase = PHASE_CTHUN_INVULNERABLE;

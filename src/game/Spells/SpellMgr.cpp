@@ -101,7 +101,7 @@ void SpellMgr::LoadSpellTargetPositions()
         }
 
         bool found = false;
-        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
             if (spellInfo->EffectImplicitTargetA[i] == TARGET_LOCATION_DATABASE || spellInfo->EffectImplicitTargetB[i] == TARGET_LOCATION_DATABASE)
             {
@@ -202,7 +202,7 @@ struct DoSpellProcEvent
             if (spe.spellFamilyName != r_spe.spellFamilyName)
                 sLog.outErrorDb("Spell %u listed in `spell_proc_event` as custom rank have different spellFamilyName from first rank in chain", spell_id);
 
-            for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
+            for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
             {
                 if (spe.spellFamilyMask[i] != r_spe.spellFamilyMask[i])
                 {
@@ -345,7 +345,7 @@ void SpellMgr::LoadSpellProcEvents()
         spe.schoolMask      = fields[1].GetUInt32();
         spe.spellFamilyName = fields[2].GetUInt32();
 
-        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
             spe.spellFamilyMask[i] = fields[3 + i].GetUInt64();
 
         spe.procFlags       = fields[6].GetUInt32();
@@ -441,11 +441,15 @@ void SpellMgr::LoadSpellProcItemEnchant()
 
 bool SpellMgr::IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const* spellProcEvent, uint32 EventProcFlag, SpellEntry const* procSpell, uint32 procFlags, uint32 procExtra)
 {
-    // No extra req need
-    uint32 procEvent_procEx = PROC_EX_NONE;
+    // Store extra req
+    uint32 procEvent_procEx = spellProcEvent ? spellProcEvent->procEx : PROC_EX_NONE;
 
     // check prockFlags for condition
     if ((procFlags & EventProcFlag) == 0)
+        return false;
+
+    // Either procs only on cast end, or only on hit.
+    if ((procExtra & PROC_EX_CAST_END) != (procEvent_procEx & PROC_EX_CAST_END))
         return false;
 
     // Always trigger for this
@@ -454,9 +458,6 @@ bool SpellMgr::IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const* spellPr
 
     if (spellProcEvent)     // Exist event data
     {
-        // Store extra req
-        procEvent_procEx = spellProcEvent->procEx;
-
         // For melee triggers
         if (procSpell == nullptr)
         {
@@ -480,7 +481,7 @@ bool SpellMgr::IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const* spellPr
     if (procEvent_procEx == PROC_EX_NONE)
     {
         // Don't allow proc from periodic heal if no extra requirement is defined
-        if (EventProcFlag & (PROC_FLAG_ON_DO_PERIODIC | PROC_FLAG_ON_TAKE_PERIODIC) && (procExtra & PROC_EX_PERIODIC_POSITIVE))
+        if (EventProcFlag & (PROC_FLAG_DEAL_HARMFUL_PERIODIC | PROC_FLAG_TAKE_HARMFUL_PERIODIC) && (procExtra & PROC_EX_PERIODIC_POSITIVE))
             return false;
 
         // No extra req, so can trigger for (damage/healing present) and hit/crit
@@ -493,7 +494,7 @@ bool SpellMgr::IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const* spellPr
         if (procEvent_procEx & PROC_EX_EX_TRIGGER_ALWAYS)
             return true;
         // Exist req for PROC_EX_NO_PERIODIC
-        if ((procEvent_procEx & PROC_EX_NO_PERIODIC) && (procFlags & (PROC_FLAG_ON_DO_PERIODIC | PROC_FLAG_ON_TAKE_PERIODIC | PROC_FLAG_SUCCESSFUL_PERIODIC_SPELL_HIT | PROC_FLAG_TAKEN_PERIODIC_SPELL_HIT)))
+        if ((procEvent_procEx & PROC_EX_NO_PERIODIC) && (procFlags & (PROC_FLAG_DEAL_HARMFUL_PERIODIC | PROC_FLAG_TAKE_HARMFUL_PERIODIC | PROC_FLAG_SUCCESSFUL_PERIODIC_SPELL_HIT | PROC_FLAG_TAKEN_PERIODIC_SPELL_HIT)))
             return false;
         // Check Extra Requirement like (hit/crit/miss/resist/parry/dodge/block/immune/reflect/absorb and other)
         if (procEvent_procEx & procExtra)
@@ -1230,7 +1231,7 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
        )
     {
         bool isModifier = false;
-        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
             if (spellInfo_1->EffectApplyAuraName[i] == SPELL_AURA_ADD_FLAT_MODIFIER ||
                     spellInfo_1->EffectApplyAuraName[i] == SPELL_AURA_ADD_PCT_MODIFIER  ||
@@ -1263,7 +1264,7 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
         return false;
 
     bool dummy_only = true;
-    for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+    for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
     {
         if (spellInfo_1->Effect[i] != spellInfo_2->Effect[i] ||
                 spellInfo_1->EffectItemType[i] != spellInfo_2->EffectItemType[i] ||
@@ -1357,7 +1358,7 @@ SpellEntry const* SpellMgr::SelectAuraRankForLevel(SpellEntry const* spellInfo, 
         return spellInfo;
 
     bool needRankSelection = false;
-    for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+    for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
     {
         // for simple aura in check apply to any non caster based targets, in rank search mode to any explicit targets
         if (((spellInfo->Effect[i] == SPELL_EFFECT_APPLY_AURA &&
@@ -1819,7 +1820,7 @@ void SpellMgr::LoadSpellLearnSkills()
         if (!entry)
             continue;
 
-        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
             if (entry->Effect[i] == SPELL_EFFECT_SKILL)
             {
@@ -1955,7 +1956,7 @@ void SpellMgr::LoadSpellLearnSpells()
         if (!entry)
             continue;
 
-        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
             if (entry->Effect[i] == SPELL_EFFECT_LEARN_SPELL)
             {
@@ -2067,7 +2068,7 @@ void SpellMgr::LoadSpellScriptTarget()
         }
 
         bool targetfound = false;
-        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
             if (spellProto->EffectImplicitTargetA[i] == TARGET_UNIT_SCRIPT_NEAR_CASTER ||
                 spellProto->EffectImplicitTargetB[i] == TARGET_UNIT_SCRIPT_NEAR_CASTER ||
@@ -2157,7 +2158,7 @@ void SpellMgr::LoadSpellScriptTarget()
             continue;
 
         bool found = false;
-        for(int j = 0; j < MAX_EFFECT_INDEX; ++j)
+        for (uint8 j = 0; j < MAX_EFFECT_INDEX; ++j)
         {
             if (spellInfo->EffectImplicitTargetA[j] == TARGET_UNIT_SCRIPT_NEAR_CASTER || spellInfo->EffectImplicitTargetA[j] != TARGET_UNIT_CASTER && spellInfo->EffectImplicitTargetB[j] == TARGET_UNIT_SCRIPT_NEAR_CASTER)
             {
@@ -2220,7 +2221,7 @@ void SpellMgr::LoadSpellPetAuras()
                 sLog.outErrorDb("Spell %u listed in `spell_pet_auras` does not exist", spell);
                 continue;
             }
-            int i = 0;
+            uint8 i = 0;
             for (; i < MAX_EFFECT_INDEX; ++i)
                 if ((spellInfo->Effect[i] == SPELL_EFFECT_APPLY_AURA &&
                         spellInfo->EffectApplyAuraName[i] == SPELL_AURA_DUMMY) ||
@@ -2262,7 +2263,7 @@ bool SpellMgr::IsSpellValid(SpellEntry const* spellInfo, Player* pl, bool msg)
     bool need_check_reagents = false;
 
     // check effects
-    for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+    for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
     {
         switch (spellInfo->Effect[i])
         {
@@ -2446,7 +2447,7 @@ void SpellMgr::LoadSpellAreas()
             }
 
             bool validSpellEffect = false;
-            for (uint32 i = EFFECT_INDEX_0; i < MAX_EFFECT_INDEX; ++i)
+            for (uint8 i = EFFECT_INDEX_0; i < MAX_EFFECT_INDEX; ++i)
             {
                 switch (spellInfo->EffectApplyAuraName[i])
                 {
@@ -3097,7 +3098,7 @@ void SpellMgr::LoadSpellAffects()
         if (!spellInfo)
             continue;
 
-        for (int effectId = 0; effectId < MAX_EFFECT_INDEX; ++effectId)
+        for (uint8 effectId = 0; effectId < MAX_EFFECT_INDEX; ++effectId)
         {
             if (spellInfo->Effect[effectId] != SPELL_EFFECT_APPLY_AURA || (
                         spellInfo->EffectApplyAuraName[effectId] != SPELL_AURA_ADD_FLAT_MODIFIER &&
@@ -3138,7 +3139,7 @@ namespace SpellInternal
 {
     bool IsSpellAppliesAura(SpellEntry const* spellInfo)
     {
-        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
             if (IsEffectAppliesAura(spellInfo->Effect[i]) && spellInfo->EffectApplyAuraName[i])
                 return true;
@@ -3152,7 +3153,7 @@ namespace SpellInternal
     {
         bool periodic = false;
         bool direct = false;
-        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
             switch (spellInfo->Effect[i])
             {
@@ -3211,7 +3212,7 @@ namespace SpellInternal
                 return true;
         }
 
-        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
             switch (spellInfo->Effect[i])
             {
@@ -3250,7 +3251,7 @@ namespace SpellInternal
 
     bool IsSpellWithCasterSourceTargetsOnly(SpellEntry const* spellInfo)
     {
-        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
             uint32 targetA = spellInfo->EffectImplicitTargetA[i];
             if (targetA && !IsCasterSourceTarget(targetA))
@@ -3287,7 +3288,7 @@ namespace SpellInternal
 
     bool IsDismountSpell(SpellEntry const* spellInfo)
     {
-        for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
+        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
             if ((spellInfo->Effect[i] == SPELL_EFFECT_APPLY_AURA) && (spellInfo->EffectApplyAuraName[i] == SPELL_AURA_MECHANIC_IMMUNITY) && (spellInfo->EffectMiscValue[i] == MECHANIC_MOUNT))
                 return true;
@@ -3328,12 +3329,119 @@ namespace SpellInternal
         if (spellInfo->IsChanneledSpell() || spellInfo->IsNextMeleeSwingSpell() || spellInfo->IsRangedSpell())
             return false;
 
-        for (auto i = 0; i < MAX_EFFECT_INDEX; ++i)
+        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
         {
             if (spellInfo->Effect[i] && !spellInfo->IsDelayableEffect(i))
                 return false;
         }
 
+        return true;
+    }
+
+    bool IsBinary(SpellEntry const* spellInfo)
+    {
+        bool isBinary = false;
+
+        // Non-magic spells are not affected
+        if (spellInfo->DmgClass != SPELL_DAMAGE_CLASS_MAGIC)
+            return false;
+
+        // Same for physical spells (charges)
+        if (spellInfo->School == SPELL_SCHOOL_NORMAL)
+            return false;
+
+        bool foundNoDamageAura = false;
+        for (int eff = 0; eff < 3; ++eff)
+        {
+            // Micro opt - don't iterate anymore if we already have an aura
+            if (foundNoDamageAura)
+                break;
+
+            switch (spellInfo->Effect[eff])
+            {
+                case SPELL_EFFECT_INTERRUPT_CAST:
+                    foundNoDamageAura = true;
+                    break;
+                case SPELL_EFFECT_APPLY_AURA:
+                    switch (spellInfo->EffectApplyAuraName[eff])
+                    {
+                        case SPELL_AURA_MOD_DECREASE_SPEED:
+                        case SPELL_AURA_MOD_FEAR:
+                        case SPELL_AURA_MOD_STUN:
+                        case SPELL_AURA_MOD_PACIFY:
+                        case SPELL_AURA_MOD_ROOT:
+                        case SPELL_AURA_MOD_SILENCE:
+                        case SPELL_AURA_MOD_DISARM:
+                        case SPELL_AURA_MOD_RESISTANCE:
+                        case SPELL_AURA_MOD_DAMAGE_TAKEN:
+                            foundNoDamageAura = true;
+                            break;
+                    }
+                    break;
+                case SPELL_EFFECT_KNOCK_BACK:
+                    foundNoDamageAura = true;
+                    break;
+            }
+        }
+        isBinary = foundNoDamageAura;
+
+        if (spellInfo->Id == 26143)    // SPELL_MIND_FLAY (C'Thuns Eye Tentacles)
+            isBinary = true;
+        else if (spellInfo->Id == 26478)
+            isBinary = true;           // SPELL_GROUND_RUPTURE_NATURE (C'thuns Giant tentacles ground rupture)
+    
+        return isBinary;
+    }
+
+    bool IsNonPeriodicDispel(SpellEntry const* spellInfo)
+    {
+        if (spellInfo->HasEffect(SPELL_EFFECT_DISPEL))
+        {
+            for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+            {
+                if (spellInfo->Effect[i] != 0 && (spellInfo->Effect[i] != SPELL_EFFECT_DISPEL || spellInfo->EffectRadiusIndex[i] != 0))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    bool IsPvEHeartBeat(SpellEntry const* spellInfo)
+    {
+        if (!spellInfo->HasAttribute(SPELL_ATTR_DIMINISHING_RETURNS))
+            return false;
+
+        for (uint32 i : spellInfo->EffectApplyAuraName)
+        {
+            switch (i)
+            {
+                case SPELL_AURA_MOD_FEAR:
+                case SPELL_AURA_MOD_ROOT:
+                case SPELL_AURA_MOD_PACIFY_SILENCE:
+                case SPELL_AURA_MOD_CONFUSE:
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool IsCCSpell(SpellEntry const* spellInfo)
+    {
+        if (spellInfo->IsChanneledSpell())
+            return false;
+        if (spellInfo->HasEffect(SPELL_EFFECT_INTERRUPT_CAST))
+            return false;
+
+        switch (spellInfo->GetDiminishingReturnsGroup(false))
+        {
+            case DIMINISHING_NONE:
+            case DIMINISHING_LIMITONLY:
+                return false;
+        }
         return true;
     }
 }
@@ -3382,6 +3490,18 @@ void SpellMgr::AssignInternalSpellFlags()
 
             if (sWorld.getConfig(CONFIG_UINT32_SPELL_EFFECT_DELAY) && SpellInternal::IsSpellWithDelayableEffects(pSpellEntry.get()))
                 pSpellEntry->Internal |= SPELL_INTERNAL_DELAYABLE_EFFECTS;
+
+            if (SpellInternal::IsBinary(pSpellEntry.get()))
+                pSpellEntry->Internal |= SPELL_INTERNAL_BINARY;
+
+            if (SpellInternal::IsNonPeriodicDispel(pSpellEntry.get()))
+                pSpellEntry->Internal |= SPELL_INTERNAL_NON_PERIODIC_DISPEL;
+
+            if (SpellInternal::IsPvEHeartBeat(pSpellEntry.get()))
+                pSpellEntry->Internal |= SPELL_INTERNAL_PVE_HEARTBEAT;
+
+            if (SpellInternal::IsCCSpell(pSpellEntry.get()))
+                pSpellEntry->Internal |= SPELL_INTERNAL_CROWD_CONTROL;
         }
     }
 }
@@ -3417,14 +3537,14 @@ uint32 ReplaceOldSpellProcFlags(uint32 oldFlags)
 
     if (oldFlags & OLD_PROC_FLAG_DONE_MELEE_HIT)
     {
-        newFlags |= PROC_FLAG_SUCCESSFUL_MELEE_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_MELEE_SPELL_HIT;
+        newFlags |= PROC_FLAG_DEAL_MELEE_SWING;
+        newFlags |= PROC_FLAG_DEAL_MELEE_ABILITY;
     }
 
     if (oldFlags & OLD_PROC_FLAG_TAKEN_MELEE_HIT)
     {
-        newFlags |= PROC_FLAG_TAKEN_MELEE_HIT;
-        newFlags |= PROC_FLAG_TAKEN_MELEE_SPELL_HIT;
+        newFlags |= PROC_FLAG_TAKE_MELEE_SWING;
+        newFlags |= PROC_FLAG_TAKE_MELEE_ABILITY;
     }
 
     if (oldFlags & OLD_PROC_FLAG_KILL)
@@ -3435,63 +3555,63 @@ uint32 ReplaceOldSpellProcFlags(uint32 oldFlags)
 
     if (oldFlags & OLD_PROC_FLAG_DODGE)
     {
-        newFlags |= PROC_FLAG_TAKEN_MELEE_HIT;
-        newFlags |= PROC_FLAG_TAKEN_MELEE_SPELL_HIT;
+        newFlags |= PROC_FLAG_TAKE_MELEE_SWING;
+        newFlags |= PROC_FLAG_TAKE_MELEE_ABILITY;
     }
 
     if (oldFlags & OLD_PROC_FLAG_PARRY)
     {
-        newFlags |= PROC_FLAG_TAKEN_MELEE_HIT;
-        newFlags |= PROC_FLAG_TAKEN_MELEE_SPELL_HIT;
+        newFlags |= PROC_FLAG_TAKE_MELEE_SWING;
+        newFlags |= PROC_FLAG_TAKE_MELEE_ABILITY;
     }
 
     if (oldFlags & OLD_PROC_FLAG_BLOCK)
     {
-        newFlags |= PROC_FLAG_TAKEN_MELEE_HIT;
-        newFlags |= PROC_FLAG_TAKEN_MELEE_SPELL_HIT;
+        newFlags |= PROC_FLAG_TAKE_MELEE_SWING;
+        newFlags |= PROC_FLAG_TAKE_MELEE_ABILITY;
     }
 
     if (oldFlags & OLD_PROC_FLAG_ON_SWING)
-        newFlags |= PROC_FLAG_SUCCESSFUL_MELEE_HIT;
+        newFlags |= PROC_FLAG_DEAL_MELEE_SWING;
 
     if (oldFlags & OLD_PROC_FLAG_MAGIC_SPELL_CAST)
     {
-        newFlags |= PROC_FLAG_SUCCESSFUL_POSITIVE_SPELL;
-        newFlags |= PROC_FLAG_SUCCESSFUL_NEGATIVE_SPELL_HIT;
+        newFlags |= PROC_FLAG_DEAL_HELPFUL_SPELL;
+        newFlags |= PROC_FLAG_DEAL_HARMFUL_SPELL;
     }
 
     if (oldFlags & OLD_PROC_FLAG_TAKEN_NON_MELEE_HIT)
     {
-        newFlags |= PROC_FLAG_TAKEN_RANGED_HIT;
-        newFlags |= PROC_FLAG_TAKEN_RANGED_SPELL_HIT;
-        newFlags |= PROC_FLAG_TAKEN_NONE_SPELL_HIT;
-        newFlags |= PROC_FLAG_TAKEN_NEGATIVE_SPELL_HIT;
+        newFlags |= PROC_FLAG_TAKE_RANGED_ATTACK;
+        newFlags |= PROC_FLAG_TAKE_RANGED_ABILITY;
+        newFlags |= PROC_FLAG_TAKE_HARMFUL_ABILITY;
+        newFlags |= PROC_FLAG_TAKE_HARMFUL_SPELL;
     }
 
     if (oldFlags & OLD_PROC_FLAG_TAKEN_HIT)
     {
-        newFlags |= PROC_FLAG_TAKEN_MELEE_SPELL_HIT;
-        newFlags |= PROC_FLAG_TAKEN_RANGED_HIT;
-        newFlags |= PROC_FLAG_TAKEN_RANGED_SPELL_HIT;
-        newFlags |= PROC_FLAG_TAKEN_NONE_SPELL_HIT;
-        newFlags |= PROC_FLAG_TAKEN_NEGATIVE_SPELL_HIT;
+        newFlags |= PROC_FLAG_TAKE_MELEE_ABILITY;
+        newFlags |= PROC_FLAG_TAKE_RANGED_ATTACK;
+        newFlags |= PROC_FLAG_TAKE_RANGED_ABILITY;
+        newFlags |= PROC_FLAG_TAKE_HARMFUL_ABILITY;
+        newFlags |= PROC_FLAG_TAKE_HARMFUL_SPELL;
     }
 
     if (oldFlags & OLD_PROC_FLAG_DONE_MELEE_CRIT)
-        newFlags |= PROC_FLAG_SUCCESSFUL_MELEE_HIT;
+        newFlags |= PROC_FLAG_DEAL_MELEE_SWING;
 
     if (oldFlags & OLD_PROC_FLAG_TAKEN_MELEE_CRIT)
-        newFlags |= PROC_FLAG_TAKEN_MELEE_HIT;
+        newFlags |= PROC_FLAG_TAKE_MELEE_SWING;
 
     if (oldFlags & OLD_PROC_FLAG_DONE_ANY_NOT_SWING)
     {
-        newFlags |= PROC_FLAG_SUCCESSFUL_MELEE_SPELL_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_RANGED_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_RANGED_SPELL_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_NONE_POSITIVE_SPELL;
-        newFlags |= PROC_FLAG_SUCCESSFUL_NONE_SPELL_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_POSITIVE_SPELL;
-        newFlags |= PROC_FLAG_SUCCESSFUL_NEGATIVE_SPELL_HIT;
+        newFlags |= PROC_FLAG_DEAL_MELEE_ABILITY;
+        newFlags |= PROC_FLAG_DEAL_RANGED_ATTACK;
+        newFlags |= PROC_FLAG_DEAL_RANGED_ABILITY;
+        newFlags |= PROC_FLAG_DEAL_HELPFUL_ABILITY;
+        newFlags |= PROC_FLAG_DEAL_HARMFUL_ABILITY;
+        newFlags |= PROC_FLAG_DEAL_HELPFUL_SPELL;
+        newFlags |= PROC_FLAG_DEAL_HARMFUL_SPELL;
     }
 
     if (oldFlags & OLD_PROC_FLAG_TAKEN_ANY_DAMAGE)
@@ -3499,45 +3619,45 @@ uint32 ReplaceOldSpellProcFlags(uint32 oldFlags)
 
     if (oldFlags & OLD_PROC_FLAG_DONE_SPELL_CRIT)
     {
-        newFlags |= PROC_FLAG_SUCCESSFUL_MELEE_SPELL_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_RANGED_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_RANGED_SPELL_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_NONE_POSITIVE_SPELL;
-        newFlags |= PROC_FLAG_SUCCESSFUL_NONE_SPELL_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_POSITIVE_SPELL;
-        newFlags |= PROC_FLAG_SUCCESSFUL_NEGATIVE_SPELL_HIT;
+        newFlags |= PROC_FLAG_DEAL_MELEE_ABILITY;
+        newFlags |= PROC_FLAG_DEAL_RANGED_ATTACK;
+        newFlags |= PROC_FLAG_DEAL_RANGED_ABILITY;
+        newFlags |= PROC_FLAG_DEAL_HELPFUL_ABILITY;
+        newFlags |= PROC_FLAG_DEAL_HARMFUL_ABILITY;
+        newFlags |= PROC_FLAG_DEAL_HELPFUL_SPELL;
+        newFlags |= PROC_FLAG_DEAL_HARMFUL_SPELL;
     }
 
     if (oldFlags & OLD_PROC_FLAG_DONE_SPELL_HIT)
     {
-        //newFlags |= PROC_FLAG_SUCCESSFUL_MELEE_SPELL_HIT;
-        //newFlags |= PROC_FLAG_SUCCESSFUL_RANGED_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_RANGED_SPELL_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_NONE_POSITIVE_SPELL;
-        newFlags |= PROC_FLAG_SUCCESSFUL_NONE_SPELL_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_POSITIVE_SPELL;
-        newFlags |= PROC_FLAG_SUCCESSFUL_NEGATIVE_SPELL_HIT;
+        //newFlags |= PROC_FLAG_DEAL_MELEE_ABILITY;
+        //newFlags |= PROC_FLAG_DEAL_RANGED_ATTACK;
+        newFlags |= PROC_FLAG_DEAL_RANGED_ABILITY;
+        newFlags |= PROC_FLAG_DEAL_HELPFUL_ABILITY;
+        newFlags |= PROC_FLAG_DEAL_HARMFUL_ABILITY;
+        newFlags |= PROC_FLAG_DEAL_HELPFUL_SPELL;
+        newFlags |= PROC_FLAG_DEAL_HARMFUL_SPELL;
     }
 
     if (oldFlags & OLD_PROC_FLAG_TAKEN_RANGED_CRIT)
     {
-        newFlags |= PROC_FLAG_TAKEN_MELEE_SPELL_HIT;
-        newFlags |= PROC_FLAG_TAKEN_RANGED_HIT;
-        newFlags |= PROC_FLAG_TAKEN_RANGED_SPELL_HIT;
-        newFlags |= PROC_FLAG_TAKEN_NONE_SPELL_HIT;
-        newFlags |= PROC_FLAG_TAKEN_NEGATIVE_SPELL_HIT;
+        newFlags |= PROC_FLAG_TAKE_MELEE_ABILITY;
+        newFlags |= PROC_FLAG_TAKE_RANGED_ATTACK;
+        newFlags |= PROC_FLAG_TAKE_RANGED_ABILITY;
+        newFlags |= PROC_FLAG_TAKE_HARMFUL_ABILITY;
+        newFlags |= PROC_FLAG_TAKE_HARMFUL_SPELL;
     }
 
     if (oldFlags & OLD_PROC_FLAG_DONE_RANGED_HIT)
     {
-        newFlags |= PROC_FLAG_SUCCESSFUL_RANGED_HIT;
-        newFlags |= PROC_FLAG_SUCCESSFUL_RANGED_SPELL_HIT;
+        newFlags |= PROC_FLAG_DEAL_RANGED_ATTACK;
+        newFlags |= PROC_FLAG_DEAL_RANGED_ABILITY;
     }
 
     if (oldFlags & OLD_PROC_FLAG_TAKEN_RANGED_HIT)
     {
-        newFlags |= PROC_FLAG_TAKEN_RANGED_HIT;
-        newFlags |= PROC_FLAG_TAKEN_RANGED_SPELL_HIT;
+        newFlags |= PROC_FLAG_TAKE_RANGED_ATTACK;
+        newFlags |= PROC_FLAG_TAKE_RANGED_ABILITY;
     }
 
     return newFlags;
@@ -3812,7 +3932,6 @@ void SpellMgr::LoadSpells()
         spell->procFlags = ReplaceOldSpellProcFlags(spell->procFlags);
 #endif
 
-        spell->InitCachedValues();
         mSpellEntryMap[spellId] = std::move(spell);
 
     } while (result->NextRow());

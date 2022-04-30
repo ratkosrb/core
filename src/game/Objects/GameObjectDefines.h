@@ -680,6 +680,16 @@ struct GameObjectInfo
         }
     }
 
+    bool IsTransport() const
+    {
+        switch (type)
+        {
+            case GAMEOBJECT_TYPE_TRANSPORT:             return true;
+            case GAMEOBJECT_TYPE_MO_TRANSPORT:          return true;
+            default: return false;
+        }
+    }
+
     float GetInteractionDistance() const
     {
         switch (type)

@@ -60,6 +60,8 @@ class BattleGroundPersistentState;
 class ChatHandler;
 class BattleGround;
 class WeatherSystem;
+class GenericTransport;
+class ElevatorTransport;
 class Transport;
 
 namespace VMAP
@@ -443,11 +445,15 @@ class Map : public GridRefManager<NGridType>
         uint32 GetPlayersCountExceptGMs() const;
         bool ActiveObjectsNearGrid(uint32 x,uint32 y) const;
 
-        // Send a Packet to all players on a map
+        // Send a Packet to all players in the map
         void SendToPlayers(WorldPacket const* data, Team team = TEAM_NONE) const;
-        // Send a Packet to all players in a zone. Return false if no player found
-        bool SendToPlayersInZone(WorldPacket const* data, uint32 zoneId) const;
+        void SendDefenseMessage(int32 textId, uint32 zoneId) const;
+        void SendMonsterTextToMap(int32 textId, Language language, ChatMsg chatMsg, uint32 creatureId, WorldObject const* pSource = nullptr, Unit const* pTarget = nullptr);
 
+        // Send a Packet to all players in a zone
+        bool SendToPlayersInZone(WorldPacket const* data, uint32 zoneId) const; // return false if no player found
+        void PlayDirectSoundToMap(uint32 soundId, uint32 zoneId = 0) const;
+        
         typedef MapRefManager PlayerList;
         PlayerList const& GetPlayers() const { return m_mapRefManager; }
 
@@ -495,7 +501,8 @@ class Map : public GridRefManager<NGridType>
         Creature* GetCreature(ObjectGuid const& guid) { return GetObject<Creature>(guid); }
         Pet* GetPet(ObjectGuid const& guid) { return GetObject<Pet>(guid); }
         Creature* GetAnyTypeCreature(ObjectGuid guid);      // normal creature or pet
-        Transport* GetTransport(ObjectGuid guid);
+        GenericTransport* GetTransport(ObjectGuid guid);
+        ElevatorTransport* GetElevatorTransport(ObjectGuid);
         DynamicObject* GetDynamicObject(ObjectGuid guid);
         Corpse* GetCorpse(ObjectGuid guid);                   // !!! find corpse can be not in world
         Unit* GetUnit(ObjectGuid guid);                       // only use if sure that need objects at current map, specially for player case
@@ -536,20 +543,16 @@ class Map : public GridRefManager<NGridType>
         InstanceData* GetInstanceData() { return i_data; }
         InstanceData const* GetInstanceData() const { return i_data; }
         uint32 GetScriptId() const { return i_script_id; }
-
-        void MonsterYellToMap(ObjectGuid guid, int32 textId, Language language, Unit const* target) const;
-        void MonsterYellToMap(CreatureInfo const* cinfo, int32 textId, Language language, Unit const* target, uint32 senderLowGuid = 0) const;
-        void PlayDirectSoundToMap(uint32 soundId, uint32 zoneId = 0) const;
-
+        
         // GameObjectCollision
         float GetHeight(float x, float y, float z, bool vmap = true, float maxSearchDist = DEFAULT_HEIGHT_SEARCH) const;
-        bool isInLineOfSight(float x1, float y1, float z1, float x2, float y2, float z2, bool checkDynLos = true) const;
+        bool isInLineOfSight(float x1, float y1, float z1, float x2, float y2, float z2, bool checkDynLos = true, bool ignoreM2Model = true) const;
         // First collision with object
         bool GetLosHitPosition(float srcX, float srcY, float srcZ, float& destX, float& destY, float& destZ, float modifyDist) const;
         // Use navemesh to walk
-        bool GetWalkHitPosition(Transport* t, float srcX, float srcY, float srcZ, float& destX, float& destY, float& destZ, 
+        bool GetWalkHitPosition(GenericTransport* t, float srcX, float srcY, float srcZ, float& destX, float& destY, float& destZ, 
             uint32 moveAllowedFlags = 0xF /*NAV_GROUND | NAV_WATER | NAV_MAGMA | NAV_SLIME*/, float zSearchDist = 20.0f, bool locatedOnSteepSlope = true) const;
-        bool GetWalkRandomPosition(Transport* t, float &x, float &y, float &z, float maxRadius, uint32 moveAllowedFlags = 0xF) const;
+        bool GetWalkRandomPosition(GenericTransport* t, float &x, float &y, float &z, float maxRadius, uint32 moveAllowedFlags = 0xF) const;
         VMAP::ModelInstance* FindCollisionModel(float x1, float y1, float z1, float x2, float y2, float z2);
 
         void Balance() { _dynamicTree.balance(); }
@@ -558,7 +561,7 @@ class Map : public GridRefManager<NGridType>
         bool ContainsGameObjectModel(const GameObjectModel& model) const;
         bool GetDynamicObjectHitPos(Vector3 start, Vector3 end, Vector3& out, float finalDistMod) const;
         float GetDynamicTreeHeight(float x, float y, float z, float maxSearchDist) const;
-        bool CheckDynamicTreeLoS(float x1, float y1, float z1, float x2, float y2, float z2) const;
+        bool CheckDynamicTreeLoS(float x1, float y1, float z1, float x2, float y2, float z2, bool ignoreM2Model) const;
         bool IsUnloading() const { return m_unloading; }
         void MarkAsCrashed() { m_crashed = true; }
         bool IsCrashed() const { return m_crashed; }
@@ -685,9 +688,9 @@ class Map : public GridRefManager<NGridType>
         MapStoredObjectTypesContainer   m_objectsStore;
 
         // Objects that must update even in inactive grids without activating them
-        typedef std::set<Transport*> TransportsContainer;
-        TransportsContainer _transports;
-        TransportsContainer::iterator _transportsUpdateIter;
+        typedef std::set<GenericTransport*> TransportsContainer;
+        TransportsContainer m_transports;
+        TransportsContainer::iterator m_transportsUpdateIter;
         bool m_unloading = false;
         bool m_crashed = false;
         bool m_updateFinished = false;
@@ -718,6 +721,7 @@ class Map : public GridRefManager<NGridType>
         mutable std::mutex m_guidGenerators_lock;
         ObjectGuidGenerator<HIGHGUID_UNIT> m_CreatureGuids;
         ObjectGuidGenerator<HIGHGUID_GAMEOBJECT> m_GameObjectGuids;
+        ObjectGuidGenerator<HIGHGUID_TRANSPORT> m_transportGuids;
         ObjectGuidGenerator<HIGHGUID_DYNAMICOBJECT> m_DynObjectGuids;
         ObjectGuidGenerator<HIGHGUID_PET> m_PetGuids;
 
@@ -727,6 +731,7 @@ class Map : public GridRefManager<NGridType>
 
         template<class T>
             void RemoveFromGrid(T*, NGridType*, Cell const&);
+
         // Custom
         uint32 _lastMapUpdate = 0;
         uint32 _lastPlayerLeftTime = 0;
@@ -735,6 +740,9 @@ class Map : public GridRefManager<NGridType>
         uint32 _lastCellsUpdate;
 
         int8 _updateIdx;
+
+        // Elevators are not loaded normally.
+        void LoadElevatorTransports();
 
         // Holder for information about linked mobs
         CreatureLinkingHolder m_creatureLinkingHolder;
@@ -840,6 +848,7 @@ class Map : public GridRefManager<NGridType>
         bool ScriptCommand_SendScriptEvent(ScriptInfo const& script, WorldObject* source, WorldObject* target);
         bool ScriptCommand_SetPvP(ScriptInfo const& script, WorldObject* source, WorldObject* target);
         bool ScriptCommand_ResetDoorOrButton(ScriptInfo const& script, WorldObject* source, WorldObject* target);
+        bool ScriptCommand_SetCommandState(ScriptInfo const& script, WorldObject* source, WorldObject* target);
 
         // Add any new script command functions to the array.
         ScriptCommandFunction const m_ScriptCommands[SCRIPT_COMMAND_MAX] =
@@ -932,6 +941,7 @@ class Map : public GridRefManager<NGridType>
             &Map::ScriptCommand_SendScriptEvent,        // 85
             &Map::ScriptCommand_SetPvP,                 // 86
             &Map::ScriptCommand_ResetDoorOrButton,      // 87
+            &Map::ScriptCommand_SetCommandState,        // 88
         };
 
     public:

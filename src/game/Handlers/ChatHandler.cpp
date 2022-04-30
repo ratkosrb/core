@@ -155,7 +155,7 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
         SendNotification(LANG_UNKNOWN_LANGUAGE);
         return;
     }
-    if (_player && !IsReplaying() && langDesc->skill_id != 0 && !_player->HasSkill(langDesc->skill_id))
+    if (_player && langDesc->skill_id != 0 && !_player->HasSkill(langDesc->skill_id))
     {
         SendNotification(LANG_NOT_LEARNED_LANGUAGE);
         return;
@@ -671,7 +671,7 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
 
 void WorldSession::HandleEmoteOpcode(WorldPacket& recv_data)
 {
-    if (!GetPlayer()->IsAlive() || GetPlayer()->HasUnitState(UNIT_STAT_DIED))
+    if (!GetPlayer()->IsAlive() || GetPlayer()->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PREVENT_ANIM))
         return;
 
     if (!GetPlayer()->CanSpeak())
@@ -688,6 +688,8 @@ void WorldSession::HandleEmoteOpcode(WorldPacket& recv_data)
     if (emote != EMOTE_ONESHOT_NONE && emote != EMOTE_ONESHOT_WAVE)
         return;
 
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_ANIM_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_ANIM_CANCELS);
     GetPlayer()->HandleEmoteCommand(emote);
 }
 
@@ -725,7 +727,7 @@ private:
 
 void WorldSession::HandleTextEmoteOpcode(WorldPacket& recv_data)
 {
-    if (!GetPlayer()->IsAlive())
+    if (!GetPlayer()->IsAlive() || GetPlayer()->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PREVENT_ANIM))
         return;
 
     if (!GetPlayer()->CanSpeak())
@@ -735,20 +737,20 @@ void WorldSession::HandleTextEmoteOpcode(WorldPacket& recv_data)
         return;
     }
 
-    uint32 text_emote, emoteNum;
+    uint32 textEmote, emoteNum;
     ObjectGuid guid;
 
-    recv_data >> text_emote;
+    recv_data >> textEmote;
     recv_data >> emoteNum;
     recv_data >> guid;
 
-    EmotesTextEntry const* em = sEmotesTextStore.LookupEntry(text_emote);
+    EmotesTextEntry const* em = sEmotesTextStore.LookupEntry(textEmote);
     if (!em)
         return;
 
-    uint32 emote_id = em->textid;
+    uint32 emoteId = em->textid;
 
-    switch (emote_id)
+    switch (emoteId)
     {
         case EMOTE_STATE_SLEEP:
         case EMOTE_STATE_SIT:
@@ -757,25 +759,23 @@ void WorldSession::HandleTextEmoteOpcode(WorldPacket& recv_data)
             break;
         default:
         {
-            // in feign death state allowed only text emotes.
-            if (GetPlayer()->HasUnitState(UNIT_STAT_DIED))
-                break;
-
-            GetPlayer()->HandleEmoteCommand(emote_id);
+            GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_ANIM_CANCELS);
+            GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_ANIM_CANCELS);
+            GetPlayer()->HandleEmote(emoteId);
             break;
         }
     }
 
     Unit* unit = GetPlayer()->GetMap()->GetUnit(guid);
 
-    MaNGOS::EmoteChatBuilder emote_builder(*GetPlayer(), text_emote, emoteNum, unit);
+    MaNGOS::EmoteChatBuilder emote_builder(*GetPlayer(), textEmote, emoteNum, unit);
     MaNGOS::LocalizedPacketDo<MaNGOS::EmoteChatBuilder > emote_do(emote_builder);
     MaNGOS::CameraDistWorker<MaNGOS::LocalizedPacketDo<MaNGOS::EmoteChatBuilder > > emote_worker(GetPlayer(), sWorld.getConfig(CONFIG_FLOAT_LISTEN_RANGE_TEXTEMOTE), emote_do);
     Cell::VisitWorldObjects(GetPlayer(), emote_worker,  sWorld.getConfig(CONFIG_FLOAT_LISTEN_RANGE_TEXTEMOTE));
 
     //Send scripted event call
-    if (unit && unit->GetTypeId() == TYPEID_UNIT && ((Creature*)unit)->AI())
-        ((Creature*)unit)->AI()->ReceiveEmote(GetPlayer(), text_emote);
+    if (unit && unit->IsCreature() && ((Creature*)unit)->AI())
+        ((Creature*)unit)->AI()->ReceiveEmote(GetPlayer(), textEmote);
 }
 
 void WorldSession::HandleChatIgnoredOpcode(WorldPacket& recv_data)

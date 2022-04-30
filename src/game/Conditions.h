@@ -80,10 +80,11 @@ enum ConditionType
                                                             // Value2: 0,1,2 for condition true while quest active (0 any state, 1 if quest incomplete, 2 if quest completed).
     CONDITION_AD_COMMISSION_AURA    = 10,                   // Returns true if the player has an argent dawn commission aura.
                                                             // Requirement: Player Target
-    CONDITION_WAR_EFFORT_STAGE      = 11,                   // Checks the current state of the War Effect event.
+    CONDITION_SAVED_VARIABLE        = 11,                   // Checks a global saved variable.
                                                             // Requirement: None
-                                                            // Value1: stage
-                                                            // Value2: 0 : ==, 1: >= 2 <=
+                                                            // Value1: index
+                                                            // Value2: data
+                                                            // Value3: 0, 1 or 2 (0: equal to, 1: equal or higher than, 2: equal or less than)
     CONDITION_ACTIVE_GAME_EVENT     = 12,                   // Checks if a given game event is currently active.
                                                             // Requirement: None
                                                             // Value1: event_id
@@ -100,6 +101,9 @@ enum ConditionType
     CONDITION_SOURCE_ENTRY          = 16,                   // Check's if the source's entry id matches the one specified.
                                                             // Requirement: WorldObject Source
                                                             // Value1: entry
+                                                            // Value2: entry (optional)
+                                                            // Value3: entry (optional)
+                                                            // Value4: entry (optional)
     CONDITION_SPELL                 = 17,                   // Checks if the player has learned the given spell.
                                                             // Requirement: Player Target
                                                             // Value1: spell_id
@@ -239,6 +243,9 @@ enum ConditionType
                                                             // Value2: y
                                                             // Value3: z
                                                             // Value4: distance
+    CONDITION_OBJECT_GO_STATE       = 55,                   // Checks the current go state of a GameObject.
+                                                            // Requirement: GameObject Target
+                                                            // Value1: go_state (see enum GOState)
 };
 
 enum ConditionFlags

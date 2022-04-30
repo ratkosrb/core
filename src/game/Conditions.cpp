@@ -104,6 +104,7 @@ uint8 const ConditionTargetsInternal[] =
     CONDITION_REQ_SOURCE_WORLDOBJECT, //  52
     CONDITION_REQ_NONE,               //  53
     CONDITION_REQ_TARGET_WORLDOBJECT, //  54
+    CONDITION_REQ_TARGET_GAMEOBJECT,  //  55
 };
 
 // Starts from 4th element so that -3 will return first element.
@@ -217,17 +218,17 @@ bool inline ConditionEntry::Evaluate(WorldObject const* target, Map const* map, 
                     return true;
             return false;
         }
-        case CONDITION_WAR_EFFORT_STAGE:
+        case CONDITION_SAVED_VARIABLE:
         {
-            uint32 stage = sObjectMgr.GetSavedVariable(VAR_WE_STAGE, 0);
-            switch (m_value2)
+            uint32 stage = sObjectMgr.GetSavedVariable(m_value1, 0);
+            switch (m_value3)
             {
                 case 0:
-                    return stage == m_value1;
+                    return stage == m_value2;
                 case 1:
-                    return stage >= m_value1;
+                    return stage >= m_value2;
                 case 2:
-                    return stage <= m_value1;
+                    return stage <= m_value2;
             }
             return false;
         }
@@ -256,7 +257,10 @@ bool inline ConditionEntry::Evaluate(WorldObject const* target, Map const* map, 
         }
         case CONDITION_SOURCE_ENTRY:
         {
-            return source->GetEntry() == m_value1;
+            return (source->GetEntry() == m_value1) ||
+                   (m_value2 && source->GetEntry() == m_value2) ||
+                   (m_value3 && source->GetEntry() == m_value3) ||
+                   (m_value4 && source->GetEntry() == m_value4);
         }
         case CONDITION_SPELL:
         {
@@ -583,6 +587,10 @@ bool inline ConditionEntry::Evaluate(WorldObject const* target, Map const* map, 
         case CONDITION_DISTANCE_TO_POSITION:
         {
             return target->GetDistance3dToCenter(m_value1, m_value2, m_value3) <= m_value4;
+        }
+        case CONDITION_OBJECT_GO_STATE:
+        {
+            return target->ToGameObject()->GetGoState() == m_value1;
         }
     }
     return false;
@@ -1051,16 +1059,16 @@ bool ConditionEntry::IsValid()
             }
             break;
         }
-        case CONDITION_WAR_EFFORT_STAGE:
+        case CONDITION_SAVED_VARIABLE:
         {
-            if (m_value1 < 0 || m_value1 > WAR_EFFORT_STAGE_COMPLETE)
+            if (m_value1 == VAR_WE_STAGE && (m_value2 < 0 || m_value2 > WAR_EFFORT_STAGE_COMPLETE))
             {
-                sLog.outErrorDb("War Effort stage condition (entry %u, type %u) has invalid stage %u", m_entry, m_condition, m_value1);
+                sLog.outErrorDb("War Effort stage condition (entry %u, type %u) has invalid stage %u", m_entry, m_condition, m_value2);
                 return false;
             }
-            if (m_value2 < 0 || m_value2 > 2)
+            if (m_value3 < 0 || m_value3 > 2)
             {
-                sLog.outErrorDb("War Effort stage condition (entry %u, type %u) has invalid equality %u", m_entry, m_condition, m_value2);
+                sLog.outErrorDb("Saved variable condition (entry %u, type %u) has invalid equality %u", m_entry, m_condition, m_value3);
                 return false;
             }
             break;
@@ -1195,6 +1203,15 @@ bool ConditionEntry::IsValid()
             if (m_value4 <= 0)
             {
                 sLog.outErrorDb("CONDITION_DISTANCE_TO_POSITION (entry %u, type %d) does not have max distance set in value4, skipped", m_entry, m_condition);
+                return false;
+            }
+            break;
+        }
+        case CONDITION_OBJECT_GO_STATE:
+        {
+            if (m_value1 > GO_STATE_ACTIVE_ALTERNATIVE)
+            {
+                sLog.outErrorDb("CONDITION_OBJECT_GO_STATE (entry %u, type %u) has invalid GO state %u, skipped", m_entry, m_condition, m_value1);
                 return false;
             }
             break;

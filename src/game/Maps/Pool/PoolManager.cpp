@@ -507,7 +507,9 @@ void PoolGroup<GameObject>::Spawn1Object(MapPersistentState& mapState, PoolObjec
         // We use spawn coords to spawn
         if (dataMap && dataMap->IsLoaded(data->position.x, data->position.y))
         {
-            GameObject* pGameobject = new GameObject;
+            GameObjectData const* data = sObjectMgr.GetGOData(obj->guid);
+            MANGOS_ASSERT(data);
+            GameObject* pGameobject = GameObject::CreateGameObject(data->id);
             //DEBUG_LOG("Spawning gameobject %u", obj->guid);
             if (!pGameobject->LoadFromDB(obj->guid, dataMap))
             {
@@ -843,7 +845,8 @@ void PoolManager::LoadFromDB()
             GameObjectInfo const* goinfo = ObjectMgr::GetGameObjectInfo(data->id);
             if (goinfo->type != GAMEOBJECT_TYPE_CHEST &&
                     goinfo->type != GAMEOBJECT_TYPE_GOOBER &&
-                    goinfo->type != GAMEOBJECT_TYPE_FISHINGHOLE)
+                    goinfo->type != GAMEOBJECT_TYPE_FISHINGHOLE &&
+                    goinfo->type != GAMEOBJECT_TYPE_SPELL_FOCUS)
             {
                 sLog.outErrorDb("`%s` has a not lootable gameobject spawn (GUID: %u, type: %u) defined for pool id (%u), skipped.", table, guid, goinfo->type, pool_id);
                 continue;

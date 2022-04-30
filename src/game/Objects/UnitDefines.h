@@ -64,6 +64,8 @@ enum MovementChangeType
 // For this time difference is computed regen value
 #define REGEN_TIME_FULL     2000
 
+#define UNIT_PVP_COMBAT_TIMER 5500
+
 #define BASE_MELEERANGE_OFFSET 1.33f
 #define BASE_MINDAMAGE 1.0f
 #define BASE_MAXDAMAGE 2.0f
@@ -301,7 +303,7 @@ enum UnitState
     // persistent state (applied by aura/etc until expire)
     UNIT_STAT_MELEE_ATTACKING = 0x00000001,                     // unit is melee attacking someone Unit::Attack
     UNIT_STAT_NO_KILL_REWARD  = 0x00000002,                     // Unit should yield no reward (Honor/XP/Rep) on kill
-    UNIT_STAT_DIED            = 0x00000004,                     // Unit::SetFeignDeath
+    UNIT_STAT_FEIGN_DEATH     = 0x00000004,                     // Unit::SetFeignDeath - a successful feign death is currently active
     UNIT_STAT_STUNNED         = 0x00000008,                     // Aura::HandleAuraModStun
     UNIT_STAT_ROOT            = 0x00000010,                     // Aura::HandleAuraModRoot
     UNIT_STAT_ISOLATED        = 0x00000020,                     // area auras do not affect other players, Aura::HandleAuraModSchoolImmunity
@@ -341,19 +343,19 @@ enum UnitState
     // masks (only for check)
 
     // can't move currently
-    UNIT_STAT_CAN_NOT_MOVE    = UNIT_STAT_ROOT | UNIT_STAT_STUNNED | UNIT_STAT_DIED,
+    UNIT_STAT_CAN_NOT_MOVE    = UNIT_STAT_ROOT | UNIT_STAT_STUNNED | UNIT_STAT_FEIGN_DEATH,
 
     // stay by different reasons
-    UNIT_STAT_NOT_MOVE        = UNIT_STAT_ROOT | UNIT_STAT_STUNNED | UNIT_STAT_DIED |
+    UNIT_STAT_NOT_MOVE        = UNIT_STAT_ROOT | UNIT_STAT_STUNNED | UNIT_STAT_FEIGN_DEATH |
                                 UNIT_STAT_DISTRACTED,
 
     // stay or scripted movement for effect( = in player case you can't move by client command)
-    UNIT_STAT_NO_FREE_MOVE    = UNIT_STAT_ROOT | UNIT_STAT_STUNNED | UNIT_STAT_DIED |
+    UNIT_STAT_NO_FREE_MOVE    = UNIT_STAT_ROOT | UNIT_STAT_STUNNED | UNIT_STAT_FEIGN_DEATH |
                                 UNIT_STAT_TAXI_FLIGHT |
                                 UNIT_STAT_CONFUSED | UNIT_STAT_FLEEING,
 
     // not react at move in sight or other
-    UNIT_STAT_CAN_NOT_REACT   = UNIT_STAT_STUNNED | UNIT_STAT_DIED |
+    UNIT_STAT_CAN_NOT_REACT   = UNIT_STAT_STUNNED | UNIT_STAT_FEIGN_DEATH |
                                 UNIT_STAT_CONFUSED | UNIT_STAT_FLEEING,
 
     // AI disabled by some reason
@@ -387,7 +389,7 @@ enum UnitFlags
 {
     UNIT_FLAG_NONE                  = 0x00000000,
     UNIT_FLAG_UNK_0                 = 0x00000001,           // Movement checks disabled, likely paired with loss of client control packet.
-    UNIT_FLAG_NON_ATTACKABLE        = 0x00000002,           // not attackable
+    UNIT_FLAG_SPAWNING              = 0x00000002,           // not attackable
     UNIT_FLAG_DISABLE_MOVE          = 0x00000004,
     UNIT_FLAG_PLAYER_CONTROLLED     = 0x00000008,           // players, pets, totems, guardians, companions, charms, any units associated with players
     UNIT_FLAG_PET_RENAME            = 0x00000010,           // Old pet rename: moved to UNIT_FIELD_BYTES_2,2 in TBC+
@@ -410,6 +412,7 @@ enum UnitFlags
     UNIT_FLAG_NOT_SELECTABLE        = 0x02000000,
     UNIT_FLAG_SKINNABLE             = 0x04000000,
     UNIT_FLAG_AURAS_VISIBLE         = 0x08000000,           // magic detect
+    UNIT_FLAG_PREVENT_ANIM          = 0x20000000,           // Prevent automatically playing emotes from parsing chat text, for example "lol" in /say, ending message with ? or !, or using /yell
     UNIT_FLAG_SHEATHE               = 0x40000000,
     UNIT_FLAG_IMMUNE                = 0x80000000,           // Immune to damage
 
@@ -420,7 +423,6 @@ enum UnitFlags
     UNIT_FLAG_DISARMED              = 0x00200000,           // disable melee spells casting..., "Required melee weapon" added to melee spells tooltip.
 
     UNIT_FLAG_UNK_28                = 0x10000000,
-    UNIT_FLAG_UNK_29                = 0x20000000,           // used in Feing Death spell
 };
 
 /// Non Player Character flags
@@ -471,6 +473,20 @@ enum ReactStates
     REACT_DEFENSIVE  = 1,
     REACT_AGGRESSIVE = 2
 };
+
+inline char const* ReactStateToString(uint32 reactState)
+{
+    switch (reactState)
+    {
+        case REACT_PASSIVE:
+            return "Passive";
+        case REACT_DEFENSIVE:
+            return "Defensive";
+        case REACT_AGGRESSIVE:
+            return "Aggressive";
+    }
+    return "UNKNOWN";
+}
 
 enum CommandStates
 {

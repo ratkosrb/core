@@ -27,7 +27,6 @@
 #include "CreatureDefines.h"
 #include "Unit.h"
 #include "LootMgr.h"
-#include "Cell.h"
 #include "Util.h"
 
 #include <vector>
@@ -81,7 +80,7 @@ class Creature : public Unit
     public:
 
         explicit Creature(CreatureSubtype subtype = CREATURE_SUBTYPE_GENERIC);
-        ~Creature() override;
+        virtual ~Creature() override;
 
         void AddToWorld() override;
         void RemoveFromWorld() override;
@@ -161,13 +160,7 @@ class Creature : public Unit
         void SetReactState(ReactStates st) { m_reactState = st; }
         ReactStates GetReactState() const { return m_reactState; }
         bool HasReactState(ReactStates state) const { return (m_reactState == state); }
-        void InitializeReactState()
-        {
-            if (IsTotem() || IsTrigger() || GetCreatureType() == CREATURE_TYPE_CRITTER)
-                SetReactState(REACT_PASSIVE);
-            else
-                SetReactState(REACT_AGGRESSIVE);
-        }
+        void InitializeReactState();
 
         bool IsTrainerOf(Player* player, bool msg) const;
         bool CanInteractWithBattleMaster(Player* player, bool msg) const;
@@ -222,6 +215,9 @@ class Creature : public Unit
 
         bool HasSpell(uint32 spellId) const override;
 
+        void LockOutSpells(SpellSchoolMask schoolMask, uint32 duration) final;
+        void AddCooldown(SpellEntry const& spellEntry, ItemPrototype const* itemProto = nullptr, bool permanent = false, uint32 forcedDuration = 0) final;
+
         bool UpdateEntry(uint32 entry, CreatureData const* data = nullptr, GameEventCreatureData const* eventData = nullptr, bool preserveHPAndPower = true);
 
         void ApplyGameEventSpells(GameEventCreatureData const* eventData, bool activated);
@@ -253,7 +249,6 @@ class Creature : public Unit
         CreatureData const* GetCreatureData() const;
 
         static uint32 ChooseDisplayId(CreatureInfo const* cinfo, CreatureData const* data = nullptr, CreatureDataAddon const* addon = nullptr, GameEventCreatureData const* eventData = nullptr, float* scale = nullptr);
-        static float GetScaleForDisplayId(uint32 displayId);
 
         std::string GetAIName() const;
         std::string GetScriptName() const;
@@ -301,8 +296,10 @@ class Creature : public Unit
         void DoFlee();
         void DoFleeToGetAssistance();
         float GetFleeingSpeed() const;
+        float GetBaseWalkSpeedRate() const;
+        float GetBaseRunSpeedRate() const;
         void MoveAwayFromTarget(Unit* pTarget, float distance);
-        void CallForHelp(float fRadius);
+        void CallForHelp(float radius);
         void CallAssistance();
         void SetNoCallAssistance(bool val)
         { 
@@ -319,8 +316,11 @@ class Creature : public Unit
                 ClearCreatureState(CSTATE_ALREADY_SEARCH_ASSIST);
         }
         bool HasSearchedAssistance() const { return HasCreatureState(CSTATE_ALREADY_SEARCH_ASSIST); }
-        bool CanAssistTo(Unit const* u, Unit const* enemy, bool checkfaction = true) const;
-        bool CanInitiateAttack();
+        bool CanBeTargetedByCallForHelp(Unit const* pFriend, Unit const* pEnemy, bool checkfaction = true) const;
+        bool CanRespondToCallForHelpAgainst(Unit const* pEnemy) const;
+        bool CanFleeFromCallForHelpAgainst(Unit const* pEnemy) const;
+        bool CanAssistTo(Unit const* pFriend, Unit const* pEnemy, bool checkfaction = true) const;
+        bool CanInitiateAttack() const;
         bool CanHaveTarget() const { return !HasExtraFlag(CREATURE_FLAG_EXTRA_NO_TARGET); }
 
         uint32 GetDefaultMount() { return m_mountId; }
@@ -330,11 +330,7 @@ class Creature : public Unit
 
         MovementGeneratorType GetDefaultMovementType() const { return m_defaultMovementType; }
         void SetDefaultMovementType(MovementGeneratorType mgt) { m_defaultMovementType = mgt; }
-        void PauseOutOfCombatMovement();
-
-        // for use only in LoadHelper, Map::Add Map::CreatureCellRelocation
-        Cell const& GetCurrentCell() const { return m_currentCell; }
-        void SetCurrentCell(Cell const& cell) { m_currentCell = cell; }
+        void PauseOutOfCombatMovement(uint32 pauseTime = NPC_MOVEMENT_PAUSE_TIME);
 
         bool IsVisibleInGridForPlayer(Player const* pl) const override;
 
@@ -350,6 +346,7 @@ class Creature : public Unit
         void Respawn();
         void SaveRespawnTime() override;
         void ApplyDynamicRespawnDelay(uint32& delay, CreatureData const* data);
+        void CastSpawnSpell();
 
         uint32 GetRespawnDelay() const { return m_respawnDelay; }
         void SetRespawnDelay(uint32 delay) { m_respawnDelay = delay; }
@@ -366,6 +363,7 @@ class Creature : public Unit
         void SendZoneUnderAttackMessage(Player* attacker);
 
         void SetInCombatWithZone(bool initialPulse = true);
+        void EnterCombatWithTarget(Unit* pTarget);
         bool canStartAttack(Unit const* who, bool force) const;
         bool _IsTargetAcceptable(Unit const* target) const;
         bool canCreatureAttack(Unit const* pVictim, bool force) const;
@@ -559,7 +557,7 @@ class Creature : public Unit
                 ClearCreatureState(CSTATE_ESCORTABLE); 
         }
         bool IsEscortable() const { return HasCreatureState(CSTATE_ESCORTABLE); }
-        bool CanAssistPlayers() { return HasExtraFlag(CREATURE_FLAG_EXTRA_CAN_ASSIST); }
+        bool CanAssistPlayers() { return HasFactionTemplateFlag(FACTION_TEMPLATE_FLAG_ASSIST_PLAYERS) || HasExtraFlag(CREATURE_FLAG_EXTRA_CAN_ASSIST); }
         bool CanSummonGuards() { return HasExtraFlag(CREATURE_FLAG_EXTRA_SUMMON_GUARD); }
         uint32 GetOriginalEntry() const { return m_originalEntry; }
 
@@ -592,7 +590,6 @@ class Creature : public Unit
 
         CreatureSubtype m_subtype;                          // set in Creatures subclasses for fast it detect without dynamic_cast use
         MovementGeneratorType m_defaultMovementType;
-        Cell m_currentCell;                                 // store current cell where creature listed
         uint32 m_equipmentId;
         uint32 m_mountId;                                   // display Id to mount
 
@@ -676,6 +673,29 @@ class ForcedDespawnDelayEvent : public BasicEvent
 
     private:
         Creature& m_owner;
+};
+
+class TargetedEmoteEvent : public BasicEvent
+{
+public:
+    explicit TargetedEmoteEvent(Creature& owner, ObjectGuid const& targetGuid, uint32 emoteId) : BasicEvent(), m_owner(owner), m_targetGuid(targetGuid), m_emoteId(emoteId) { }
+    bool Execute(uint64 e_time, uint32 p_time) override;
+
+private:
+    Creature& m_owner;
+    ObjectGuid m_targetGuid;
+    uint32 m_emoteId;
+};
+
+class TargetedEmoteCleanupEvent : public BasicEvent
+{
+public:
+    explicit TargetedEmoteCleanupEvent(Creature& owner, float orientation) : BasicEvent(), m_owner(owner), m_orientation(orientation) { }
+    bool Execute(uint64 e_time, uint32 p_time) override;
+
+private:
+    Creature& m_owner;
+    float m_orientation;
 };
 
 #endif

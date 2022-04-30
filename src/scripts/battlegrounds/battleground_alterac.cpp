@@ -1371,11 +1371,11 @@ bool GossipHello_AV_npc_ram_wolf(Player* pPlayer, Creature* pCreature)
     pPlayer->SEND_GOSSIP_MENU(pPlayer->GetGossipTextId(pCreature), pCreature->GetObjectGuid());
 
     /** Select corresponding item depending on NPC faction */
-    uint32 itemEntry = 0;
+    uint32 itemId = 0;
     if (pCreature->GetEntry() == NPC_TAME_MASTER_HORDE)
-        itemEntry = FROSTWOLF_MUZZLE;
+        itemId = FROSTWOLF_MUZZLE;
     else if (pCreature->GetEntry() == NPC_TAME_MASTER_ALLIANCE)
-        itemEntry = STORMPIKE_TRAINING_COLLAR;
+        itemId = STORMPIKE_TRAINING_COLLAR;
 
     /** Prepare Quest and Creature ID depending on the NPC faction */
     if (pCreature->GetEntry() == NPC_TAME_MASTER_HORDE)
@@ -1399,15 +1399,15 @@ bool GossipHello_AV_npc_ram_wolf(Player* pPlayer, Creature* pCreature)
     }
 
     /** Give the corresponding item to the player if he don't have one already */
-    if (!pPlayer->HasItemCount(itemEntry, 1, true) && isAllowedToGetItem)
+    if (!pPlayer->HasItemCount(itemId, 1, true) && isAllowedToGetItem)
     {
         uint32 noSpaceForCount = 0;
         ItemPosCountVec dest;
-        uint8 msg = pPlayer->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemEntry, 1, &noSpaceForCount);
+        uint8 msg = pPlayer->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemId, 1, &noSpaceForCount);
 
         if (msg == EQUIP_ERR_OK)
         {
-            Item* pItem = pPlayer->StoreNewItem(dest, itemEntry, true, Item::GenerateItemRandomPropertyId(5060));
+            Item* pItem = pPlayer->StoreNewItem(dest, itemId, true, Item::GenerateItemRandomPropertyId(5060));
             pPlayer->SendNewItem(pItem, 1, true, false);
         }
     }
@@ -1438,10 +1438,14 @@ struct npc_ram_wolf_tamedAI : public ScriptedAI
         m_creature->DisappearAndDie();
     }
 
-    void SpellHit(Unit* caster, SpellEntry const* spell) override
+    void SpellHit(SpellCaster* pCaster, SpellEntry const* spell) override
     {
+        Unit* pCasterUnit = pCaster->ToUnit();
+        if (!pCasterUnit)
+            return;
+
         if (spell->Id == SPELL_COLLAR_USING_ALLIANCE || spell->Id == SPELL_COLLAR_USING_HORDE)
-            AttackStart(caster);
+            AttackStart(pCasterUnit);
         else if (spell->Id == SPELL_TAME_BEAST_PLAYER_ALLIANCE || spell->Id == SPELL_TAME_BEAST_PLAYER_HORDE)
         {
 
@@ -1450,7 +1454,7 @@ struct npc_ram_wolf_tamedAI : public ScriptedAI
 
             /** Link the tamed creature to the player it shall follow */
             m_creature->CastSpell(m_creature, SPELL_TAME_OWNED_BY_PLAYER, true);
-            m_creature->CastSpell(caster, SPELL_PLAYER_OWNED_BY_TAMED, true);
+            m_creature->CastSpell(pCasterUnit, SPELL_PLAYER_OWNED_BY_TAMED, true);
 
             /** Update creature for tamed one */
             if (m_creature->GetEntry() == NPC_RAM)
@@ -1463,13 +1467,13 @@ struct npc_ram_wolf_tamedAI : public ScriptedAI
                 m_creature->GetMotionMaster()->MoveIdle();
 
             /** Set owner information, specific to Alterac Valley Tamed Beast */
-            playerGuid = caster->GetObjectGuid();
+            playerGuid = pCasterUnit->GetObjectGuid();
 
 
-            m_creature->GetMotionMaster()->MoveFollow(caster, PET_FOLLOW_DIST, PET_FOLLOW_ANGLE);
+            m_creature->GetMotionMaster()->MoveFollow(pCasterUnit, PET_FOLLOW_DIST, PET_FOLLOW_ANGLE);
 
             /** Set owner information, specific to Alterac Valley Tamed Beast */
-            //            playerGuid = caster->GetObjectGuid();
+            //            playerGuid = pCasterUnit->GetObjectGuid();
         }
     }
 
@@ -2910,7 +2914,7 @@ bool QuestComplete_npc_AVBlood_collector(Player* pPlayer, Creature* pQuestGiver,
                 if (AV_NpcEventAI* pEscortAI = dynamic_cast<AV_NpcEventAI*>(pQuestGiver->AI()))
                 {
                     pEscortAI->Start(true, 0, nullptr, false);
-                    pQuestGiver->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                    pQuestGiver->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
                     pQuestGiver->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
                     pQuestGiver->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP);
                 }
@@ -3124,7 +3128,7 @@ bool GossipHello_npc_AVBlood_collector(Player* pPlayer, Creature* pCreature)
             {
                 pCreature->SetFactionTemplateId(1194);
                 pEscortAI->Start(true, 0, nullptr, false);
-                pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
                 pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
                 pCreature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP);
                 pCreature->SetWalk(false);
@@ -3151,7 +3155,7 @@ bool GossipHello_npc_AVBlood_collector(Player* pPlayer, Creature* pCreature)
 
                 pCreature->SetFactionTemplateId(1194);
                 pEscortAI->Start(true, 0, nullptr, false);
-                pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
                 pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
                 pCreature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP);
                 pCreature->SetWalk(false);
@@ -3692,7 +3696,7 @@ bool QuestComplete_AV_npc_troops_chief(Player* pPlayer, Creature* pQuestGiver, Q
                 if (AV_npc_troops_chief_EventAI* pEscortAI = dynamic_cast<AV_npc_troops_chief_EventAI*>(pQuestGiver->AI()))
                 {
                     pEscortAI->Start(true, 0, nullptr, false);
-                    pQuestGiver->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                    pQuestGiver->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
                     pQuestGiver->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
                     pQuestGiver->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP);
                     pQuestGiver->SetWalk(true);
@@ -3918,7 +3922,7 @@ bool GossipSelect_npc_AVBlood_collector(Player* pPlayer, Creature* pCreature, ui
                         {
                             pEscortAI->Start(true, 0, nullptr, false);
                             //pCreature->SetFactionTemplateId(pPlayer->GetFactionTemplateId());
-                            pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                            pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
                             pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
                             pCreature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP);
                         }
@@ -5102,200 +5106,6 @@ GameObjectAI* GetAI_go_av_landmine(GameObject* gobj)
     return new go_av_landmineAI(gobj);
 }
 
-
-/* Battle NPCs from the middle of the BattleGround */
-// getReinforcementLevelGroundUnit => AV_NPC_BASIC
-class npc_av_battle_npc_summoner: public ScriptedAI
-{
-    public:
-        npc_av_battle_npc_summoner(Creature* c, uint32 factionId, float targetX, float targetY, float targetZ):
-            ScriptedAI(c),
-            m_timer(0),
-            m_totalElapsedTime(0),
-            m_despawnAfterTime(0),
-            m_factionId(factionId),
-            m_destX(targetX),
-            m_destY(targetY),
-            m_destZ(targetZ)
-        {
-            Reset();
-        }
-        void Reset() override
-        {
-            m_timer = 0;
-        }
-
-        void SetInitialTimer(uint32 t)
-        {
-            m_timer = t;
-        }
-        void SetDespawnTimer(uint32 t)
-        {
-            m_despawnAfterTime = t;
-        }
-
-        uint32 SelectCreatureEntry() const
-        {
-            Map* m = m_creature->GetMap();
-            if (!m->IsBattleGround())
-                return 0;
-            BattleGroundAV* bgAv = dynamic_cast<BattleGroundAV*>(((BattleGroundMap*)m)->GetBG());
-            switch (m_factionId)
-            {
-                case BG_TEAM_ALLIANCE:
-                    switch (bgAv->getReinforcementLevelGroundUnit(m_factionId))
-                    {
-                        case AV_NPC_BASIC:
-                            return PickRandomValue(12048, 12127, 12047);
-                        case AV_NPC_SEASONED:
-                            return PickRandomValue(13327, 13324, 13325);
-                        case AV_NPC_VETERAN:
-                            return PickRandomValue(13336, 13333, 13335);
-                        case AV_NPC_CHAMPION:
-                            return PickRandomValue(13427, 13424, 13426);
-                    }
-                    return 0;
-                case BG_TEAM_HORDE:
-                    switch (bgAv->getReinforcementLevelGroundUnit(m_factionId))
-                    {
-                        case AV_NPC_BASIC:
-                            return PickRandomValue(12052, 12051);
-                        case AV_NPC_SEASONED:
-                            return PickRandomValue(13330, 13329);
-                        case AV_NPC_VETERAN:
-                            return PickRandomValue(13337, 13334);
-                        case AV_NPC_CHAMPION:
-                            return PickRandomValue(13428, 13425);
-                    }
-                    return 0;
-                default: // Trolls
-                    switch (urand(0, 7))
-                    {
-                        case 0:
-                            return 13957;
-                        case 1:
-                            return 12157;
-                        case 2:
-                            return 12156;
-                        case 3:
-                            return 10983;
-                        case 4:
-                            return 13958;
-                        case 5:
-                            return 11679;
-                        default:
-                            return 13956;
-                    }
-                    break;
-            }
-        }
-
-        void OnRemoveFromWorld() override
-        {
-            for (const auto& guid : m_summoned)
-                if (Creature* c = m_creature->GetMap()->GetCreature(guid))
-                    c->DeleteLater();
-        }
-
-        void UpdateAI(uint32 const diff) override
-        {
-            /* Despawn when the capitain is killed */
-            bool despawn = false;
-            Map* m = m_creature->GetMap();
-            if (!m->IsBattleGround())
-                return;
-            BattleGroundAV* bgAv = dynamic_cast<BattleGroundAV*>(((BattleGroundMap*)m)->GetBG());
-            if (!bgAv)
-                return;
-            if (m_factionId == BG_TEAM_ALLIANCE && bgAv->IsActiveEvent(BG_AV_NodeEventCaptainDead_A, 0))
-                despawn = true;
-            else if (m_factionId == BG_TEAM_HORDE && bgAv->IsActiveEvent(BG_AV_NodeEventCaptainDead_H, 0))
-                despawn = true;
-            else if (bgAv->IsActiveEvent(BG_AV_BOSS_IVUS_A, 0) || bgAv->IsActiveEvent(BG_AV_BOSS_LOKHOLAR_H, 0))
-                despawn = true;
-
-            if (despawn)
-            {
-                m_creature->DeleteLater();
-                return;
-            }
-
-            /* Handle automatic despawn timer */
-            m_totalElapsedTime += diff;
-            if (m_despawnAfterTime && m_totalElapsedTime > m_despawnAfterTime)
-            {
-                m_creature->DeleteLater();
-                return;
-            }
-
-            /* Handle spawns */
-            if (m_timer < diff)
-            {
-                m_timer = TIMER_CHECK_NPC_SPAWN;
-                for (auto& guid : m_summoned)
-                {
-                    if (!m_creature->GetMap()->GetCreature(guid))
-                    {
-                        float x, y, z;
-                        m_creature->GetPosition(x, y, z);
-                        m_creature->GetMap()->GetWalkRandomPosition(nullptr, x, y, z, 5.0f);
-                        if (Creature* c = m_creature->SummonCreature(SelectCreatureEntry(), x, y, z, 0.0f, TEMPSUMMON_CORPSE_DESPAWN))
-                        {
-                            guid = c->GetObjectGuid();
-                            x = m_destX;
-                            y = m_destY;
-                            z = m_destZ;
-                            m_creature->GetMap()->GetWalkRandomPosition(nullptr, x, y, z, 20.0f);
-                            c->SetHomePosition(x, y, z, frand(0, 2 * M_PI_F));
-                            c->SetWanderDistance(10.0f);
-                            c->SetDefaultMovementType(RANDOM_MOTION_TYPE);
-                            c->SetWalk(false);
-                            c->GetMotionMaster()->MovePoint(0, x, y, z, MOVE_PATHFINDING);
-                            break;
-                        }
-                    }
-                }  
-            }
-            else
-                m_timer -= diff;
-        }
-
-    protected:
-        const static uint32 TIMER_CHECK_NPC_SPAWN = 10000;
-        const static uint32 TOTAL_NPC_PER_SPAWN = 5;
-        ObjectGuid m_summoned[TOTAL_NPC_PER_SPAWN];
-        uint32 m_timer;
-        uint32 m_totalElapsedTime;
-        uint32 m_despawnAfterTime;
-        uint32 m_factionId;
-        float  m_destX;
-        float  m_destY;
-        float  m_destZ;
-};
-
-CreatureAI* GetAI_npc_av_battle_npc_summoner_a2(Creature* c)
-{
-    npc_av_battle_npc_summoner* script = new npc_av_battle_npc_summoner(c, BG_TEAM_ALLIANCE, -296, -285, 7);
-    script->SetInitialTimer(urand(0, 10000));
-    script->SetDespawnTimer(urand(6000, 7200) * 1000); // 1h40 -> 2h: stop spawning
-    return script;
-}
-
-CreatureAI* GetAI_npc_av_battle_npc_summoner_h2(Creature* c)
-{
-    npc_av_battle_npc_summoner* script = new npc_av_battle_npc_summoner(c, BG_TEAM_HORDE, -226, -305, 7);
-    script->SetInitialTimer(urand(0, 10000));
-    script->SetDespawnTimer(urand(6000, 7200) * 1000); // 1h40 -> 2h: stop spawning
-    return script;
-}
-
-CreatureAI* GetAI_npc_av_battle_npc_summoner_trolls(Creature* c)
-{
-    npc_av_battle_npc_summoner* script = new npc_av_battle_npc_summoner(c, 2, -256, -301, 7);
-    script->SetInitialTimer(urand(3600, 7200) * 1000); // Starts spawning after 1h to 2h
-    return script;
-}
-
 enum
 {
     SPELL_BOMB              =   9143,  /* Distance spell */
@@ -5372,7 +5182,7 @@ struct MineNPC_AI : public ScriptedAI
                 Unit*   pPet    = pPlayer->GetPet();
 
                 /** Range limit set to 35 meters/yards */
-                if (pPlayer->IsInFeralForm() && m_creature->GetDistance2d(pPlayer) < 35.0f)
+                if (pPlayer->IsNoWeaponShapeShift() && m_creature->GetDistance2d(pPlayer) < 35.0f)
                 {
                     if (DoCastSpellIfCan(pPlayer, SPELL_FLASH_BOMB) == CAST_OK)
                         m_uiFlashBomb_Timer = 7500;
@@ -5748,21 +5558,6 @@ void AddSC_bg_alterac()
     newscript = new Script;
     newscript->Name = "go_av_landmine";
     newscript->GOGetAI = &GetAI_go_av_landmine;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
-    newscript->Name = "npc_av_battle_npc_summoner_a2";
-    newscript->GetAI = &GetAI_npc_av_battle_npc_summoner_a2;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
-    newscript->Name = "npc_av_battle_npc_summoner_h2";
-    newscript->GetAI = &GetAI_npc_av_battle_npc_summoner_h2;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
-    newscript->Name = "npc_av_battle_npc_summoner_trolls";
-    newscript->GetAI = &GetAI_npc_av_battle_npc_summoner_trolls;
     newscript->RegisterSelf();
 
     newscript = new Script;

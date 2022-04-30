@@ -657,8 +657,8 @@ void ObjectMgr::LoadPlayerCacheData()
     m_playerNameToGuid.clear();
 
     std::unique_ptr<QueryResult> result(CharacterDatabase.Query(
-        //       0       1       2        3         4          5       6        7       8      9             10            11            12             13
-        "SELECT `guid`, `race`, `class`, `gender`, `account`, `name`, `level`, `zone`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `taxi_path` FROM `characters`;"));
+        //       0       1       2        3         4          5       6        7          8      9             10            11            12             13
+        "SELECT `guid`, `race`, `class`, `gender`, `account`, `name`, `level`, `zone`, `map`, `position_x`, `position_y`, `position_z`, `orientation`, `current_taxi_path` FROM `characters`;"));
 
     uint32 total_count = 0;
 
@@ -1379,6 +1379,18 @@ void ObjectMgr::CheckCreatureTemplates()
             }
         }
 
+        if (cInfo->spawn_spell_id)
+        {
+            SpellEntry const* pSpellEntry = sSpellMgr.GetSpellEntry(cInfo->spawn_spell_id);
+            if (!pSpellEntry || !pSpellEntry->HasEffect(SPELL_EFFECT_SPAWN))
+            {
+                sLog.outErrorDb("Creature (Entry: %u) has invalid spawn_spell_id (%u), set to 0", cInfo->entry, cInfo->spawn_spell_id);
+                sLog.out(LOG_DBERRFIX, "UPDATE creature_template SET `spawn_spell_id`=0 WHERE `entry`=%u;",  cInfo->entry);
+                const_cast<CreatureInfo*>(cInfo)->spawn_spell_id = 0;
+            }
+        }
+        
+
         for (int j = 0; j < CREATURE_MAX_SPELLS; ++j)
         {
             if (cInfo->spells[j] && !sSpellMgr.GetSpellEntry(cInfo->spells[j]))
@@ -1633,6 +1645,18 @@ void ObjectMgr::LoadCreatureDisplayInfoAddon()
                 const_cast<CreatureDisplayInfoAddon*>(minfo)->display_id_other_gender = 0;
             }
         }
+
+        if (minfo->speed_walk <= 0.0f)
+        {
+            sLog.outErrorDb("Table `creature_display_info_addon` has invalid walk speed (%g) defined for display id %u.", minfo->speed_walk, minfo->display_id);
+            const_cast<CreatureDisplayInfoAddon*>(minfo)->speed_walk = DEFAULT_NPC_WALK_SPEED_RATE;
+        }
+
+        if (minfo->speed_run <= 0.0f)
+        {
+            sLog.outErrorDb("Table `creature_display_info_addon` has invalid run speed (%g) defined for display id %u.", minfo->speed_run, minfo->display_id);
+            const_cast<CreatureDisplayInfoAddon*>(minfo)->speed_run = DEFAULT_NPC_RUN_SPEED_RATE;
+        }
     }
 
     // character races expected have display info data in table
@@ -1709,7 +1733,7 @@ void ObjectMgr::LoadCreatureSpells()
         do
         {
             Field* fields = result->Fetch();
-            uint32 id = fields[0].GetUInt32();;
+            uint32 id = fields[0].GetUInt32();
             spellScriptSet.insert(id);
         } while (result->NextRow());
     }
@@ -1753,7 +1777,7 @@ void ObjectMgr::LoadCreatureSpells()
         bar.step();
         Field* fields = result->Fetch();
 
-        uint32 entry = fields[0].GetUInt32();;
+        uint32 entry = fields[0].GetUInt32();
 
         CreatureSpellsList spellsList;
 
@@ -2187,7 +2211,10 @@ void ObjectMgr::LoadGameobjects(bool reload)
             continue;
         }
 
-        if (!alreadyPresent && gameEvent == 0 && GuidPoolId == 0 && EntryPoolId == 0) // if not this is to be managed by GameEvent System or Pool system
+        if (gInfo->type == GAMEOBJECT_TYPE_TRANSPORT)
+            sTransportMgr.AddElevatorTransportForMap(data.position.mapId, guid);
+        // if not this is to be managed by GameEvent System or Pool system
+        else if (!alreadyPresent && gameEvent == 0 && GuidPoolId == 0 && EntryPoolId == 0)
             AddGameobjectToGrid(guid, &data);
         ++count;
 
@@ -3294,7 +3321,7 @@ void ObjectMgr::FillObtainedItemsList(std::set<uint32>& obtainedItems)
 {
     // These are all the items that have been obtained by players.
     {
-        std::unique_ptr<QueryResult> result(CharacterDatabase.Query("SELECT DISTINCT `itemEntry` FROM `item_instance`"));
+        std::unique_ptr<QueryResult> result(CharacterDatabase.Query("SELECT DISTINCT `item_id` FROM `item_instance`"));
         if (result)
         {
             do
@@ -3439,7 +3466,7 @@ void ObjectMgr::LoadItemPrototypes()
 
         if (proto->RequiredSpell && !sSpellMgr.GetSpellEntry(proto->RequiredSpell))
         {
-            sLog.outErrorDb("Item (Entry: %u) have wrong (nonexistent) spell in RequiredSpell (%u)", i, proto->RequiredSpell);
+            sLog.outErrorDb("Item (Entry: %u) has wrong (nonexistent) spell in RequiredSpell (%u)", i, proto->RequiredSpell);
             const_cast<ItemPrototype*>(proto)->RequiredSpell = 0;
         }
 
@@ -3563,7 +3590,7 @@ void ObjectMgr::LoadItemPrototypes()
 
         if (proto->ItemSet && !sItemSetStore.LookupEntry(proto->ItemSet))
         {
-            sLog.outErrorDb("Item (Entry: %u) have wrong ItemSet (%u)", i, proto->ItemSet);
+            sLog.outErrorDb("Item (Entry: %u) has wrong ItemSet (%u)", i, proto->ItemSet);
             const_cast<ItemPrototype*>(proto)->ItemSet = 0;
         }
 
@@ -3610,6 +3637,17 @@ void ObjectMgr::LoadItemPrototypes()
         {
             sLog.outErrorDb("Item (Entry: %u) has wrong FoodType value (%u)", i, proto->FoodType);
             const_cast<ItemPrototype*>(proto)->FoodType = 0;
+        }
+
+        if (proto->WrappedGift)
+        {
+            if (ItemPrototype const* pGift = GetItemPrototype(proto->WrappedGift))
+                pGift->m_bDiscovered = true;
+            else
+            {
+                sLog.outErrorDb("Item (Entry: %u) has wrong (nonexistent) item in WrappedGift (%u)", i, proto->WrappedGift);
+                const_cast<ItemPrototype*>(proto)->WrappedGift = 0;
+            }
         }
 
         if (proto->ExtraFlags)
@@ -3742,14 +3780,13 @@ void ObjectMgr::LoadItemRequiredTarget()
         {
             if (SpellEntry const* pSpellInfo = sSpellMgr.GetSpellEntry(itr.SpellId))
             {
-                if (itr.SpellTrigger == ITEM_SPELLTRIGGER_ON_USE ||
-                    itr.SpellTrigger == ITEM_SPELLTRIGGER_ON_NO_DELAY_USE)
+                if (itr.SpellTrigger == ITEM_SPELLTRIGGER_ON_USE)
                 {
                     SpellScriptTargetBounds bounds = sSpellMgr.GetSpellScriptTargetBounds(pSpellInfo->Id);
                     if (bounds.first != bounds.second)
                         break;
 
-                    for (int j = 0; j < MAX_EFFECT_INDEX; ++j)
+                    for (uint8 j = 0; j < MAX_EFFECT_INDEX; ++j)
                     {
                         if (pSpellInfo->EffectImplicitTargetA[j] == TARGET_UNIT_ENEMY ||
                                 pSpellInfo->EffectImplicitTargetB[j] == TARGET_UNIT_ENEMY ||
@@ -4042,7 +4079,9 @@ void ObjectMgr::LoadPlayerInfo()
 
                 uint32 item_id = fields[2].GetUInt32();
 
-                if (!GetItemPrototype(item_id))
+                if (ItemPrototype const* pProto = GetItemPrototype(item_id))
+                    pProto->m_bDiscovered = true;
+                else
                 {
                     sLog.outErrorDb("Item id %u (race %u class %u) in `playercreateinfo_item` table but not listed in `item_template`, ignoring.", item_id, current_race, current_class);
                     continue;
@@ -4447,7 +4486,7 @@ void ObjectMgr::LoadPlayerInfo()
             m_PlayerXPperLevel[current_level] = current_xp;
             ++count;
         }
-        while (result->NextRow());;
+        while (result->NextRow());
 
         sLog.outString();
         sLog.outString(">> Loaded %u xp for level definitions", count);
@@ -4571,8 +4610,8 @@ void ObjectMgr::LoadGroups()
 {
     // -- loading groups --
     uint32 count = 0;
-    //                                                                   0           1                2             3             4                5        6        7        8        9        10       11       12       13        14            15
-    std::unique_ptr<QueryResult> result(CharacterDatabase.Query("SELECT `mainTank`, `mainAssistant`, `lootMethod`, `looterGuid`, `lootThreshold`, `icon1`, `icon2`, `icon3`, `icon4`, `icon5`, `icon6`, `icon7`, `icon8`, `isRaid`, `leaderGuid`, `groupId` FROM `groups`"));
+    //                                                                   0                 1                      2              3              4                 5        6        7        8        9        10       11       12       13         14             15
+    std::unique_ptr<QueryResult> result(CharacterDatabase.Query("SELECT `main_tank_guid`, `main_assistant_guid`, `loot_method`, `looter_guid`, `loot_threshold`, `icon1`, `icon2`, `icon3`, `icon4`, `icon5`, `icon6`, `icon7`, `icon8`, `is_raid`, `leader_guid`, `group_id` FROM `groups`"));
 
     if (!result)
     {
@@ -4608,8 +4647,8 @@ void ObjectMgr::LoadGroups()
 
     // -- loading members --
     count = 0;
-    //                                            0             1            2           3
-    result.reset(CharacterDatabase.Query("SELECT `memberGuid`, `assistant`, `subgroup`, `groupId` FROM `group_member` ORDER BY `groupId`"));
+    //                                            0              1            2           3
+    result.reset(CharacterDatabase.Query("SELECT `member_guid`, `assistant`, `subgroup`, `group_id` FROM `group_member` ORDER BY `group_id`"));
     if (!result)
     {
         BarGoLink bar2(1);
@@ -4638,7 +4677,7 @@ void ObjectMgr::LoadGroups()
                 {
                     sLog.outErrorDb("Incorrect entry in group_member table : no group with Id %d for member %s!",
                                     groupId, memberGuid.GetString().c_str());
-                    CharacterDatabase.PExecute("DELETE FROM group_member WHERE memberGuid = '%u'", memberGuidlow);
+                    CharacterDatabase.PExecute("DELETE FROM `group_member` WHERE `member_guid` = '%u'", memberGuidlow);
                     continue;
                 }
             }
@@ -4647,7 +4686,7 @@ void ObjectMgr::LoadGroups()
             {
                 sLog.outErrorDb("Incorrect entry in group_member table : member %s cannot be added to group (Id: %u)!",
                                 memberGuid.GetString().c_str(), groupId);
-                CharacterDatabase.PExecute("DELETE FROM group_member WHERE memberGuid = '%u'", memberGuidlow);
+                CharacterDatabase.PExecute("DELETE FROM `group_member` WHERE `member_guid` = '%u'", memberGuidlow);
             }
         }
         while (result->NextRow());
@@ -4673,13 +4712,13 @@ void ObjectMgr::LoadGroups()
     // -- loading instances --
     count = 0;
     result.reset(CharacterDatabase.Query(
-                 //                        0             1      2           3            4
-                 "SELECT `group_instance`.`leaderGuid`, `map`, `instance`, `permanent`, `resettime`, "
+                 //                        0              1      2           3            4
+                 "SELECT `group_instance`.`leader_guid`, `map`, `instance`, `permanent`, `reset_time`, "
                  // 5
-                 "(SELECT COUNT(*) FROM `character_instance` WHERE `guid` = `group_instance`.`leaderGuid` AND `instance` = `group_instance`.`instance` AND `permanent` = 1 LIMIT 1), "
+                 "(SELECT COUNT(*) FROM `character_instance` WHERE `guid` = `group_instance`.`leader_guid` AND `instance` = `group_instance`.`instance` AND `permanent` = 1 LIMIT 1), "
                  // 6
-                 " `groups`.`groupId` "
-                 "FROM `group_instance` LEFT JOIN `instance` ON `instance` = `id` LEFT JOIN `groups` ON `groups`.`leaderGUID` = `group_instance`.`leaderGUID` ORDER BY `leaderGuid`"
+                 " `groups`.`group_id` "
+                 "FROM `group_instance` LEFT JOIN `instance` ON `instance` = `id` LEFT JOIN `groups` ON `groups`.`leader_guid` = `group_instance`.`leader_guid` ORDER BY `leader_guid`"
              ));
 
     if (!result)
@@ -4769,8 +4808,8 @@ void ObjectMgr::LoadQuests()
                           "`IncompleteEmote`, `CompleteEmote`, `OfferRewardEmote1`, `OfferRewardEmote2`, `OfferRewardEmote3`, `OfferRewardEmote4`,"
     //                      119                       120                       121                       122
                           "`OfferRewardEmoteDelay1`, `OfferRewardEmoteDelay2`, `OfferRewardEmoteDelay3`, `OfferRewardEmoteDelay4`,"
-    //                      123            124               125         126             127      128
-                          "`StartScript`, `CompleteScript`, `MaxLevel`, `RewMailMoney`, `RewXP`, `RequiredCondition` "
+    //                      123            124               125         126             127      128                  129
+                          "`StartScript`, `CompleteScript`, `MaxLevel`, `RewMailMoney`, `RewXP`, `RequiredCondition`, `BreadcrumbForQuestId` "
                           " FROM `quest_template` t1 WHERE `patch`=(SELECT max(`patch`) FROM `quest_template` t2 WHERE t1.`entry`=t2.`entry` && `patch` <= %u)", sWorld.GetWowPatch()));
     if (!result)
     {
@@ -5070,10 +5109,10 @@ void ObjectMgr::LoadQuests()
                 if (!qinfo->ReqCreatureOrGOId[j])
                 {
                     bool found = false;
-                    for (int k = 0; k < MAX_EFFECT_INDEX; ++k)
+                    for (uint8 k = 0; k < MAX_EFFECT_INDEX; ++k)
                     {
                         if ((spellInfo->Effect[k] == SPELL_EFFECT_QUEST_COMPLETE && uint32(spellInfo->EffectMiscValue[k]) == qinfo->QuestId) ||
-                                spellInfo->Effect[k] == SPELL_EFFECT_SEND_EVENT)
+                             spellInfo->Effect[k] == SPELL_EFFECT_SEND_EVENT)
                         {
                             found = true;
                             break;
@@ -5318,8 +5357,11 @@ void ObjectMgr::LoadQuests()
         // fill additional data stores
         if (qinfo->PrevQuestId)
         {
-            if (m_QuestTemplatesMap.find(abs(qinfo->GetPrevQuestId())) == m_QuestTemplatesMap.end())
+            QuestMap::iterator qPrevItr = m_QuestTemplatesMap.find(abs(qinfo->GetPrevQuestId()));
+            if (qPrevItr == m_QuestTemplatesMap.end())
                 sLog.outErrorDb("Quest %d has PrevQuestId %i, but no such quest", qinfo->GetQuestId(), qinfo->GetPrevQuestId());
+            else if (qPrevItr->second->BreadcrumbForQuestId)
+                sLog.outErrorDb("Quest %d should not be unlocked by breadcrumb quest %u", qinfo->GetQuestId(), qinfo->GetPrevQuestId());
             else
                 qinfo->prevQuests.push_back(qinfo->PrevQuestId);
         }
@@ -5341,6 +5383,50 @@ void ObjectMgr::LoadQuests()
 
         if (qinfo->LimitTime)
             qinfo->SetSpecialFlag(QUEST_SPECIAL_FLAG_TIMED);
+
+        if (uint32 breadcrumbQuestId = qinfo->BreadcrumbForQuestId)
+        {
+            QuestMap::iterator qBreadcrumbQuestItr = m_QuestTemplatesMap.find(breadcrumbQuestId);
+            if (qBreadcrumbQuestItr == m_QuestTemplatesMap.end())
+            {
+                sLog.outErrorDb("Quest %u has BreadcrumbForQuestId %u, but there is no such quest", qinfo->GetQuestId(), breadcrumbQuestId);
+                qinfo->BreadcrumbForQuestId = 0;
+            }
+            else
+            {
+                if (qinfo->NextQuestId)
+                    sLog.outErrorDb("Quest %u is a breadcrumb, it should not unlock quest %d", qinfo->GetQuestId(), qinfo->NextQuestId);
+                if (qinfo->ExclusiveGroup)
+                    sLog.outErrorDb("Quest %u is a breadcrumb, it should not be in exclusive group %d", qinfo->GetQuestId(), qinfo->ExclusiveGroup);
+            }
+        }
+    }
+
+    // Prevent any breadcrumb loops, and inform target quests of their breadcrumbs
+    for (auto const& itr : m_QuestTemplatesMap)
+    {
+        Quest* qinfo = itr.second.get();
+        uint32   qid = qinfo->GetQuestId();
+        uint32 breadcrumbForQuestId = qinfo->BreadcrumbForQuestId;
+        std::set<uint32> questSet;
+
+        while (breadcrumbForQuestId)
+        {
+            // If the insertion fails, then we already processed this breadcrumb quest in this iteration. This means that two breadcrumb quests have each other set as targets
+            if (!questSet.insert(qinfo->QuestId).second)
+            {
+                sLog.outErrorDb("Breadcrumb quests %u and %u are in a loop!", qid, breadcrumbForQuestId);
+                qinfo->BreadcrumbForQuestId = 0;
+                break;
+            }
+
+            qinfo = const_cast<Quest*>(sObjectMgr.GetQuestTemplate(breadcrumbForQuestId));
+
+            // Every quest has a list of breadcrumb quests that point toward it
+            qinfo->DependentBreadcrumbQuests.push_back(qid);
+
+            breadcrumbForQuestId = qinfo->GetBreadcrumbForQuestId();
+        }
     }
 
     // check QUEST_SPECIAL_FLAG_EXPLORATION_OR_EVENT for spell with SPELL_EFFECT_QUEST_COMPLETE
@@ -5350,7 +5436,7 @@ void ObjectMgr::LoadQuests()
         if (!spellInfo)
             continue;
 
-        for (int j = 0; j < MAX_EFFECT_INDEX; ++j)
+        for (uint8 j = 0; j < MAX_EFFECT_INDEX; ++j)
         {
             if (spellInfo->Effect[j] != SPELL_EFFECT_QUEST_COMPLETE)
                 continue;
@@ -5985,12 +6071,12 @@ public:
             else                // Return to sender
             {
                 // mail will be returned:
-                CharacterDatabase.PExecute("UPDATE `mail` SET `sender` = '%u', `receiver` = '%u', `expire_time` = '" UI64FMTD "', `deliver_time` = '" UI64FMTD "', `cod` = '0', `checked` = '%u' WHERE `id` = '%u'",
+                CharacterDatabase.PExecute("UPDATE `mail` SET `sender_guid` = '%u', `receiver_guid` = '%u', `expire_time` = '" UI64FMTD "', `deliver_time` = '" UI64FMTD "', `cod` = '0', `checked` = '%u' WHERE `id` = '%u'",
                                            receiverGuid.GetCounter(), returnToLowGuid, (uint64)(basetime + 30 * DAY), (uint64)basetime, MAIL_CHECK_MASK_RETURNED, messageID);
                 if (item_guid)
                 {
                     // update receiver in mail items for its proper delivery, and in instance_item for avoid lost item at sender delete
-                    CharacterDatabase.PExecute("UPDATE `mail_items` SET `receiver` = %u WHERE `item_guid` = '%u'", returnToLowGuid, item_guid);
+                    CharacterDatabase.PExecute("UPDATE `mail_items` SET `receiver_guid` = %u WHERE `item_guid` = '%u'", returnToLowGuid, item_guid);
                     CharacterDatabase.PExecute("UPDATE `item_instance` SET `owner_guid` = %u WHERE `guid` = '%u'", returnToLowGuid, item_guid);
                 }
             }
@@ -6087,12 +6173,12 @@ void ObjectMgr::ReturnOrDeleteOldMails(bool serverUp)
     DEBUG_LOG("Returning mails current time: hour: %d, minute: %d, second: %d ", localtime(&basetime)->tm_hour, localtime(&basetime)->tm_min, localtime(&basetime)->tm_sec);
     //delete all old mails without item and without body immediately, if starting server
     if (!serverUp)
-        CharacterDatabase.PExecute("DELETE FROM `mail` WHERE `expire_time` < '" UI64FMTD "' AND `has_items` = '0' AND `itemTextId` = 0", (uint64)basetime);
+        CharacterDatabase.PExecute("DELETE FROM `mail` WHERE `expire_time` < '" UI64FMTD "' AND `has_items` = '0' AND `item_text_id` = 0", (uint64)basetime);
     OldMailsReturner* cb = new OldMailsReturner();
     cb->serverUp = serverUp;
     cb->basetime = basetime;
     uint32 limit = serverUp ? 5 : 1000;
-    CharacterDatabase.AsyncPQueryUnsafe(cb, &OldMailsReturner::Callback, "SELECT `id`, `messageType`, `sender`, `receiver`, `itemTextId`, `has_items`, `expire_time`, `cod`, `checked`, `mailTemplateId` FROM `mail` WHERE `expire_time` < '" UI64FMTD "' ORDER BY `expire_time` LIMIT %u,%u", (uint64)basetime, m_OldMailCounter, limit);
+    CharacterDatabase.AsyncPQueryUnsafe(cb, &OldMailsReturner::Callback, "SELECT `id`, `message_type`, `sender_guid`, `receiver_guid`, `item_text_id`, `has_items`, `expire_time`, `cod`, `checked`, `mail_template_id` FROM `mail` WHERE `expire_time` < '" UI64FMTD "' ORDER BY `expire_time` LIMIT %u,%u", (uint64)basetime, m_OldMailCounter, limit);
 }
 
 void ObjectMgr::LoadAreaTriggers()
@@ -6806,7 +6892,7 @@ void ObjectMgr::PackGroupIds()
     // all valid ids are in the instance table
     // any associations to ids not in this table are assumed to be
     // cleaned already in CleanupInstances
-    std::unique_ptr<QueryResult> result(CharacterDatabase.Query("SELECT `groupId` FROM `groups` ORDER BY `groupId` ASC"));
+    std::unique_ptr<QueryResult> result(CharacterDatabase.Query("SELECT `group_id` FROM `groups` ORDER BY `group_id` ASC"));
     if (result)
     {
         do
@@ -6818,8 +6904,8 @@ void ObjectMgr::PackGroupIds()
             if (id == 0)
             {
                 CharacterDatabase.BeginTransaction();
-                CharacterDatabase.PExecute("DELETE FROM `groups` WHERE `groupId` = '%u'", id);
-                CharacterDatabase.PExecute("DELETE FROM `group_member` WHERE `groupId` = '%u'", id);
+                CharacterDatabase.PExecute("DELETE FROM `groups` WHERE `group_id` = '%u'", id);
+                CharacterDatabase.PExecute("DELETE FROM `group_member` WHERE `group_id` = '%u'", id);
                 CharacterDatabase.CommitTransaction();
                 continue;
             }
@@ -6840,8 +6926,8 @@ void ObjectMgr::PackGroupIds()
         {
             // remap group id
             CharacterDatabase.BeginTransaction();
-            CharacterDatabase.PExecute("UPDATE `groups` SET `groupId` = '%u' WHERE `groupId` = '%u'", groupId, i);
-            CharacterDatabase.PExecute("UPDATE `group_member` SET `groupId` = '%u' WHERE `groupId` = '%u'", groupId, i);
+            CharacterDatabase.PExecute("UPDATE `groups` SET `group_id` = '%u' WHERE `group_id` = '%u'", groupId, i);
+            CharacterDatabase.PExecute("UPDATE `group_member` SET `group_id` = '%u' WHERE `group_id` = '%u'", groupId, i);
             CharacterDatabase.CommitTransaction();
         }
 
@@ -6871,9 +6957,9 @@ void ObjectMgr::SetHighestGuids()
 
     // Cleanup other tables from nonexistent guids (>=m_hiItemGuid)
     CharacterDatabase.BeginTransaction();
-    CharacterDatabase.PExecute("DELETE FROM `character_inventory` WHERE `item` >= '%u'", m_ItemGuids.GetNextAfterMaxUsed());
+    CharacterDatabase.PExecute("DELETE FROM `character_inventory` WHERE `item_guid` >= '%u'", m_ItemGuids.GetNextAfterMaxUsed());
     CharacterDatabase.PExecute("DELETE FROM `mail_items` WHERE `item_guid` >= '%u'", m_ItemGuids.GetNextAfterMaxUsed());
-    CharacterDatabase.PExecute("DELETE FROM `auction` WHERE `itemguid` >= '%u'", m_ItemGuids.GetNextAfterMaxUsed());
+    CharacterDatabase.PExecute("DELETE FROM `auction` WHERE `item_guid` >= '%u'", m_ItemGuids.GetNextAfterMaxUsed());
     CharacterDatabase.CommitTransaction();
 
     result.reset(WorldDatabase.Query("SELECT MAX(`guid`) FROM `gameobject`"));
@@ -6903,15 +6989,15 @@ void ObjectMgr::SetHighestGuids()
     if (result)
         m_CorpseGuids.Set((*result)[0].GetUInt32() + 1);
 
-    result.reset(CharacterDatabase.Query("SELECT MAX(`guildid`) FROM `guild`"));
+    result.reset(CharacterDatabase.Query("SELECT MAX(`guild_id`) FROM `guild`"));
     if (result)
         m_GuildIds.Set((*result)[0].GetUInt32() + 1);
 
-    result.reset(CharacterDatabase.Query("SELECT MAX(`groupId`) FROM `groups`"));
+    result.reset(CharacterDatabase.Query("SELECT MAX(`group_id`) FROM `groups`"));
     if (result)
         m_GroupIds.Set((*result)[0].GetUInt32() + 1);
 
-    result.reset(CharacterDatabase.Query("SELECT MAX(`petitionguid`) FROM `petition`"));
+    result.reset(CharacterDatabase.Query("SELECT MAX(`petition_guid`) FROM `petition`"));
     if (result)
         m_PetitionIds.Set((*result)[0].GetUInt32() + 1);
 
@@ -7066,17 +7152,19 @@ inline void CheckGOConsumable(GameObjectInfo const* goInfo, uint32 dataN, uint32
                     goInfo->id, goInfo->type, N, dataN);
 }
 
-void ObjectMgr::LoadGameobjectInfo()
+std::set<uint32> ObjectMgr::LoadGameobjectInfo()
 {
     SQLGameObjectLoader loader;
     loader.LoadProgressive(sGOStorage, sWorld.GetWowPatch());
-    CheckGameObjectInfos();
     sLog.outString(">> Loaded %u game object templates", sGOStorage.GetRecordCount());
     sLog.outString();
+    return CheckGameObjectInfos();
 }
 
-void ObjectMgr::CheckGameObjectInfos()
+std::set<uint32> ObjectMgr::CheckGameObjectInfos()
 {
+    std::set<uint32> transportDisplayIds;
+
     // some checks
     for (auto itr = sGOStorage.begin<GameObjectInfo>(); itr != sGOStorage.end<GameObjectInfo>(); ++itr)
     {
@@ -7179,6 +7267,9 @@ void ObjectMgr::CheckGameObjectInfos()
                     CheckGOLinkedTrapId(*itr, itr->goober.linkedTrapId, 12);
                 break;
             }
+            case GAMEOBJECT_TYPE_TRANSPORT:
+                transportDisplayIds.insert(itr->displayId);
+                break;
             case GAMEOBJECT_TYPE_AREADAMAGE:                //12
             {
                 if (itr->areadamage.lockId)
@@ -7199,6 +7290,7 @@ void ObjectMgr::CheckGameObjectInfos()
                         sLog.outErrorDb("Gameobject (Entry: %u GoType: %u) have data0=%u but TaxiPath (Id: %u) not exist.",
                             itr->id, itr->type, itr->moTransport.taxiPathId, itr->moTransport.taxiPathId);
                 }
+                transportDisplayIds.insert(itr->displayId);
                 break;
             }
             case GAMEOBJECT_TYPE_SUMMONING_RITUAL:          //18
@@ -7239,6 +7331,12 @@ void ObjectMgr::CheckGameObjectInfos()
 #endif
         }
     }
+
+    // no model on which to path
+    transportDisplayIds.erase(462);
+    transportDisplayIds.erase(562);
+
+    return transportDisplayIds;
 }
 
 void ObjectMgr::LoadGameobjectsRequirements()
@@ -7440,12 +7538,12 @@ std::string ObjectMgr::GeneratePetName(uint32 entry)
 void ObjectMgr::LoadCorpses()
 {
     uint32 count = 0;
-    //                                                                            0       1                  2                      3                      4                      5                       6
-    std::unique_ptr<QueryResult> result(CharacterDatabase.Query("SELECT `corpse`.`guid`, `player`, `corpse`.`position_x`, `corpse`.`position_y`, `corpse`.`position_z`, `corpse`.`orientation`, `corpse`.`map`, "
-    //                      7       8              9           10        11      12       13             14              15                16         17
-                          "`time`, `corpse_type`, `instance`, `gender`, `race`, `class`, `playerBytes`, `playerBytes2`, `equipmentCache`, `guildId`, `playerFlags` FROM `corpse` "
-                          "JOIN `characters` ON `player` = `characters`.`guid` "
-                          "LEFT JOIN `guild_member` ON `player`=`guild_member`.`guid` WHERE `corpse_type` <> 0"));
+    //                                                                            0       1                       2                      3                      4                      5                       6
+    std::unique_ptr<QueryResult> result(CharacterDatabase.Query("SELECT `corpse`.`guid`, `player_guid`, `corpse`.`position_x`, `corpse`.`position_y`, `corpse`.`position_z`, `corpse`.`orientation`, `corpse`.`map`, "
+    //                      7       8              9           10        11      12       13      14      15            16            17             18                 19          20
+                          "`time`, `corpse_type`, `instance`, `gender`, `race`, `class`, `skin`, `face`, `hair_style`, `hair_color`, `facial_hair`, `equipment_cache`, `guild_id`, `player_flags` FROM `corpse` "
+                          "JOIN `characters` ON `player_guid` = `characters`.`guid` "
+                          "LEFT JOIN `guild_member` ON `player_guid`=`guild_member`.`guid` WHERE `corpse_type` <> 0"));
 
     if (!result)
     {
@@ -8227,6 +8325,20 @@ void ObjectMgr::LoadTaxiPathTransitions()
 
     sLog.outString();
     sLog.outString(">> Loaded %u taxi path transitions", count);
+}
+
+ObjectGuid ObjectMgr::GetFullTransportGuidFromLowGuid(uint32 lowGuid)
+{
+    ObjectGuid guid(HIGHGUID_MO_TRANSPORT, lowGuid);
+
+    if (GameObjectData const* data = GetGOData(lowGuid))
+    {
+        if (GameObjectInfo const* pInfo = GetGameObjectInfo(data->id))
+            if (pInfo->type == GAMEOBJECT_TYPE_TRANSPORT)
+                guid = ObjectGuid(HIGHGUID_TRANSPORT, data->id, lowGuid);
+    }
+
+    return guid;
 }
 
 void ObjectMgr::LoadReservedPlayersNames()
@@ -10271,7 +10383,7 @@ uint32 ObjectMgr::AddGOData(uint32 entry, uint32 mapId, float x, float y, float 
     // We use spawn coords to spawn
     if (!map->Instanceable() && map->IsLoaded(x, y))
     {
-        GameObject* go = new GameObject;
+        GameObject* go = GameObject::CreateGameObject(entry);
         if (!go->LoadFromDB(guid, map))
         {
             sLog.outError("AddGOData: cannot add gameobject entry %u to map", entry);
@@ -10625,7 +10737,7 @@ void ObjectMgr::LoadFactionChangeMounts()
 
 void ObjectMgr::RestoreDeletedItems()
 {
-    std::unique_ptr<QueryResult> result(CharacterDatabase.Query("SELECT `id`, `player_guid`, `item_entry`, `stack_count` FROM `character_deleted_items`"));
+    std::unique_ptr<QueryResult> result(CharacterDatabase.Query("SELECT `id`, `player_guid`, `item_id`, `stack_count` FROM `character_deleted_items`"));
 
     if (!result)
     {
@@ -10646,16 +10758,16 @@ void ObjectMgr::RestoreDeletedItems()
         Field* fields = result->Fetch();
 
         uint32 id = fields[0].GetUInt32();
-        uint32 memberGuidlow = fields[1].GetUInt32();
-        uint32 itemEntry = fields[2].GetUInt32();
+        uint32 playerGuidLow = fields[1].GetUInt32();
+        uint32 itemId = fields[2].GetUInt32();
         uint32 stackCount = fields[3].GetUInt32();
         
-        if (ItemPrototype const* itemProto = GetItemPrototype(itemEntry))
+        if (ItemPrototype const* itemProto = GetItemPrototype(itemId))
         {
-            ObjectGuid memberGuid = ObjectGuid(HIGHGUID_PLAYER, memberGuidlow);
-            Player* pPlayer = ObjectAccessor::FindPlayerNotInWorld(memberGuid);
+            ObjectGuid playerGuid = ObjectGuid(HIGHGUID_PLAYER, playerGuidLow);
+            Player* pPlayer = ObjectAccessor::FindPlayerNotInWorld(playerGuid);
 
-            if (Item* restoredItem = Item::CreateItem(itemEntry, stackCount ? stackCount : 1, pPlayer))
+            if (Item* restoredItem = Item::CreateItem(itemId, stackCount ? stackCount : 1, playerGuid))
             {
                 // save new item before send
                 restoredItem->SaveToDB();
@@ -10668,7 +10780,7 @@ void ObjectMgr::RestoreDeletedItems()
                 
                 MailDraft(subject, textFormat)
                     .AddItem(restoredItem)
-                    .SendMailTo(MailReceiver(memberGuid), MailSender(MAIL_NORMAL, memberGuid.GetCounter(), MAIL_STATIONERY_GM), MAIL_CHECK_MASK_COPIED, 0, 30 * DAY);
+                    .SendMailTo(MailReceiver(playerGuid), MailSender(MAIL_NORMAL, playerGuid.GetCounter(), MAIL_STATIONERY_GM), MAIL_CHECK_MASK_COPIED, 0, 30 * DAY);
 
                 CharacterDatabase.PExecute("DELETE FROM `character_deleted_items` WHERE `id` = %u", id);
 
@@ -10959,7 +11071,7 @@ void ObjectMgr::LoadPlayerPremadeTemplates()
                     break;
                 default:
                     sLog.outErrorDb("Wrong class %hhu for entry %u in table `player_premade_template`", requiredClass, entry);
-                    continue;;
+                    continue;
             }
 
             if (!(level >= 1 && level <= PLAYER_MAX_LEVEL))
@@ -11082,7 +11194,7 @@ void ObjectMgr::LoadPlayerPremadeTemplates()
                     break;
                 default:
                     sLog.outErrorDb("Wrong class %hhu for entry %u in table `player_premade_template`", requiredClass, entry);
-                    continue;;
+                    continue;
             }
 
             if (!(level >= 1 && level <= PLAYER_MAX_LEVEL))
@@ -11206,7 +11318,7 @@ void ObjectMgr::ApplyPremadeSpecTemplateToPlayer(uint32 entry, Player* pPlayer) 
         return;
     }
 
-    if (pPlayer->GetLevel() != itr->second.level)
+    if (pPlayer->GetLevel() < itr->second.level)
     {
         pPlayer->GiveLevel(itr->second.level);
         pPlayer->InitTalentForLevel();

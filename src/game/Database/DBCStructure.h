@@ -404,7 +404,7 @@ struct FactionTemplateEntry
                 return false;
         return hostileMask == 0 && friendlyMask == 0;
     }
-    bool IsContestedGuardFaction() const { return (factionFlags & FACTION_TEMPLATE_FLAG_CONTESTED_GUARD)!=0; }
+    bool IsContestedGuardFaction() const { return (factionFlags & FACTION_TEMPLATE_FLAG_ATTACK_PVP_ACTIVE_PLAYERS)!=0; }
 };
 
 struct GameObjectDisplayInfoEntry
@@ -698,6 +698,17 @@ struct TaxiPathNodeEntry
     float     z;                                            // 6        m_LocZ
     uint32    actionFlag;                                   // 7        m_flags
     uint32    delay;                                        // 8        m_delay
+};
+
+struct TransportAnimationEntry
+{
+    //uint32  Id;
+    uint32  TransportEntry;
+    uint32  TimeSeg;
+    float   X;
+    float   Y;
+    float   Z;
+    //uint32  MovementId;
 };
 
 struct WMOAreaTableEntry

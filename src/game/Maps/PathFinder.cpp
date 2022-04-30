@@ -159,8 +159,8 @@ void PathInfo::BuildPolyPath(Vector3 const& startPos, Vector3 const& endPos)
     float endPoint[VERTEX_SIZE] = {endPos.y, endPos.z, endPos.x};
 
     bool const canSwimToDestination = m_sourceUnit->CanSwim() &&
-                                      m_sourceUnit->GetTerrain()->IsSwimmable(startPos.x, startPos.y, startPos.z) &&
-                                      m_sourceUnit->GetTerrain()->IsSwimmable(endPos.x, endPos.y, endPos.z);
+                                      m_sourceUnit->CanSwimAtPosition(startPos) &&
+                                      m_sourceUnit->CanSwimAtPosition(endPos);
 
     // First case : easy flying / swimming
     if (canSwimToDestination || m_sourceUnit->CanFly())
@@ -225,7 +225,7 @@ void PathInfo::BuildPolyPath(Vector3 const& startPos, Vector3 const& endPos)
             setActualEndPosition(Vector3(endPoint[2], endPoint[0], endPoint[1]));
         }
 
-        if (!(m_sourceUnit->CanSwim() && m_sourceUnit->GetTerrain()->IsSwimmable(m_actualEndPosition.x, m_actualEndPosition.y, m_actualEndPosition.z)))
+        if (!(m_sourceUnit->CanSwim() && m_sourceUnit->CanSwimAtPosition(m_actualEndPosition)))
             m_type = PATHFIND_INCOMPLETE;
     }
 
@@ -558,6 +558,7 @@ bool PathInfo::HaveTiles(Vector3 const& p) const
 {
     if (m_transport)
         return true;
+
     int tx, ty;
     float point[VERTEX_SIZE] = {p.y, p.z, p.x};
 

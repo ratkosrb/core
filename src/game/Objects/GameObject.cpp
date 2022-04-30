@@ -107,6 +107,14 @@ GameObject::~GameObject()
     MANGOS_ASSERT(m_dynObjGUIDs.empty());
 }
 
+GameObject* GameObject::CreateGameObject(uint32 entry)
+{
+    GameObjectInfo const* goinfo = ObjectMgr::GetGameObjectInfo(entry);
+    if (goinfo && goinfo->type == GAMEOBJECT_TYPE_TRANSPORT)
+        return new ElevatorTransport;
+    return new GameObject;
+}
+
 void GameObject::AddToWorld()
 {
     ///- Register the gameobject for guid lookup
@@ -142,6 +150,9 @@ void GameObject::RemoveFromWorld()
     ///- Remove the gameobject from the accessor
     if (IsInWorld())
     {
+        if (AI())
+            AI()->OnRemoveFromWorld();
+
         if (m_zoneScript)
             m_zoneScript->OnGameObjectRemove(this);
 
@@ -174,6 +185,8 @@ bool GameObject::Create(uint32 guidlow, uint32 name_id, Map* map, float x, float
     Relocate(x, y, z, ang);
     SetMap(map);
 
+    m_stationaryPosition = Position(x, y, z, ang);
+
     if (!IsPositionValid())
     {
         sLog.outError("Gameobject (GUID: %u Entry: %u ) not created. Suggested coordinates are invalid (X: %f Y: %f)", guidlow, name_id, x, y);
@@ -189,7 +202,7 @@ bool GameObject::Create(uint32 guidlow, uint32 name_id, Map* map, float x, float
         return false;
     }
 
-    Object::_Create(guidlow, goinfo->id, HIGHGUID_GAMEOBJECT);
+    Object::_Create(guidlow, goinfo->id, goinfo->type == GAMEOBJECT_TYPE_TRANSPORT ? HIGHGUID_TRANSPORT : HIGHGUID_GAMEOBJECT);
 
     m_goInfo = goinfo;
 
@@ -218,9 +231,6 @@ bool GameObject::Create(uint32 guidlow, uint32 name_id, Map* map, float x, float
     SetUInt32Value(GAMEOBJECT_FACTION, goinfo->faction);
     SetUInt32Value(GAMEOBJECT_FLAGS, goinfo->flags);
 
-    if (goinfo->type == GAMEOBJECT_TYPE_TRANSPORT)
-        SetFlag(GAMEOBJECT_FLAGS, (GO_FLAG_TRANSPORT | GO_FLAG_NODESPAWN));
-
     SetEntry(goinfo->id);
     SetDisplayId(goinfo->displayId);
 
@@ -228,6 +238,15 @@ bool GameObject::Create(uint32 guidlow, uint32 name_id, Map* map, float x, float
     SetGoType(GameobjectTypes(goinfo->type));
 
     SetGoAnimProgress(animprogress);
+
+    if (goinfo->type == GAMEOBJECT_TYPE_TRANSPORT)
+    {
+        m_updateFlag |= UPDATEFLAG_TRANSPORT;
+        SetUInt32Value(GAMEOBJECT_LEVEL, goinfo->transport.pause);
+        SetGoState(goinfo->transport.startOpen ? GO_STATE_ACTIVE : GO_STATE_READY);
+        SetFlag(GAMEOBJECT_FLAGS, (GO_FLAG_TRANSPORT | GO_FLAG_NODESPAWN));
+    }
+
     SetName(goinfo->name);
 
     if (GetGOInfo()->IsLargeGameObject())
@@ -583,7 +602,7 @@ void GameObject::Update(uint32 update_diff, uint32 /*p_time*/)
                 //any return here in case battleground traps
             }
 
-            if (GetOwnerGuid())
+            if (GetOwnerGuid() || (!m_spawnedByDefault && !GetGOData()))
             {
                 if (Unit* owner = GetOwner())
                     owner->RemoveGameObject(this, false);
@@ -1030,7 +1049,14 @@ bool GameObject::IsTransport() const
     // If something is marked as a transport, don't transmit an out of range packet for it.
     GameObjectInfo const* gInfo = GetGOInfo();
     if (!gInfo) return false;
-    return gInfo->type == GAMEOBJECT_TYPE_TRANSPORT || gInfo->type == GAMEOBJECT_TYPE_MO_TRANSPORT;
+    return gInfo->IsTransport();
+}
+
+bool GameObject::IsMoTransport() const
+{
+    GameObjectInfo const* gInfo = GetGOInfo();
+    if (!gInfo) return false;
+    return gInfo->type == GAMEOBJECT_TYPE_MO_TRANSPORT;
 }
 
 Unit* GameObject::GetOwner() const
@@ -1072,7 +1098,7 @@ bool GameObject::IsVisibleForInState(WorldObject const* pDetector, WorldObject c
         return false;
 
     // Transport always visible at this step implementation
-    if (IsTransport() && IsInMap(pDetector))
+    if (IsMoTransport() && IsInMap(pDetector))
         return true;
 
     // quick check visibility false cases for non-GM-mode
@@ -1419,6 +1445,20 @@ void GameObject::Use(Unit* user)
         {
             if (user->GetTypeId() != TYPEID_PLAYER)
                 return;
+
+            if (GetFactionTemplateId())
+            {
+                std::list<Unit*> targets;
+                MaNGOS::AnyFriendlyUnitInObjectRangeCheck check(this, 10.0f);
+                MaNGOS::UnitListSearcher<MaNGOS::AnyFriendlyUnitInObjectRangeCheck> searcher(targets, check);
+                Cell::VisitAllObjects(this, searcher, 10.0f);
+                for (Unit* attacker : targets)
+                {
+                    if (!attacker->IsInCombat() && attacker->IsValidAttackTarget(user) &&
+                        attacker->IsWithinLOSInMap(user) && attacker->AI())
+                        attacker->AI()->AttackStart(user);
+                }
+            }
 
             GetMap()->ScriptsStart(sGameObjectScripts, GetGUIDLow(), user->GetObjectGuid(), GetObjectGuid());
             TriggerLinkedGameObject(user);
@@ -2084,8 +2124,8 @@ bool GameObject::IsHostileTo(WorldObject const* target) const
         return true;
 
     // faction base cases
-    FactionTemplateEntry const*tester_faction = sObjectMgr.GetFactionTemplateEntry(GetGOInfo()->faction);
-    FactionTemplateEntry const*target_faction = target->getFactionTemplateEntry();
+    FactionTemplateEntry const*tester_faction = GetFactionTemplateEntry();
+    FactionTemplateEntry const*target_faction = target->GetFactionTemplateEntry();
     if (!tester_faction || !target_faction)
         return false;
 
@@ -2130,8 +2170,8 @@ bool GameObject::IsFriendlyTo(WorldObject const* target) const
         return false;
 
     // faction base cases
-    FactionTemplateEntry const*tester_faction = sObjectMgr.GetFactionTemplateEntry(GetGOInfo()->faction);
-    FactionTemplateEntry const*target_faction = target->getFactionTemplateEntry();
+    FactionTemplateEntry const*tester_faction = GetFactionTemplateEntry();
+    FactionTemplateEntry const*target_faction = target->GetFactionTemplateEntry();
     if (!tester_faction || !target_faction)
         return false;
 
@@ -2291,7 +2331,9 @@ struct SpawnGameObjectInMapsWorker
                 sLog.outString("[CRASH] Spawning already spawned Gobj ! GUID=%u", i_guid);
                 return;
             }
-            GameObject* pGameobject = new GameObject;
+            GameObjectData const* data = sObjectMgr.GetGOData(i_guid);
+            MANGOS_ASSERT(data);
+            GameObject* pGameobject = GameObject::CreateGameObject(data->id);
             //DEBUG_LOG("Spawning gameobject %u", *itr);
             if (!pGameobject->LoadFromDB(i_guid, map))
                 delete pGameobject;
@@ -2508,7 +2550,7 @@ SpellEntry const* GameObject::GetSpellForLock(Player const* player) const
 
         for (auto&& playerSpell : player->GetSpellMap())
             if (SpellEntry const* spellInfo = sSpellMgr.GetSpellEntry(playerSpell.first))
-                for (uint32 i = 0; i < MAX_EFFECT_INDEX; ++i)
+                for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
                     if (spellInfo->Effect[i] == SPELL_EFFECT_OPEN_LOCK && ((uint32)spellInfo->EffectMiscValue[i]) == lock->Index[i])
                         if (player->CalculateSpellEffectValue(nullptr, spellInfo, SpellEffectIndex(i), nullptr) >= int32(lock->Skill[i]))
                             return spellInfo;

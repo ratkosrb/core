@@ -59,7 +59,7 @@ void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket& recv_data)
                 dialogStatus = sScriptMgr.GetDialogStatus(_player, cr_questgiver);
 
                 if (dialogStatus > 6)
-                    dialogStatus = getDialogStatus(_player, cr_questgiver, DIALOG_STATUS_NONE);
+                    dialogStatus = GetDialogStatus(_player, cr_questgiver, DIALOG_STATUS_NONE);
             }
             break;
         }
@@ -68,7 +68,7 @@ void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket& recv_data)
             GameObject* go_questgiver = (GameObject*)questgiver;
             dialogStatus = sScriptMgr.GetDialogStatus(_player, go_questgiver);
             if (dialogStatus > 6)
-                dialogStatus = getDialogStatus(_player, go_questgiver, DIALOG_STATUS_NONE);
+                dialogStatus = GetDialogStatus(_player, go_questgiver, DIALOG_STATUS_NONE);
             break;
         }
         default:
@@ -96,12 +96,15 @@ void WorldSession::HandleQuestgiverHelloOpcode(WorldPacket& recv_data)
     }
 
     // remove fake death
-    if (GetPlayer()->HasUnitState(UNIT_STAT_DIED))
+    if (GetPlayer()->HasUnitState(UNIT_STAT_FEIGN_DEATH))
         GetPlayer()->RemoveSpellsCausingAura(SPELL_AURA_FEIGN_DEATH);
 
     // Stop the npc if moving
     if (!pCreature->HasExtraFlag(CREATURE_FLAG_EXTRA_NO_MOVEMENT_PAUSE))
         pCreature->PauseOutOfCombatMovement();
+
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
 
     if (sScriptMgr.OnGossipHello(_player, pCreature))
         return;
@@ -167,7 +170,7 @@ void WorldSession::HandleQuestgiverAcceptQuestOpcode(WorldPacket& recv_data)
                     {
                         Player* pPlayer = itr->getSource();
 
-                        if (!pPlayer || pPlayer == _player)     // not self
+                        if (!pPlayer || pPlayer == _player || !pPlayer->IsInMap(_player))     // not self and in same map
                             continue;
 
                         if (pPlayer->CanTakeQuest(qInfo, true))
@@ -505,7 +508,7 @@ void WorldSession::HandleQuestPushResult(WorldPacket& recvPacket)
 * @param questgiver - from whom
 * @param defstatus - initial set status (usually it will be called with DIALOG_STATUS_NONE) - must not be DIALOG_STATUS_UNDEFINED
 */
-uint32 WorldSession::getDialogStatus(Player* pPlayer, Object* questgiver, uint32 defstatus)
+uint32 WorldSession::GetDialogStatus(Player* pPlayer, Object* questgiver, uint32 defstatus)
 {
     uint32 dialogStatus = defstatus;
 

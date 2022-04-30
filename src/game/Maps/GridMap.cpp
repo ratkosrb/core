@@ -37,7 +37,10 @@ char const* MAP_AREA_MAGIC    = "AREA";
 char const* MAP_HEIGHT_MAGIC  = "MHGT";
 char const* MAP_LIQUID_MAGIC  = "MLIQ";
 
-GridMap::GridMap()
+static uint16 holetab_h[4] = { 0x1111, 0x2222, 0x4444, 0x8888 };
+static uint16 holetab_v[4] = { 0x000F, 0x00F0, 0x0F00, 0xF000 };
+
+GridMap::GridMap(): m_gridIntHeightMultiplier(0)
 {
    // m_flags = 0;
 
@@ -48,9 +51,9 @@ GridMap::GridMap()
     // Height level data
     m_gridHeight = INVALID_HEIGHT_VALUE;
     m_gridGetHeight = &GridMap::getHeightFromFlat;
-    m_gridIntHeightMultiplier = 0;
     m_V9 = nullptr;
     m_V8 = nullptr;
+    memset(m_holes, 0, sizeof(m_holes));
 
     // Liquid data
     m_liquidGlobalEntry = 0;
@@ -89,6 +92,14 @@ bool GridMap::loadData(char const* filename)
         if (header.areaMapOffset && !loadAreaData(in, header.areaMapOffset, header.areaMapSize))
         {
             sLog.outError("Error loading map area data\n");
+            fclose(in);
+            return false;
+        }
+
+        // loadup holes data
+        if (header.holesOffset && !loadHolesData(in, header.holesOffset, header.holesSize))
+        {
+            sLog.outError("Error loading map holes data\n");
             fclose(in);
             return false;
         }
@@ -198,6 +209,16 @@ bool GridMap::loadHeightData(FILE* in, uint32 offset, uint32 /*size*/)
     return true;
 }
 
+bool GridMap::loadHolesData(FILE* in, uint32 offset, uint32 /*size*/)
+{
+    if (fseek(in, offset, SEEK_SET) != 0)
+        return false;
+
+    if (fread(&m_holes, sizeof(m_holes), 1, in) != 1)
+        return false;
+    return true;
+}
+
 bool GridMap::loadGridMapLiquidData(FILE* in, uint32 offset, uint32 /*size*/)
 {
     GridMapLiquidHeader header;
@@ -249,10 +270,22 @@ float GridMap::getHeightFromFlat(float /*x*/, float /*y*/) const
     return m_gridHeight;
 }
 
+bool GridMap::isHole(int row, int col) const
+{
+    int cellRow = row / 8;     // 8 squares per cell
+    int cellCol = col / 8;
+    int holeRow = row % 8 / 2;
+    int holeCol = (col - (cellCol * 8)) / 2;
+
+    uint16 hole = m_holes[cellRow][cellCol];
+
+    return (hole & holetab_h[holeCol] & holetab_v[holeRow]) != 0;
+}
+
 float GridMap::getHeightFromFloat(float x, float y) const
 {
     if (!m_V8 || !m_V9)
-        return m_gridHeight;
+        return INVALID_HEIGHT_VALUE;
 
     x = MAP_RESOLUTION * (32 - x / SIZE_OF_GRIDS);
     y = MAP_RESOLUTION * (32 - y / SIZE_OF_GRIDS);
@@ -263,6 +296,9 @@ float GridMap::getHeightFromFloat(float x, float y) const
     y -= y_int;
     x_int &= (MAP_RESOLUTION - 1);
     y_int &= (MAP_RESOLUTION - 1);
+
+    if (isHole(x_int, y_int))
+        return INVALID_HEIGHT_VALUE;
 
     // Height stored as: h5 - its v8 grid, h1-h4 - its v9 grid
     // +--------------> X
@@ -520,7 +556,7 @@ GridMapLiquidStatus GridMap::getLiquidStatus(float x, float y, float z, uint8 Re
     if (LiquidTypeEntry const* liquidEntry = sTerrainMgr.GetLiquidType(entry))
     {
         entry = liquidEntry->Id;
-        type &= MAP_LIQUID_TYPE_DARK_WATER;
+        type &= MAP_LIQUID_TYPE_DEEP_WATER;
         uint32 liqTypeIdx = liquidEntry->Type;
         if (entry < 21)
         {
@@ -542,7 +578,7 @@ GridMapLiquidStatus GridMap::getLiquidStatus(float x, float y, float z, uint8 Re
             }
         }
 
-        type |= (1 << liqTypeIdx) | (type & MAP_LIQUID_TYPE_DARK_WATER);
+        type |= (1 << liqTypeIdx) | (type & MAP_LIQUID_TYPE_DEEP_WATER);
     }
 
     if (type == 0)
@@ -804,6 +840,10 @@ float TerrainInfo::GetHeightStatic(float x, float y, float z, bool useVmaps/*=tr
             if (vmapHeight <= INVALID_HEIGHT)
                 vmapHeight = vmgr->getHeight(GetMapId(), x, y, z2, 10000.0f);
 
+            // look upwards
+            if (vmapHeight <= INVALID_HEIGHT && mapHeight > z2 && std::abs(z2 - mapHeight) > 30.f)
+                vmapHeight = vmgr->getHeight(GetMapId(), x, y, z2, -maxSearchDist);
+
             // still not found, look near terrain height
             if (vmapHeight <= INVALID_HEIGHT && mapHeight > INVALID_HEIGHT && z2 < mapHeight)
                 vmapHeight = vmgr->getHeight(GetMapId(), x, y, mapHeight + 2.0f, DEFAULT_HEIGHT_SEARCH);
@@ -831,58 +871,9 @@ float TerrainInfo::GetHeightStatic(float x, float y, float z, bool useVmaps/*=tr
 }
 
 
-inline bool IsOutdoorWMO(uint32 mogpFlags, uint32 groupId, int32 adtId, int32 rootId, uint32 mapId)
+inline bool IsOutdoorWMO(uint32 mogpFlags)
 {
-    /*
-    [Nostalrius] Research on mogpFlags.
-
-    OUTDOOR
-    Warsong :                   0x8209
-    Ironforge :                 0xa005
-    Ironforge2 :                0x2a05 (-4873.546875 -1080.512329 502.211090 0)
-    Outside :                   0x0809
-    Zone test :                 0x0009
-    Orgri :                     0xa841
-    Stormwind :                 0xaa41
-    Undercity :                 0x3a05
-    Alterac :                   0x0809
-
-    INDOOR
-    Stormwind : Inside :        0x2a05
-    Warsong : Inside :          0x2a05
-    Inside a house, Elwynn :    0x2805
-    Inn Elwynn :                0x2805
-    Farm :                      0x2805
-    Inn gadzetsan :             0x2841
-    Alterac starting area :     0x2805
-    Warsong: entrance room      0x0a09 <-- Hackfixed
-    AV end of start tunnel:
-    Horde:    GroupID=0 flags=0x809 root=4013 adt=0 <- Hackfixed
-    Horde:    GroupID=19333 flags=0x809 rootId=4293 <- Hackfixed
-    Alliance: GroupID=0 flags=0x809 root=0 adt=0    <- Hackfixed
-    */
-
-    // Hack fixes.
-    switch (groupId)
-    {
-        // Warsong entrance
-        case 19307: // Horde
-        case 19343: // Alliance
-            mogpFlags = 0x2a05;
-            break;
-    }
-    if (mapId == 30) // Alterac valley
-        switch (rootId)
-        {
-            case 0:
-            case 4013:
-            case 4193: // Alliance tower
-            case 4293: // Horde tower
-                mogpFlags = 0x2805;
-                break;
-        }
-
-    return (mogpFlags & 0xf000) != 0x2000;
+    return (mogpFlags & 0x8000) != 0;
 }
 
 bool TerrainInfo::IsOutdoors(float x, float y, float z) const
@@ -894,7 +885,7 @@ bool TerrainInfo::IsOutdoors(float x, float y, float z) const
     if (!GetAreaInfo(x, y, z, mogpFlags, adtId, rootId, groupId))
         return true;
 
-    return IsOutdoorWMO(mogpFlags, groupId, adtId, rootId, GetMapId());
+    return IsOutdoorWMO(mogpFlags);
 }
 
 bool TerrainInfo::GetAreaInfo(float x, float y, float z, uint32& flags, int32& adtId, int32& rootId, int32& groupId) const
@@ -950,7 +941,7 @@ uint16 TerrainInfo::GetAreaFlag(float x, float y, float z, bool* isOutdoors) con
     if (isOutdoors)
     {
         if (haveAreaInfo)
-            *isOutdoors = IsOutdoorWMO(mogpFlags, groupId, adtId, rootId, GetMapId());
+            *isOutdoors = IsOutdoorWMO(mogpFlags);
         else
             *isOutdoors = true;
     }

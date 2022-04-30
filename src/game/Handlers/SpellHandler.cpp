@@ -35,9 +35,9 @@ using namespace Spells;
 void WorldSession::HandleUseItemOpcode(WorldPacket& recvPacket)
 {
     uint8 bagIndex, slot;
-    uint8 spell_count;                                      // number of spells at item, not used
+    uint8 spellSlot; // the position of the spell id on the item template
 
-    recvPacket >> bagIndex >> slot >> spell_count;
+    recvPacket >> bagIndex >> slot >> spellSlot;
 
     // TODO: add targets.read() check
     Player* pUser = _player;
@@ -57,10 +57,19 @@ void WorldSession::HandleUseItemOpcode(WorldPacket& recvPacket)
         return;
     }
 
-    DETAIL_LOG("WORLD: CMSG_USE_ITEM packet, bagIndex: %u, slot: %u, spell_count: %u , Item: %u, data length = %i", bagIndex, slot, spell_count, pItem->GetEntry(), (uint32)recvPacket.size());
+    DETAIL_LOG("WORLD: CMSG_USE_ITEM packet, bagIndex: %u, slot: %u, spellSlot: %u , Item: %u, data length = %i", bagIndex, slot, spellSlot, pItem->GetEntry(), (uint32)recvPacket.size());
 
     ItemPrototype const* proto = pItem->GetProto();
     if (!proto)
+    {
+        recvPacket.rpos(recvPacket.wpos());                 // prevent spam at not read packet tail
+        pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, pItem, nullptr);
+        return;
+    }
+
+    if (spellSlot >= MAX_ITEM_PROTO_SPELLS ||
+        proto->Spells[spellSlot].SpellId == 0 ||
+        proto->Spells[spellSlot].SpellTrigger != ITEM_SPELLTRIGGER_ON_USE)
     {
         recvPacket.rpos(recvPacket.wpos());                 // prevent spam at not read packet tail
         pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, pItem, nullptr);
@@ -107,10 +116,6 @@ void WorldSession::HandleUseItemOpcode(WorldPacket& recvPacket)
         }
     }
 
-    // Remove invisibility except Gnomish Cloaking Device, since evidence suggests
-    // it remains until cast finish
-    _player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_ON_CAST_SPELL, 4079);
-
     // check also  BIND_WHEN_PICKED_UP and BIND_QUEST_ITEM for .additem or .additemset case by GM (not binded at adding to inventory)
     if (pItem->GetProto()->Bonding == BIND_WHEN_USE || pItem->GetProto()->Bonding == BIND_WHEN_PICKED_UP || pItem->GetProto()->Bonding == BIND_QUEST_ITEM)
     {
@@ -145,18 +150,8 @@ void WorldSession::HandleUseItemOpcode(WorldPacket& recvPacket)
         // free gray item after use fail
         pUser->SendEquipError(EQUIP_ERR_NONE, pItem, nullptr);
 
-        // search spell for spell error
-        uint32 spellid = 0;
-        for (const auto& itr : proto->Spells)
-        {
-            if (itr.SpellTrigger == ITEM_SPELLTRIGGER_ON_USE || itr.SpellTrigger == ITEM_SPELLTRIGGER_ON_NO_DELAY_USE)
-            {
-                spellid = itr.SpellId;
-                break;
-            }
-        }
-
         // send spell error
+        uint32 spellid = proto->Spells[spellSlot].SpellId;
         if (SpellEntry const* spellInfo = sSpellMgr.GetSpellEntry(spellid))
             Spell::SendCastResult(_player, spellInfo, itemCastCheckResult);
         return;
@@ -233,7 +228,7 @@ void WorldSession::HandleOpenItemOpcode(WorldPacket& recvPacket)
 
     if (pItem->HasFlag(ITEM_FIELD_FLAGS, ITEM_DYNFLAG_WRAPPED))// wrapped?
     {
-        QueryResult* result = CharacterDatabase.PQuery("SELECT entry, flags FROM character_gifts WHERE item_guid = '%u'", pItem->GetGUIDLow());
+        QueryResult* result = CharacterDatabase.PQuery("SELECT `item_id`, `flags` FROM `character_gifts` WHERE `item_guid` = '%u'", pItem->GetGUIDLow());
         if (result)
         {
             Field* fields = result->Fetch();
@@ -255,7 +250,7 @@ void WorldSession::HandleOpenItemOpcode(WorldPacket& recvPacket)
 
         static SqlStatementID delGifts ;
 
-        SqlStatement stmt = CharacterDatabase.CreateStatement(delGifts, "DELETE FROM character_gifts WHERE item_guid = ?");
+        SqlStatement stmt = CharacterDatabase.CreateStatement(delGifts, "DELETE FROM `character_gifts` WHERE `item_guid` = ?");
         stmt.PExecute(pItem->GetGUIDLow());
     }
     else
@@ -293,10 +288,9 @@ void WorldSession::HandleGameObjectUseOpcode(WorldPacket& recv_data)
     if (!obj->IsAtInteractDistance(_player))
         return;
 
-    // Nostalrius
     if (obj->PlayerCanUse(_player))
     {
-        _player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_USE);
+        _player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_LOOTING_CANCELS);
         obj->Use(_player);
     }
 }
@@ -373,16 +367,6 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
             DoLootRelease(lootGuid);
     }
 
-    // World of Warcraft Client Patch 1.10.0 (2006-03-28)
-    // - Stealth and Invisibility effects will now be canceled at the
-    //   beginning of an action(spellcast, ability use etc...), rather than
-    //   at the completion of the action.
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_9_4
-    // Remove invisibility except Gnomish Cloaking Device, since evidence suggests
-    // it remains until cast finish
-    _player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_ON_CAST_SPELL, 4079);
-#endif
-
     _player->m_castingSpell = spellId;
     if (spellInfo->SpellFamilyName == SPELLFAMILY_ROGUE)
         _player->m_castingSpell = _player->GetComboPoints();
@@ -396,7 +380,6 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
     // Nostalrius : Ivina
     spell->SetClientStarted(true);
     spell->prepare(std::move(targets));
-    ALL_SESSION_SCRIPTS(this, OnSpellCasted(spellId));
 }
 
 void WorldSession::HandleCancelCastOpcode(WorldPacket& recvPacket)

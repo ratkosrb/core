@@ -38,7 +38,7 @@ Unit* SpellCaster::SelectMagnetTarget(Unit* victim, Spell* spell, SpellEffectInd
         return victim;
     // Magic case
 
-    if (pProto->AttributesEx3 & SPELL_ATTR_EX3_NO_INITIAL_AGGRO)
+    if (pProto->AttributesEx3 & SPELL_ATTR_EX3_SUPPRESS_TARGET_PROCS)
         return victim;
 
     if ((pProto->DmgClass == SPELL_DAMAGE_CLASS_MAGIC || pProto->SpellVisual == 7250) && pProto->Dispel != DISPEL_POISON && !(pProto->Attributes & 0x10))
@@ -121,7 +121,7 @@ uint32 SpellCaster::GetWeaponSkillValue(WeaponAttackType attType, SpellCaster co
         if (attType != BASE_ATTACK && !item)
             return 0;
 
-        if (pPlayer->IsInFeralForm())
+        if (pPlayer->IsNoWeaponShapeShift())
             return GetSkillMaxForLevel();              // always maximized SKILL_FERAL_COMBAT in fact
 
         // weapon skill or (unarmed for base attack)
@@ -167,7 +167,8 @@ SpellMissInfo SpellCaster::SpellHitResult(Unit* pVictim, SpellEntry const* spell
         return SPELL_MISS_EVADE;
 
     // Check for immune (use charges)
-    if (pVictim != this && pVictim->IsImmuneToSpell(spell, pVictim == this))
+    if (pVictim != this && !spell->HasAttribute(SPELL_ATTR_UNAFFECTED_BY_INVULNERABILITY) &&
+        pVictim->IsImmuneToSpell(spell, pVictim == this))
         return SPELL_MISS_IMMUNE;
 
     // All positive spells can`t miss
@@ -196,7 +197,7 @@ SpellMissInfo SpellCaster::SpellHitResult(Unit* pVictim, SpellEntry const* spell
         if (reflectchance > 0 && roll_chance_i(reflectchance))
         {
             // Start triggers for remove charges if need (trigger only for victim, and mark as active spell)
-            ProcDamageAndSpell(ProcSystemArguments(pVictim, PROC_FLAG_NONE, PROC_FLAG_TAKEN_NEGATIVE_SPELL_HIT, PROC_EX_REFLECT, 1, BASE_ATTACK, spell));
+            ProcDamageAndSpell(ProcSystemArguments(pVictim, PROC_FLAG_NONE, PROC_FLAG_TAKE_HARMFUL_SPELL, PROC_EX_REFLECT, 1, BASE_ATTACK, spell));
             return SPELL_MISS_REFLECT;
         }
     }
@@ -899,7 +900,7 @@ float SpellCaster::CalculateSpellEffectValue(Unit const* target, SpellEntry cons
     return value;
 }
 
-void SpellCaster::CalculateSpellDamage(SpellNonMeleeDamage* damageInfo, float damage, SpellEntry const* spellInfo, SpellEffectIndex effectIndex, WeaponAttackType attackType, Spell* spell)
+void SpellCaster::CalculateSpellDamage(SpellNonMeleeDamage* damageInfo, float damage, SpellEntry const* spellInfo, SpellEffectIndex effectIndex, WeaponAttackType attackType, Spell* spell, bool crit)
 {
     SpellSchoolMask damageSchoolMask = GetSchoolMask(damageInfo->school);
     Unit* pVictim = damageInfo->target;
@@ -911,9 +912,6 @@ void SpellCaster::CalculateSpellDamage(SpellNonMeleeDamage* damageInfo, float da
 
     if (!pVictim->IsAlive())
         return;
-
-    // Check spell crit chance
-    bool crit = IsSpellCrit(pVictim, spellInfo, damageSchoolMask, attackType, spell);
 
     // damage bonus (per damage class)
     switch (spellInfo->DmgClass)
@@ -1702,11 +1700,11 @@ bool SpellCaster::IsNoMovementSpellCasted() const
     if (m_currentSpells[CURRENT_GENERIC_SPELL] &&
             (m_currentSpells[CURRENT_GENERIC_SPELL]->getState() != SPELL_STATE_FINISHED) &&
              m_currentSpells[CURRENT_GENERIC_SPELL]->getState() != SPELL_STATE_DELAYED &&
-             m_currentSpells[CURRENT_GENERIC_SPELL]->m_spellInfo->InterruptFlags & SPELL_INTERRUPT_FLAG_MOVEMENT)
+             m_currentSpells[CURRENT_GENERIC_SPELL]->m_spellInfo->HasSpellInterruptFlag(SPELL_INTERRUPT_FLAG_MOVEMENT))
         return (true);
     else if (m_currentSpells[CURRENT_CHANNELED_SPELL] &&
              m_currentSpells[CURRENT_CHANNELED_SPELL]->getState() != SPELL_STATE_FINISHED &&
-             m_currentSpells[CURRENT_CHANNELED_SPELL]->m_spellInfo->InterruptFlags & SPELL_INTERRUPT_FLAG_MOVEMENT)
+             m_currentSpells[CURRENT_CHANNELED_SPELL]->m_spellInfo->HasSpellInterruptFlag(SPELL_INTERRUPT_FLAG_MOVEMENT))
         return (true);
     // don't need to check for AUTOREPEAT_SPELL
 
@@ -1717,11 +1715,18 @@ void SpellCaster::InterruptSpellsWithInterruptFlags(uint32 flags, uint32 except)
 {
     for (uint32 i = CURRENT_FIRST_NON_MELEE_SPELL; i < CURRENT_MAX_SPELL; ++i)
         if (Spell* spell = GetCurrentSpell(CurrentSpellTypes(i)))
-            if (spell->getState() == SPELL_STATE_PREPARING && spell->GetCastedTime())
+            if (spell->GetCastedTime() && (spell->getState() == SPELL_STATE_PREPARING || (spell->IsChanneled() && spell->getState() == SPELL_STATE_CASTING)))
                 if (!spell->m_spellInfo->IsNextMeleeSwingSpell() && !spell->IsAutoRepeat() && !spell->IsTriggered() && (spell->m_spellInfo->InterruptFlags & flags) && spell->m_spellInfo->Id != except)
                     InterruptSpell(CurrentSpellTypes(i));
 }
 
+void SpellCaster::InterruptSpellsWithChannelFlags(uint32 flags, uint32 except)
+{
+    if (Spell* spell = m_currentSpells[CURRENT_CHANNELED_SPELL])
+        if (spell->getState() == SPELL_STATE_CASTING)
+            if ((spell->m_spellInfo->ChannelInterruptFlags & flags) && spell->m_spellInfo->Id != except)
+                InterruptSpell(CURRENT_CHANNELED_SPELL);
+}
 
 void SpellCaster::InterruptNonMeleeSpells(bool withDelayed, uint32 spell_id)
 {
@@ -1912,16 +1917,19 @@ SpellCastResult SpellCaster::CastSpell(SpellCaster* pTarget, SpellEntry const* s
 
     SpellCastTargets targets;
 
-    // Don't set unit target on destination target based spells, otherwise the spell will cancel
-    // as soon as the target dies or leaves the area of the effect
-    if (spellInfo->Targets & TARGET_FLAG_DEST_LOCATION)
-        targets.setDestination(pTarget->GetPositionX(), pTarget->GetPositionY(), pTarget->GetPositionZ());
-    else if (Unit* pUnitTarget = pTarget->ToUnit())
-        targets.setUnitTarget(pUnitTarget);
-    else if (GameObject* pGoTarget = pTarget->ToGameObject())
-        targets.setGOTarget(pGoTarget);
-    else
-        return SPELL_FAILED_ERROR;
+    if (pTarget)
+    {
+        // Don't set unit target on destination target based spells, otherwise the spell will cancel
+        // as soon as the target dies or leaves the area of the effect
+        if (spellInfo->Targets & TARGET_FLAG_DEST_LOCATION)
+            targets.setDestination(pTarget->GetPositionX(), pTarget->GetPositionY(), pTarget->GetPositionZ());
+        else if (Unit* pUnitTarget = pTarget->ToUnit())
+            targets.setUnitTarget(pUnitTarget);
+        else if (GameObject* pGoTarget = pTarget->ToGameObject())
+            targets.setGOTarget(pGoTarget);
+        else
+            return SPELL_FAILED_ERROR;
+    }
 
     if (spellInfo->Targets & TARGET_FLAG_SOURCE_LOCATION)
         if (SpellCaster* caster = spell->GetCastingObject())

@@ -109,7 +109,7 @@ enum CreatureEliteType
 enum CreatureFlagsExtra
 {
     CREATURE_FLAG_EXTRA_INSTANCE_BIND                = 0x00000001, // 1        Killing this creature will bind players to the raid
-    CREATURE_FLAG_EXTRA_NO_AGGRO                     = 0x00000002, // 2        Creature will not attack nearby hostile targets (ignore faction/reputation hostility)
+    CREATURE_FLAG_EXTRA_NO_AGGRO                     = 0x00000002, // 2        Creature is defensive and does not attack nearby hostile targets
     CREATURE_FLAG_EXTRA_NO_PARRY                     = 0x00000004, // 4        Creature can't parry
     CREATURE_FLAG_EXTRA_SUMMON_GUARD                 = 0x00000008, // 8        Creature summons a guard if an opposite faction player gets near or attacks
     CREATURE_FLAG_EXTRA_NO_BLOCK                     = 0x00000010, // 16       Creature can't block
@@ -125,7 +125,7 @@ enum CreatureFlagsExtra
     CREATURE_FLAG_EXTRA_IMMUNE_AOE                   = 0x00004000, // 16384    Creature is immune to AoE
     CREATURE_FLAG_EXTRA_CHASE_GEN_NO_BACKING         = 0x00008000, // 32768    Creature does not move back when target is within bounding radius
     CREATURE_FLAG_EXTRA_NO_ASSIST                    = 0x00010000, // 65536    Creature does not aggro when nearby creatures aggro
-    CREATURE_FLAG_EXTRA_NO_TARGET                    = 0x00020000, // 131072   Creature does not acquire targets
+    CREATURE_FLAG_EXTRA_NO_TARGET                    = 0x00020000, // 131072   Creature is passive and does not acquire targets
     CREATURE_FLAG_EXTRA_ONLY_VISIBLE_TO_FRIENDLY     = 0x00040000, // 262144   Creature can only be seen by friendly units
     CREATURE_FLAG_EXTRA_PVP                          = 0x00080000, // 524288   Creature has pvp unit flag set by default
     CREATURE_FLAG_EXTRA_CAN_ASSIST                   = 0x00100000, // 1048576  CREATURE_TYPEFLAGS_CAN_ASSIST from TBC
@@ -175,6 +175,9 @@ typedef std::vector<CreatureSpellsEntry> CreatureSpellsList;
 #define SPEED_REDUCTION_HP_15  0.7f
 #define SPEED_REDUCTION_HP_10  0.6f
 #define SPEED_REDUCTION_HP_5   0.5f
+
+#define DEFAULT_NPC_WALK_SPEED_RATE 1.0f
+#define DEFAULT_NPC_RUN_SPEED_RATE 1.14286f
 
 // from `creature_template` table
 struct CreatureInfo
@@ -236,6 +239,7 @@ struct CreatureInfo
     uint32  spells[CREATURE_MAX_SPELLS];
     uint32  spell_list_id;
     uint32  pet_spell_list_id;
+    uint32  spawn_spell_id;
     uint32 const* auras;
     uint32  gold_min;
     uint32  gold_max;
@@ -335,6 +339,8 @@ struct CreatureDisplayInfoAddon
     uint32 display_id;
     float bounding_radius;
     float combat_reach;
+    float speed_walk;
+    float speed_run;
     uint8 gender;
     uint32 display_id_other_gender;                         // The oposite gender for this display id (male/female)
 };
@@ -428,6 +434,7 @@ enum CreatureStateFlag : uint16
     CSTATE_COMBAT_WITH_ZONE      = 0x0040,
     CSTATE_ESCORTABLE            = 0x0080,
     CSTATE_DESPAWNING            = 0x0100,
+    CSTATE_TARGETED_EMOTE        = 0x0200,
 };
 
 // Vendors

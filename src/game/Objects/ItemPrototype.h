@@ -42,17 +42,9 @@ enum ItemSpelltriggerType
     ITEM_SPELLTRIGGER_ON_USE          = 0,                  // use after equip cooldown
     ITEM_SPELLTRIGGER_ON_EQUIP        = 1,
     ITEM_SPELLTRIGGER_CHANCE_ON_HIT   = 2,
-    ITEM_SPELLTRIGGER_SOULSTONE       = 4,
-    /*
-     * ItemSpelltriggerType 5 might have changed on 2.4.3/3.0.3: Such auras
-     * will be applied on item pickup and removed on item loss - maybe on the
-     * other hand the item is destroyed if the aura is removed ("removed on
-     * death" of spell 57348 makes me think so)
-     */
-    ITEM_SPELLTRIGGER_ON_NO_DELAY_USE = 5,                  // no equip cooldown
 };
 
-#define MAX_ITEM_SPELLTRIGGER           6
+#define MAX_ITEM_SPELLTRIGGER           3
 
 enum ItemBondingType
 {
@@ -502,6 +494,7 @@ struct ItemPrototype
     uint32 FoodType;
     uint32 MinMoneyLoot;
     uint32 MaxMoneyLoot;
+    uint32 WrappedGift;
     uint32 ExtraFlags;                                      // see ItemExtraFlags
     uint32 OtherTeamEntry;
 
@@ -527,6 +520,8 @@ struct ItemPrototype
 
         return false;
     }
+
+    void GetAllowedEquipSlots(uint8 slots[4], uint8 classId, bool canDualWield) const;
 
     uint32 GetMaxStackSize() const { return Stackable; }
 

@@ -179,8 +179,6 @@ class ChatHandler
         ChatCommand* getCommandTable();
         
         bool HandleAnticheatCommand(char*);
-        bool HandleClientInfosCommand(char*);
-        bool HandleClientSearchCommand(char*);
         bool HandleReloadAnticheatCommand(char*);
         bool HandleViewLogCommand(char*);
 
@@ -196,12 +194,13 @@ class ChatHandler
         bool HandleCheatAlwaysProcCommand(char *);
         bool HandleCheatTriggerPassCommand(char *);
         bool HandleCheatIgnoreTriggersCommand(char *);
+        bool HandleCheatImmuneToPlayersCommand(char *);
+        bool HandleCheatImmuneToCreaturesCommand(char *);
+        bool HandleCheatUntargetableCommand(char *);
         bool HandleCheatWaterwalkCommand(char* args);
         bool HandleCheatWallclimbCommand(char* args);
 
         //Custom
-        bool HandleListAddonsCommand(char *);
-        bool HandleUpdateWorldStateCommand(char *);
         bool HandleSendSpellVisualCommand(char *);
         bool HandleSendSpellImpactCommand(char *);
         bool HandleDebugUnitCommand(char *);
@@ -225,18 +224,10 @@ class ChatHandler
         bool HandleAntiSpamReplace(char* args);
         bool HandleAntiSpamRemoveReplace(char* args);
 
-        // Packet dump
-        bool HandleReplayPlayCommand(char *);
-        bool HandleReplayRecordCommand(char *);
-        bool HandleReplayForwardCommand(char*);
-        bool HandleReplayStopCommand(char*);
-        bool HandleReplaySpeedCommand(char*);
-        bool HandleDebugRecvPacketDumpWrite(char *);
         // Mmaps
         bool HandleMmap(char* args);
         bool HandleMmapConnection(char* args);
         bool HandleMmapTestArea(char* args);
-        bool HandleMmapDebug(char* args);
         bool HandleMmapUnload(char *args);
         bool HandleMmapLoad(char* args);
         bool HandleMmapPathCommand(char* args);
@@ -269,6 +260,7 @@ class ChatHandler
         bool HandlePartyBotSetRoleCommand(char * args);
         bool HandlePartyBotAttackStartCommand(char * args);
         bool HandlePartyBotAttackStopCommand(char * args);
+        bool HandlePartyBotAoECommand(char * args);
         bool HandlePartyBotControlMarkCommand(char * args);
         bool HandlePartyBotFocusMarkCommand(char * args);
         bool HandlePartyBotClearMarksCommand(char * args);
@@ -463,7 +455,6 @@ class ChatHandler
         bool HandleDebugSpellCheckCommand(char* args);
         bool HandleDebugSpellCoefsCommand(char* args);
         bool HandleDebugSpellModsCommand(char* args);
-        bool HandleDebugUpdateWorldStateCommand(char* args);
         bool HandleDebugOverflowCommand(char* args);
         bool HandleDebugChatFreezeCommand(char* args);
 
@@ -484,6 +475,7 @@ class ChatHandler
         bool HandleDebugSendSellErrorCommand(char* args);
         bool HandleDebugSendSpellFailCommand(char* args);
         bool HandleDebugSendOpenBagCommand(char* args);
+        bool HandleDebugSendWorldStateCommand(char* args);
 
         /*
         Send the visual of the next channeled spell after args, suggested macro :
@@ -591,6 +583,7 @@ class ChatHandler
         bool HandleListTalentsCommand(char* args);
         bool HandleListMoveGensCommand(char* args);
         bool HandleListHostileRefsCommand(char* args);
+        bool HandleListThreatCommand(char* args);
 
         bool HandleLookupAccountEmailCommand(char* args);
         bool HandleLookupAccountIpCommand(char* args);
@@ -704,6 +697,7 @@ class ChatHandler
         bool HandleNpcSetWanderDistCommand(char* args);
         bool HandleNpcSetSpawnTimeCommand(char* args);
         bool HandleNpcSpawnSpawnTimeCommand(char* args);
+        bool HandleNpcSetReactStateCommand(char* args);
         bool HandleNpcTameCommand(char* args);
         bool HandleNpcTextEmoteCommand(char* args);
         bool HandleNpcUnFollowCommand(char* args);
@@ -971,6 +965,7 @@ class ChatHandler
         bool HandleMaxSkillCommand(char* args);
         bool HandleSetSkillCommand(char* args);
         bool HandleRespawnCommand(char* args);
+        bool HandleChargeCommand(char* args);
         bool HandleComeToMeCommand(char* args);
         bool HandleCombatStopCommand(char* args);
         bool HandleRepairitemsCommand(char* args);

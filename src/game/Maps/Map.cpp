@@ -46,6 +46,7 @@
 #include "MoveMap.h"
 #include "SocialMgr.h"
 #include "Chat.h"
+#include "MonsterChatBuilder.h"
 #include "Weather.h"
 #include "MovementBroadcaster.h"
 #include "PlayerBroadcaster.h"
@@ -81,6 +82,31 @@ Map::~Map()
     m_weatherSystem = nullptr;
 }
 
+GenericTransport* Map::GetTransport(ObjectGuid guid)
+{
+    if (Transport* transport = HashMapHolder<Transport>::Find(guid))
+        return transport;
+
+    if (guid.GetEntry())
+        return GetElevatorTransport(guid);
+
+    return nullptr;
+}
+
+ElevatorTransport* Map::GetElevatorTransport(ObjectGuid guid)
+{
+    for (auto pTransport : m_transports)
+    {
+        if (pTransport->GetObjectGuid() == guid)
+            return static_cast<ElevatorTransport*>(pTransport);
+    }
+
+    if (auto pTransport = GetGameObject(guid))
+        return static_cast<ElevatorTransport*>(pTransport);
+
+    return nullptr;
+}
+
 void Map::LoadMapAndVMap(int gx, int gy)
 {
     if (m_bLoadedGrids[gx][gx])
@@ -95,7 +121,7 @@ Map::Map(uint32 id, time_t expiry, uint32 InstanceId)
     : i_mapEntry(sMapStorage.LookupEntry<MapEntry>(id)),
       i_id(id), i_InstanceId(InstanceId), m_unloadTimer(0),
       m_VisibleDistance(DEFAULT_VISIBILITY_DISTANCE), m_persistentState(nullptr),
-      m_activeNonPlayersIter(m_activeNonPlayers.end()), _transportsUpdateIter(_transports.end()),
+      m_activeNonPlayersIter(m_activeNonPlayers.end()), m_transportsUpdateIter(m_transports.end()),
       i_gridExpiry(expiry), m_TerrainData(sTerrainMgr.LoadTerrain(id)),
       i_data(nullptr), i_script_id(0), m_unloading(false), m_crashed(false),
       _processingSendObjUpdates(false), _processingUnitsRelocation(false),
@@ -139,6 +165,8 @@ Map::Map(uint32 id, time_t expiry, uint32 InstanceId)
         m_motionThreads->start();
         m_objectThreads->start<ThreadPool::MySQL<ThreadPool::MultiQueue>>();
     }
+
+    LoadElevatorTransports();
 }
 
 // Nostalrius
@@ -194,6 +222,13 @@ template<class T>
 void Map::AddToGrid(T* obj, NGridType* grid, Cell const& cell)
 {
     (*grid)(cell.CellX(), cell.CellY()).template AddGridObject<T>(obj);
+}
+
+template<>
+void Map::AddToGrid(GameObject* obj, NGridType* grid, Cell const& cell)
+{
+    (*grid)(cell.CellX(), cell.CellY()).AddGridObject<GameObject>(obj);
+    obj->SetCurrentCell(cell);
 }
 
 template<>
@@ -454,10 +489,13 @@ Map::Add(T* obj)
     obj->SetIsNewObject(true);
     UpdateObjectVisibility(obj, cell, p);
     obj->SetIsNewObject(false);
+
+    if (Creature* pCreature = obj->ToCreature())
+        pCreature->CastSpawnSpell();
 }
 
 template<>
-void Map::Add(Transport* obj)
+void Map::Add(GenericTransport* obj)
 {
     MANGOS_ASSERT(obj);
     //TODO: Needs clean up. An object should not be added to map twice.
@@ -474,16 +512,65 @@ void Map::Add(Transport* obj)
     obj->SetMap(this);
     obj->AddToWorld();
 
-    if (obj->isActiveObject() && !IsUnloading())
-        AddToActive(obj);
-
     //DEBUG_LOG("%s enters grid[%u,%u]", obj->GetObjectGuid().GetString().c_str(), cell.GridX(), cell.GridY());
 
     //obj->GetViewPoint().Event_AddedToWorld(&(*grid)(cell.CellX(), cell.CellY()));
-    _transports.insert(obj);
+    m_transports.insert(obj);
+
+    // Make sure elevator position is right before sending create packet
+    if (obj->GetGoType() == GAMEOBJECT_TYPE_TRANSPORT)
+        obj->Update(0, 0);
 
     // Broadcast creation to players
     obj->SendCreateUpdateToMap();
+}
+
+template<>
+void Map::Add(Transport* obj)
+{
+    Add<GenericTransport>(obj);
+}
+
+template<>
+void Map::Add(ElevatorTransport* obj)
+{
+    Add<GenericTransport>(obj);
+}
+
+void Map::LoadElevatorTransports()
+{
+    ElevatorTransportMapBounds itrPair = sTransportMgr.GetElevatorTransportsForMap(GetId());
+    for (auto itr = itrPair.first; itr != itrPair.second; itr++)
+    {
+        GameObjectData const* pData = sObjectMgr.GetGOData(itr->second);
+        if (!pData)
+        {
+            sLog.outError("[Map::LoadElevatorTransports] Invalid elevator guid %u for map %u!", itr->second, itr->first);
+            continue;
+        }
+
+        GameObjectInfo const* pInfo = sObjectMgr.GetGameObjectInfo(pData->id);
+        if (!pInfo)
+        {
+            sLog.outError("[Map::LoadElevatorTransports] Missing gameobject template %u for guid %u!", pData->id, itr->second);
+            continue;
+        }
+
+        if (pInfo->type != GAMEOBJECT_TYPE_TRANSPORT)
+        {
+            sLog.outError("[Map::LoadElevatorTransports] Non-elevator guid %u for map %u!", itr->second, itr->first);
+            continue;
+        }
+
+        ElevatorTransport* pGo = new ElevatorTransport;
+        if (!pGo->LoadFromDB(itr->second, this))
+        {
+            delete pGo;
+            continue;
+        }
+
+        Add<ElevatorTransport>(pGo);
+    }
 }
 
 void Map::MessageBroadcast(Player const* player, WorldPacket* msg, bool to_self)
@@ -581,10 +668,10 @@ void Map::UpdateSync(uint32 const diff)
 {
     // Needs to be updated here.
     // Can lead to map <-> map teleports
-    for (_transportsUpdateIter = _transports.begin(); _transportsUpdateIter != _transports.end();)
+    for (m_transportsUpdateIter = m_transports.begin(); m_transportsUpdateIter != m_transports.end();)
     {
-        WorldObject* obj = *_transportsUpdateIter;
-        ++_transportsUpdateIter;
+        WorldObject* obj = *m_transportsUpdateIter;
+        ++m_transportsUpdateIter;
 
         if (!obj->IsInWorld())
             continue;
@@ -1197,7 +1284,7 @@ Map::Remove(T* obj, bool remove)
 }
 
 template<>
-void Map::Remove(Transport* obj, bool remove)
+void Map::Remove(GenericTransport* obj, bool remove)
 {
     if (obj->isActiveObject())
         RemoveFromActive(obj);
@@ -1208,17 +1295,17 @@ void Map::Remove(Transport* obj, bool remove)
 
     obj->SendOutOfRangeUpdateToMap();
 
-    if (_transportsUpdateIter != _transports.end())
+    if (m_transportsUpdateIter != m_transports.end())
     {
-        TransportsContainer::iterator itr = _transports.find(obj);
-        if (itr == _transports.end())
+        TransportsContainer::iterator itr = m_transports.find(obj);
+        if (itr == m_transports.end())
             return;
-        if (itr == _transportsUpdateIter)
-            ++_transportsUpdateIter;
-        _transports.erase(itr);
+        if (itr == m_transportsUpdateIter)
+            ++m_transportsUpdateIter;
+        m_transports.erase(itr);
     }
     else
-        _transports.erase(obj);
+        m_transports.erase(obj);
 
     obj->ResetMap();
 
@@ -1230,6 +1317,18 @@ void Map::Remove(Transport* obj, bool remove)
 
         delete obj;
     }
+}
+
+template<>
+void Map::Remove(Transport* obj, bool remove)
+{
+    Remove<GenericTransport>(obj, remove);
+}
+
+template<>
+void Map::Remove(ElevatorTransport* obj, bool remove)
+{
+    Remove<GenericTransport>(obj, remove);
 }
 
 void
@@ -1445,12 +1544,12 @@ void Map::UnloadAll(bool pForce)
         ++i;
         UnloadGrid(grid.getX(), grid.getY(), pForce);       // deletes the grid and removes it from the GridRefManager
     }
-    for (TransportsContainer::iterator itr = _transports.begin(); itr != _transports.end();)
+    for (TransportsContainer::iterator itr = m_transports.begin(); itr != m_transports.end();)
     {
-        Transport* transport = *itr;
+        GenericTransport* transport = *itr;
         ++itr;
 
-        Remove<Transport>(transport, true);
+        Remove<GenericTransport>(transport, true);
     }
 
     // Bones list should be empty at this point.
@@ -1548,7 +1647,7 @@ void Map::SendInitSelf(Player* player)
     bool hasTransport = false;
 
     // attach to player data current transport data
-    if (Transport* transport = player->GetTransport())
+    if (GenericTransport* transport = player->GetTransport())
     {
         hasTransport = true;
         transport->BuildCreateUpdateBlockForPlayer(data, player);
@@ -1558,7 +1657,7 @@ void Map::SendInitSelf(Player* player)
     player->BuildCreateUpdateBlockForPlayer(data, player);
 
     // build other passengers at transport also (they always visible and marked as visible and will not send at visibility update at add to map
-    if (Transport* transport = player->GetTransport())
+    if (GenericTransport* transport = player->GetTransport())
         for (const auto itr : transport->GetPassengers())
             if (player != itr && player->IsInVisibleList(itr))
             {
@@ -1574,7 +1673,7 @@ void Map::SendInitTransports(Player* player)
     // Hack to send out transports
     UpdateData transData;
     bool hasTransport = false;
-    for (const auto itr : _transports)
+    for (const auto itr : m_transports)
     {
         if (itr != player->GetTransport())
         {
@@ -1590,7 +1689,7 @@ void Map::SendRemoveTransports(Player* player)
     // Hack to send out transports
     UpdateData transData;
     bool hasTransport = false;
-    for (const auto itr : _transports)
+    for (const auto itr : m_transports)
     {
         if (itr != player->GetTransport())
         {
@@ -1648,8 +1747,14 @@ void Map::RemoveAllObjectsInRemoveList()
             case TYPEID_GAMEOBJECT:
             {
                 GameObject* go = obj->ToGameObject();
-                if (Transport* transport = go->ToTransport())
-                    Remove(transport, true);
+                if (GenericTransport* transport = go->ToTransport())
+                {
+                    if (transport->GetGoType() == GAMEOBJECT_TYPE_MO_TRANSPORT ||
+                       (transport->GetGoType() == GAMEOBJECT_TYPE_TRANSPORT && m_transports.find(transport) != m_transports.end()))
+                        Remove(transport, true);
+                    else
+                        Remove(go, true);
+                }
                 else
                     Remove(go, true);
                 break;
@@ -1694,6 +1799,24 @@ bool Map::SendToPlayersInZone(WorldPacket const* data, uint32 zoneId) const
         }
     }
     return foundPlayer;
+}
+
+void Map::SendDefenseMessage(int32 textId, uint32 zoneId) const
+{
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_10_2
+    for (const auto& itr : m_mapRefManager)
+    {
+        Player* pPlayer = itr.getSource();
+        char const* text = textId > 0 ? sObjectMgr.GetBroadcastText(textId, pPlayer->GetSession()->GetSessionDbLocaleIndex(), pPlayer->GetGender()) : sObjectMgr.GetMangosString(textId, pPlayer->GetSession()->GetSessionDbLocaleIndex());
+        
+        WorldPacket data(SMSG_DEFENSE_MESSAGE);
+        data << uint32(zoneId);
+        data << uint32(strlen(text) + 1);
+        data << text;
+
+        pPlayer->GetSession()->SendPacket(&data);
+    }
+#endif
 }
 
 bool Map::ActiveObjectsNearGrid(uint32 x, uint32 y) const
@@ -2365,6 +2488,10 @@ bool Map::FindScriptInitialTargets(WorldObject*& source, WorldObject*& target, S
     if (target && !target->IsInWorld())
         target = nullptr;
 
+    if ((step.script->raw.data[4] & SF_GENERAL_SKIP_MISSING_TARGETS) &&
+        (!source && !step.sourceGuid.IsEmpty() || !target && !step.targetGuid.IsEmpty()))
+        return false;
+
     return true;
 }
 
@@ -2382,20 +2509,9 @@ bool Map::FindScriptFinalTargets(WorldObject*& source, WorldObject*& target, Scr
     {
         if (!(target = GetTargetByType(source, target, this, script.target_type, script.target_param1, script.target_param2)))
         {
-            switch (script.target_type)
-            {
-                case TARGET_T_NEAREST_CREATURE_WITH_ENTRY:
-                case TARGET_T_RANDOM_CREATURE_WITH_ENTRY:
-                case TARGET_T_CREATURE_WITH_GUID:
-                case TARGET_T_CREATURE_FROM_INSTANCE_DATA:
-                case TARGET_T_NEAREST_GAMEOBJECT_WITH_ENTRY:
-                case TARGET_T_GAMEOBJECT_WITH_GUID:
-                case TARGET_T_GAMEOBJECT_FROM_INSTANCE_DATA:
-                {
-                    sLog.outError("FindScriptTargets: Failed to find target for script with id %u (target_param1: %u), (target_param2: %u), (target_type: %u).", script.id, script.target_param1, script.target_param2, script.target_type);
-                    return false;
-                }
-            }
+            if (!(script.raw.data[4] & SF_GENERAL_SKIP_MISSING_TARGETS))
+                sLog.outError("FindScriptTargets: Failed to find target for script with id %u (target_param1: %u), (target_param2: %u), (target_type: %u).", script.id, script.target_param1, script.target_param2, script.target_type);
+            return false;
         }
     }
 
@@ -2451,8 +2567,11 @@ void Map::ScriptsProcess()
 
         if (scriptResultOk)
             scriptResultOk = (this->*(m_ScriptCommands[step.script->command]))(*step.script, source, target);
+        else
+            scriptResultOk = (step.script->raw.data[4] & SF_GENERAL_ABORT_ON_FAILURE) != 0;
 
         lock.lock();
+
         // Command returns true if we should abort script.
         if (scriptResultOk)
             TerminateScript(step);
@@ -2517,15 +2636,6 @@ Creature* Map::GetAnyTypeCreature(ObjectGuid guid)
     return nullptr;
 }
 
-Transport* Map::GetTransport(ObjectGuid guid)
-{
-    if (!guid.IsMOTransport())
-        return nullptr;
-
-    GameObject* go = GetGameObject(guid);
-    return go ? go->ToTransport() : nullptr;
-}
-
 /**
  * Function return dynamic object that in world at CURRENT map
  *
@@ -2553,7 +2663,7 @@ Unit* Map::GetUnit(ObjectGuid guid)
 }
 
 /**
- * Function returns world object in world at CURRENT map, so any except transports
+ * Function returns world object in world at CURRENT map, so any except MO transports
  */
 WorldObject* Map::GetWorldObject(ObjectGuid guid)
 {
@@ -2575,8 +2685,9 @@ WorldObject* Map::GetWorldObject(ObjectGuid guid)
             Corpse* corpse = GetCorpse(guid);
             return corpse && corpse->IsInWorld() ? corpse : nullptr;
         }
-        case HIGHGUID_MO_TRANSPORT:
         case HIGHGUID_TRANSPORT:
+            return GetElevatorTransport(guid);
+        case HIGHGUID_MO_TRANSPORT:
         default:
             break;
     }
@@ -2805,6 +2916,7 @@ uint32 Map::GenerateLocalLowGuid(HighGuid guidhigh)
         case HIGHGUID_UNIT:
             guid = m_CreatureGuids.Generate();
             break;
+        case HIGHGUID_TRANSPORT:
         case HIGHGUID_GAMEOBJECT:
             guid = m_GameObjectGuids.Generate();
             break;
@@ -2820,98 +2932,33 @@ uint32 Map::GenerateLocalLowGuid(HighGuid guidhigh)
     return guid;
 }
 
-/**
- * Helper structure for building static chat information
- *
- */
-class StaticMonsterChatBuilder
+void Map::SendMonsterTextToMap(int32 textId, Language language, ChatMsg chatMsg, uint32 creatureId, WorldObject const* pSource, Unit const* pTarget)
 {
-public:
-    StaticMonsterChatBuilder(CreatureInfo const* cInfo, ChatMsg msgtype, int32 textId, Language language, Unit const* target, uint32 senderLowGuid = 0)
-        : i_cInfo(cInfo), i_msgtype(msgtype), i_textId(textId), i_language(language), i_target(target)
+    if (pSource)
     {
-        // 0 lowguid not used in core, but accepted fine in this case by client
-        i_senderGuid = i_cInfo->GetObjectGuid(senderLowGuid);
-    }
-    void operator()(WorldPacket& data, int32 loc_idx)
-    {
-        char const* text = i_textId > 0 ? sObjectMgr.GetBroadcastText(i_textId, loc_idx) : sObjectMgr.GetMangosString(i_textId, loc_idx);
+        MaNGOS::MonsterChatBuilder say_build(*pSource, chatMsg, textId, language, pTarget);
+        MaNGOS::LocalizedPacketDo<MaNGOS::MonsterChatBuilder> say_do(say_build);
 
-        std::string nameForLocale;
-        if (loc_idx >= 0)
-        {
-            CreatureLocale const* cl = sObjectMgr.GetCreatureLocale(i_cInfo->entry);
-            if (cl)
-            {
-                if (cl->Name.size() > (size_t)loc_idx && !cl->Name[loc_idx].empty())
-                    nameForLocale = cl->Name[loc_idx];
-            }
-        }
-
-        if (nameForLocale.empty())
-            nameForLocale = i_cInfo->name;
-
-        ChatHandler::BuildChatPacket(data, i_msgtype, text, i_language, CHAT_TAG_NONE, i_senderGuid, nameForLocale.c_str(), i_target ? i_target->GetObjectGuid() : ObjectGuid(),
-            i_target ? i_target->GetNameForLocaleIdx(loc_idx) : "");
-    }
-
-private:
-    ObjectGuid i_senderGuid;
-    CreatureInfo const* i_cInfo;
-    ChatMsg i_msgtype;
-    int32 i_textId;
-    Language i_language;
-    Unit const* i_target;
-};
-
-
-/**
- * Function simulates yell of creature
- *
- * @param guid must be creature guid of whom to Simulate the yell, non-creature guids not supported at this moment
- * @param textId Id of the simulated text
- * @param language language of the text
- * @param target, can be nullptr
- */
-void Map::MonsterYellToMap(ObjectGuid guid, int32 textId, Language language, Unit const* target) const
-{
-    if (guid.IsAnyTypeCreature())
-    {
-        CreatureInfo const* cInfo = ObjectMgr::GetCreatureTemplate(guid.GetEntry());
-        if (!cInfo)
-        {
-            sLog.outError("Map::MonsterYellToMap: Called for nonexistent creature entry in guid: %s", guid.GetString().c_str());
-            return;
-        }
-
-        MonsterYellToMap(cInfo, textId, language, target, guid.GetCounter());
+        Map::PlayerList const& pList = GetPlayers();
+        for (const auto& itr : pList)
+            say_do(itr.getSource());
     }
     else
     {
-        sLog.outError("Map::MonsterYellToMap: Called for non creature guid: %s", guid.GetString().c_str());
-        return;
+        CreatureInfo const* cInfo = sObjectMgr.GetCreatureTemplate(creatureId);
+        if (!cInfo)
+        {
+            sLog.outError("SendMonsterTextToMap called with no source and invalid creature id!");
+            return;
+        }
+
+        MaNGOS::StaticMonsterChatBuilder say_build(cInfo, chatMsg, textId, language, pTarget);
+        MaNGOS::LocalizedPacketDo<MaNGOS::StaticMonsterChatBuilder> say_do(say_build);
+
+        Map::PlayerList const& pList = GetPlayers();
+        for (const auto& itr : pList)
+            say_do(itr.getSource());
     }
-}
-
-
-/**
- * Function simulates yell of creature
- *
- * @param cinfo must be entry of Creature of whom to Simulate the yell
- * @param textId Id of the simulated text
- * @param language language of the text
- * @param target, can be nullptr
- * @param senderLowGuid provide way proper show yell for near spawned creature with known lowguid,
- *        0 accepted by client else if this not important
- */
-void Map::MonsterYellToMap(CreatureInfo const* cinfo, int32 textId, Language language, Unit const* target, uint32 senderLowGuid /*= 0*/) const
-{
-    StaticMonsterChatBuilder say_build(cinfo, CHAT_MSG_MONSTER_YELL, textId, language, target, senderLowGuid);
-    MaNGOS::LocalizedPacketDo<StaticMonsterChatBuilder> say_do(say_build);
-
-    Map::PlayerList const& pList = GetPlayers();
-    for (const auto& itr : pList)
-        say_do(itr.getSource());
 }
 
 /**
@@ -2931,15 +2978,13 @@ void Map::PlayDirectSoundToMap(uint32 soundId, uint32 zoneId /*=0*/) const
             itr.getSource()->SendDirectMessage(&data);
 }
 
-
-// NOSTALRIUS: GameObjectCollision
-bool Map::isInLineOfSight(float x1, float y1, float z1, float x2, float y2, float z2, bool checkDynLos) const
+bool Map::isInLineOfSight(float x1, float y1, float z1, float x2, float y2, float z2, bool checkDynLos, bool ignoreM2Model) const
 {
     ASSERT(MaNGOS::IsValidMapCoord(x1, y1, z1));
     ASSERT(MaNGOS::IsValidMapCoord(x2, y2, z2));
 
-    return VMAP::VMapFactory::createOrGetVMapManager()->isInLineOfSight(GetId(), x1, y1, z1, x2, y2, z2)
-    && (!checkDynLos || CheckDynamicTreeLoS(x1, y1, z1, x2, y2, z2));
+    return VMAP::VMapFactory::createOrGetVMapManager()->isInLineOfSight(GetId(), x1, y1, z1, x2, y2, z2, ignoreM2Model)
+    && (!checkDynLos || CheckDynamicTreeLoS(x1, y1, z1, x2, y2, z2, ignoreM2Model));
 }
 
 bool Map::GetLosHitPosition(float srcX, float srcY, float srcZ, float& destX, float& destY, float& destZ, float modifyDist) const
@@ -2973,7 +3018,7 @@ bool Map::GetLosHitPosition(float srcX, float srcY, float srcZ, float& destX, fl
     return result0;
 }
 
-bool Map::GetWalkHitPosition(Transport* transport, float srcX, float srcY, float srcZ, float& destX, float& destY, float& destZ, uint32 moveAllowedFlags, float zSearchDist, bool locatedOnSteepSlope) const
+bool Map::GetWalkHitPosition(GenericTransport* transport, float srcX, float srcY, float srcZ, float& destX, float& destY, float& destZ, uint32 moveAllowedFlags, float zSearchDist, bool locatedOnSteepSlope) const
 {
     if (!MaNGOS::IsValidMapCoord(srcX, srcY, srcZ))
     {
@@ -3083,7 +3128,7 @@ bool Map::GetWalkHitPosition(Transport* transport, float srcX, float srcY, float
 }
 
 
-bool Map::GetWalkRandomPosition(Transport* transport, float &x, float &y, float &z, float maxRadius, uint32 moveAllowedFlags) const
+bool Map::GetWalkRandomPosition(GenericTransport* transport, float &x, float &y, float &z, float maxRadius, uint32 moveAllowedFlags) const
 {
     ASSERT(MaNGOS::IsValidMapCoord(x, y, z));
 
@@ -3193,10 +3238,10 @@ float Map::GetDynamicTreeHeight(float x, float y, float z, float maxSearchDist) 
     return _dynamicTree.getHeight(x, y, z, maxSearchDist);
 }
 
-bool Map::CheckDynamicTreeLoS(float x1, float y1, float z1, float x2, float y2, float z2) const
+bool Map::CheckDynamicTreeLoS(float x1, float y1, float z1, float x2, float y2, float z2, bool ignoreM2Model) const
 {
     std::shared_lock<std::shared_timed_mutex> lock(_dynamicTree_lock);
-    return _dynamicTree.isInLineOfSight(x1, y1, z1, x2, y2, z2);
+    return _dynamicTree.isInLineOfSight(x1, y1, z1, x2, y2, z2, ignoreM2Model);
 }
 
 
@@ -3269,9 +3314,9 @@ void Map::BindToInstanceOrRaid(Player* player, time_t objectResetTime, bool perm
             DungeonPersistentState* save = ((DungeonMap*)this)->GetPersistanceState();
             // the reset time is set but not added to the scheduler
             // until the players leave the instance
-            time_t resettime = objectResetTime + 2 * HOUR;
-            if (save->GetResetTime() < resettime)
-                save->SetResetTime(resettime);
+            time_t resetTime = objectResetTime + 2 * HOUR;
+            if (save->GetResetTime() < resetTime)
+                save->SetResetTime(resetTime);
         }
     }
 }
@@ -3357,7 +3402,7 @@ void Map::RemoveCorpses(bool unload)
             bones->Create(corpse->GetGUIDLow());
             if (owner)
             {
-                bones->SetFactionTemplate(owner->getFactionTemplateEntry());
+                bones->SetFactionTemplate(owner->GetFactionTemplateEntry());
                 if (looterGuid)
                 {
                     // Notify the client that the corpse is gone
@@ -3452,7 +3497,7 @@ GameObject* Map::SummonGameObject(uint32 entry, float x, float y, float z, float
         sLog.outErrorDb("Gameobject template %u not found in database!", entry);
         return nullptr;
     }
-    GameObject* go = new GameObject();
+    GameObject* go = GameObject::CreateGameObject(entry);
     if (!go->Create(GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT), entry, this, x, y, z, ang, rotation0, rotation1, rotation2, rotation3, 100, GO_STATE_READY))
     {
         delete go;

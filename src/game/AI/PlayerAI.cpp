@@ -132,7 +132,7 @@ PlayerControlledAI::PlayerControlledAI(Player* pPlayer, Unit* caster) : PlayerAI
             continue;
         if (spellInfo->Attributes & (SPELL_ATTR_PASSIVE | 0x80))
             continue;
-        if (spellInfo->AuraInterruptFlags & AURA_INTERRUPT_FLAG_DAMAGE)
+        if (spellInfo->HasAuraInterruptFlag(AURA_INTERRUPT_DAMAGE_CANCELS))
             continue;
         if (Spells::IsPositiveSpell(spell.first) && !enablePositiveSpells)
             continue;
@@ -202,7 +202,7 @@ void PlayerControlledAI::UpdateTarget(Unit* victim)
     if ((victim->IsCharmed() && victim->GetCharmerGuid() == me->GetCharmerGuid()) || me->IsFeared() || me->IsPolymorphed())
     {
         me->AttackStop();
-        me->CastStop();
+        me->InterruptNonMeleeSpells(false);
         return;
     }
 

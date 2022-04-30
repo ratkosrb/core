@@ -58,7 +58,8 @@ void WorldSession::HandleTabardVendorActivateOpcode(WorldPacket& recv_data)
         return;
     }
 
-    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK); // Removes stealth, feign death ...
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
 
     SendTabardVendorActivate(guid);
 }
@@ -82,7 +83,7 @@ void WorldSession::HandleBankerActivateOpcode(WorldPacket& recv_data)
         return;
 
     // remove fake death
-    if (GetPlayer()->HasUnitState(UNIT_STAT_DIED))
+    if (GetPlayer()->HasUnitState(UNIT_STAT_FEIGN_DEATH))
         GetPlayer()->RemoveSpellsCausingAura(SPELL_AURA_FEIGN_DEATH);
 
     SendShowBank(guid);
@@ -92,7 +93,7 @@ void WorldSession::SendShowBank(ObjectGuid guid)
 {
     WorldPacket data(SMSG_SHOW_BANK, 8);
     data << ObjectGuid(guid);
-    m_currentBankerGUID = guid;
+    GetPlayer()->m_currentBankerGuid = guid;
     SendPacket(&data);
 }
 
@@ -176,7 +177,9 @@ void WorldSession::SendTrainerList(ObjectGuid guid)
         DEBUG_LOG("WORLD: SendTrainerList - Training spells not found for %s", guid.GetString().c_str());
         return;
     }
-    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK); // Removes stealth, feign death ...
+
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
 
     uint32 maxcount = (cSpells ? cSpells->spellList.size() : 0) + (tSpells ? tSpells->spellList.size() : 0);
     uint32 trainer_type = cSpells && cSpells->trainerType ? cSpells->trainerType : (tSpells ? tSpells->trainerType : 0);
@@ -331,7 +334,8 @@ void WorldSession::HandleTrainerBuySpellOpcode(WorldPacket& recv_data)
     }
 
     // All is good. Spell can be learned if we reach this point.
-    _player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK);
+    _player->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    _player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
     _player->RemoveSpellsCausingAura(SPELL_AURA_MOUNTED);
 
     Spell* spell;
@@ -370,7 +374,8 @@ void WorldSession::HandleGossipHelloOpcode(WorldPacket& recv_data)
         return;
     }
 
-    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK); // Removes stealth, feign death ...
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
 
     if (!pCreature->HasExtraFlag(CREATURE_FLAG_EXTRA_NO_MOVEMENT_PAUSE))
         pCreature->PauseOutOfCombatMovement();
@@ -401,7 +406,8 @@ void WorldSession::HandleGossipSelectOptionOpcode(WorldPacket& recv_data)
         DEBUG_LOG("Gossip code: %s", code.c_str());
     }
 
-    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK); // Removes stealth, feign death ...
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
 
     uint32 sender = _player->PlayerTalkClass->GossipOptionSender(gossipListId);
     uint32 action = _player->PlayerTalkClass->GossipOptionAction(gossipListId);
@@ -452,8 +458,8 @@ void WorldSession::HandleSpiritHealerActivateOpcode(WorldPacket& recv_data)
         return;
     }
 
-
-    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK); // Removes stealth, feign death ...
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
     SendSpiritResurrect();
 }
 
@@ -521,8 +527,8 @@ void WorldSession::HandleBinderActivateOpcode(WorldPacket& recv_data)
         return;
     }
 
-
-    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK); // Removes stealth, feign death ...
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
     SendBindPoint(unit);
 }
 
@@ -552,7 +558,8 @@ void WorldSession::HandleListStabledPetsOpcode(WorldPacket& recv_data)
         return;
     }
 
-    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK); // Removes stealth, feign death ...
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
     SendStablePet(npcGUID);
 }
 
@@ -600,7 +607,7 @@ void WorldSession::SendStablePet(ObjectGuid guid)
         for (const auto it : myPets->second)
             if (it->slot >= PET_SAVE_FIRST_STABLE_SLOT && it->slot <= PET_SAVE_LAST_STABLE_SLOT)
             {
-                data << uint32(it->id);                 // petnumber
+                data << uint32(it->id);                 // pet number
                 data << uint32(it->entry);              // creature entry
                 data << uint32(it->level);              // level
                 data << it->name;                       // name
@@ -664,8 +671,8 @@ void WorldSession::HandleStablePet(WorldPacket& recv_data)
         return;
     }
 
-
-    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK); // Removes stealth, feign death ...
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
 
     Pet* pet = _player->GetPet();
 
@@ -702,9 +709,9 @@ void WorldSession::HandleUnstablePet(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: Recv CMSG_UNSTABLE_PET.");
     ObjectGuid npcGUID;
-    uint32 petnumber;
+    uint32 petNumber;
 
-    recv_data >> npcGUID >> petnumber;
+    recv_data >> npcGUID >> petNumber;
 
     if (!CheckStableMaster(npcGUID))
     {
@@ -712,20 +719,19 @@ void WorldSession::HandleUnstablePet(WorldPacket& recv_data)
         return;
     }
 
-    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK); // Removes stealth, feign death ...
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
 
-    uint32 creature_id = 0;
-
-    CharacterPetCache const* petData = sCharacterDatabaseCache.GetCharacterPetCacheByOwnerAndId(_player->GetGUIDLow(), petnumber);
+    CharacterPetCache const* petData = sCharacterDatabaseCache.GetCharacterPetCacheByOwnerAndId(_player->GetGUIDLow(), petNumber);
 
     if (!petData || petData->slot < PET_SAVE_FIRST_STABLE_SLOT || petData->slot > PET_SAVE_LAST_STABLE_SLOT)
     {
         SendStableResult(STABLE_ERR_STABLE);
         return;
     }
-    creature_id = petData->entry;
 
-    CreatureInfo const* creatureInfo = ObjectMgr::GetCreatureTemplate(creature_id);
+    uint32 creatureId = petData->entry;
+    CreatureInfo const* creatureInfo = ObjectMgr::GetCreatureTemplate(creatureId);
     if (!creatureInfo || !creatureInfo->isTameable())
     {
         SendStableResult(STABLE_ERR_STABLE);
@@ -741,7 +747,7 @@ void WorldSession::HandleUnstablePet(WorldPacket& recv_data)
     }
 
     Pet* newpet = new Pet(HUNTER_PET);
-    if (!newpet->LoadPetFromDB(_player, creature_id, petnumber))
+    if (!newpet->LoadPetFromDB(_player, creatureId, petNumber))
     {
         delete newpet;
         newpet = nullptr;
@@ -765,8 +771,8 @@ void WorldSession::HandleBuyStableSlot(WorldPacket& recv_data)
         return;
     }
 
-
-    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK); // Removes stealth, feign death ...
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
 
     if (GetPlayer()->m_stableSlots < MAX_PET_STABLES)
     {
@@ -803,7 +809,8 @@ void WorldSession::HandleStableSwapPet(WorldPacket& recv_data)
         return;
     }
 
-    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK); // Removes stealth, feign death ...
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
 
     Pet* pet = _player->GetPet();
 
@@ -866,8 +873,8 @@ void WorldSession::HandleRepairItemOpcode(WorldPacket& recv_data)
         return;
     }
 
-
-    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TALK); // Removes stealth, feign death ...
+    GetPlayer()->InterruptSpellsWithChannelFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
+    GetPlayer()->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_INTERACTING_CANCELS);
 
     // reputation discount
     float discountMod = _player->GetReputationPriceDiscount(unit);

@@ -27,6 +27,7 @@
 #include "Policies/Singleton.h"
 #include "Map.h"
 #include "GridStates.h"
+#include <condition_variable>
 
 class BattleGround;
 
@@ -167,10 +168,9 @@ class MapManager : public MaNGOS::Singleton<MapManager, MaNGOS::ClassLevelLockab
         void InitMaxInstanceId();
         void InitializeVisibilityDistanceInfo();
 
-        /* statistics */
+        // statistics
         uint32 GetNumInstances();
         uint32 GetNumPlayersInInstances();
-
 
         //get list of all maps
         const MapMapType& Maps() const { return i_maps; }

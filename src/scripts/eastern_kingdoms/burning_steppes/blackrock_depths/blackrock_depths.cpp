@@ -38,6 +38,7 @@ npc_GorShak
 
 #include "scriptPCH.h"
 #include "blackrock_depths.h"
+#include "CreatureGroups.h"
 
 /*######
 ## go_shadowforge_brazier
@@ -120,7 +121,7 @@ struct npc_grimstoneAI : public npc_escortAI
 
     void Reset() override
     {
-        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
 
         EventPhase = 0;
         Event_Timer = 1000;
@@ -1176,11 +1177,6 @@ enum
 {
     NPC_HURLEY             = 9537,
     NPC_HURLEY_CRONY       = 9541,
-
-    YELL_HURLEY_SPAWN      = -1230069,
-    SAY_HURLEY_AGGRO       = -1230070,
-
-    SPELL_FLAME_BREATH     = 9573
 };
 
 bool GOHello_go_thunderbrew_laguer_keg(Player* pPlayer, GameObject* pGo)
@@ -1204,9 +1200,9 @@ bool GOHello_go_thunderbrew_laguer_keg(Player* pPlayer, GameObject* pGo)
         if (!pHurley)
             return true;
 
-        DoScriptText(YELL_HURLEY_SPAWN, pHurley);
         pHurley->SetWalk(false);
-        pHurley->GetMotionMaster()->MovePoint(0, 886.652f, -152.042f, -49.76f);
+        pHurley->GetMotionMaster()->Clear(false, true);
+        pHurley->GetMotionMaster()->MoveWaypoint(0, 0, 1000, 0, 0, false);
 
         // Summon cronies around Hurley
         for (uint8 i = 0; i < 4; ++i)
@@ -1215,90 +1211,12 @@ bool GOHello_go_thunderbrew_laguer_keg(Player* pPlayer, GameObject* pGo)
             pPlayer->GetRandomPoint(856.087f, -149.747f, -49.672f, 2.0f, fX, fY, fZ);
             if (Creature* pSummoned = pPlayer->SummonCreature(NPC_HURLEY_CRONY, fX, fY, fZ, 0.059f, TEMPSUMMON_DEAD_DESPAWN, 0))
             {
-                pSummoned->GetMotionMaster()->MoveFollow(pHurley, 2.0f, 0);
+                pSummoned->JoinCreatureGroup(pHurley, 3.0, i * (M_PI_F / 2.0f), OPTION_FORMATION_MOVE | OPTION_AGGRO_TOGETHER | OPTION_EVADE_TOGETHER);
             }
         }
     }
 
     return false;
-}
-
-
-/*######
-## npc_hurley_blackbreath
-######*/
-
-struct npc_hurley_blackbreathAI : public ScriptedAI
-{
-    npc_hurley_blackbreathAI(Creature* pCreature) : ScriptedAI(pCreature)
-    {
-        m_pInstance = (ScriptedInstance*)pCreature->GetInstanceData();
-        Reset();
-    }
-
-    ScriptedInstance* m_pInstance;
-
-    uint32 uiFlameBreathTimer;
-    uint32 m_uiEventTimer;
-    bool   bIsEnraged;
-
-    void Reset() override
-    {
-        uiFlameBreathTimer = 5000;
-        bIsEnraged = false;
-    }
-
-
-    void MovementInform(uint32 uiType, uint32 uiPointId) override
-    {
-        if (uiType != POINT_MOTION_TYPE)
-            return;
-
-        switch (uiPointId)
-        {
-            case 0:
-                m_creature->GetMotionMaster()->MovePoint(1, 902.31f, -140.33f, -49.75f);
-                break;
-            case 1:
-                m_creature->GetMotionMaster()->MovePoint(2, 910.31f, -156.713f, -49.759f);
-                break;
-            case 2:
-                m_creature->GetMotionMaster()->MoveTargetedHome();
-                break;
-        }
-    }
-
-    void Aggro(Unit* pWho) override
-    {
-        DoScriptText(SAY_HURLEY_AGGRO, m_creature);
-    }
-
-    void UpdateAI(uint32 const uiDiff) override
-    {
-        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
-            return; 
-
-        if (uiFlameBreathTimer < uiDiff)
-        {
-            if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_FLAME_BREATH) == CAST_OK)
-                uiFlameBreathTimer = urand(8000, 12000);
-        }
-        else
-            uiFlameBreathTimer -= uiDiff;
-
-        if (m_creature->GetHealthPercent() <= 30.0f && !bIsEnraged)
-        {
-            if (DoCastSpellIfCan(m_creature, SPELL_DRUNKEN_RAGE) == CAST_OK)
-                bIsEnraged = true;
-        }
-
-        DoMeleeAttackIfReady();
-    }
-};
-
-CreatureAI* GetAI_npc_hurley_blackbreath(Creature* pCreature)
-{
-    return new npc_hurley_blackbreathAI(pCreature);
 }
 
 /*######
@@ -1382,7 +1300,7 @@ struct npc_watchman_doomgripAI : public ScriptedAI
                 if (pGolem->IsAlive())
                 {
                     pGolem->RemoveAurasDueToSpell(10255);
-                    pGolem->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_IMMUNE_TO_NPC);
+                    pGolem->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_SPAWNING | UNIT_FLAG_IMMUNE_TO_NPC);
                     if (pWho)
                         pGolem->AI()->AttackStart(pWho);
                 }
@@ -1637,7 +1555,7 @@ struct boss_plugger_spazzringAI : public ScriptedAI
         }
     }
 
-    void SpellHit(Unit* pCaster, SpellEntry const* pSpell) override
+    void SpellHit(SpellCaster* pCaster, SpellEntry const* pSpell) override
     {
         if (pCaster->GetTypeId() == TYPEID_PLAYER)
         {
@@ -2185,7 +2103,7 @@ struct npc_marshal_windsorAI : npc_escortAI
             case 19:
                 m_creature->SetVisibility(VISIBILITY_OFF);
                 m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-                m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
                 if (Creature* pTemp = m_creature->SummonCreature(NPC_REGINALD_WINDSOR, 
                     m_creature->GetPositionX(), 
                     m_creature->GetPositionY(), 
@@ -2440,11 +2358,6 @@ void AddSC_blackrock_depths()
     newscript->pGossipHello = &GossipHello_npc_mistress_nagmara;
     newscript->pGossipSelect = &GossipSelect_npc_mistress_nagmara;
     newscript->pQuestRewardedNPC = &QuestRewarded_npc_mistress_nagmara;
-    newscript->RegisterSelf();
-
-    newscript = new Script;
-    newscript->Name = "npc_hurley_blackbreath";
-    newscript->GetAI = &GetAI_npc_hurley_blackbreath;
     newscript->RegisterSelf();
 
     newscript = new Script;

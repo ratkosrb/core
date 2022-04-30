@@ -351,6 +351,93 @@ bool ChatHandler::HandleCheatIgnoreTriggersCommand(char* args)
     return true;
 }
 
+bool ChatHandler::HandleCheatImmuneToPlayersCommand(char* args)
+{
+    if (*args)
+    {
+        bool value;
+        if (!ExtractOnOff(&args, value))
+        {
+            SendSysMessage(LANG_USE_BOL);
+            SetSentErrorMessage(true);
+            return false;
+        }
+
+        Player* target;
+        if (!ExtractPlayerTarget(&args, &target))
+            return false;
+
+        if (value)
+            target->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
+        else
+            target->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
+
+        PSendSysMessage(LANG_YOU_SET_IMMUNE_PC, value ? "on" : "off", GetNameLink(target).c_str());
+        if (needReportToTarget(target))
+            ChatHandler(target).PSendSysMessage(LANG_YOUR_IMMUNE_PC_SET, value ? "on" : "off", GetNameLink().c_str());
+    }
+
+    return true;
+}
+
+bool ChatHandler::HandleCheatImmuneToCreaturesCommand(char* args)
+{
+    if (*args)
+    {
+        bool value;
+        if (!ExtractOnOff(&args, value))
+        {
+            SendSysMessage(LANG_USE_BOL);
+            SetSentErrorMessage(true);
+            return false;
+        }
+
+        Player* target;
+        if (!ExtractPlayerTarget(&args, &target))
+            return false;
+
+        if (value)
+            target->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+        else
+            target->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+
+        PSendSysMessage(LANG_YOU_SET_IMMUNE_NPC, value ? "on" : "off", GetNameLink(target).c_str());
+        if (needReportToTarget(target))
+            ChatHandler(target).PSendSysMessage(LANG_YOUR_IMMUNE_NPC_SET, value ? "on" : "off", GetNameLink().c_str());
+    }
+
+    return true;
+}
+
+bool ChatHandler::HandleCheatUntargetableCommand(char* args)
+{
+    if (*args)
+    {
+        bool value;
+        if (!ExtractOnOff(&args, value))
+        {
+            SendSysMessage(LANG_USE_BOL);
+            SetSentErrorMessage(true);
+            return false;
+        }
+
+        Player* target;
+        if (!ExtractPlayerTarget(&args, &target))
+            return false;
+
+        if (value)
+            target->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+        else
+            target->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+
+        PSendSysMessage(LANG_YOU_SET_UNTARGETABLE, value ? "on" : "off", GetNameLink(target).c_str());
+        if (needReportToTarget(target))
+            ChatHandler(target).PSendSysMessage(LANG_YOUR_UNTARGETABLE_SET, value ? "on" : "off", GetNameLink().c_str());
+    }
+
+    return true;
+}
+
 bool ChatHandler::HandleCheatWaterwalkCommand(char* args)
 {
     bool value;
@@ -452,6 +539,12 @@ bool ChatHandler::HandleCheatStatusCommand(char* args)
         SendSysMessage("- Areatrigger pass");
     if (target->HasCheatOption(PLAYER_CHEAT_IGNORE_TRIGGERS))
         SendSysMessage("- Ignore areatriggers");
+    if (target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER))
+        SendSysMessage("- Immune to players");
+    if (target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC))
+        SendSysMessage("- Immune to creatures");
+    if (target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE))
+        SendSysMessage("- Untargetable");
     if (target->HasMovementFlag(MOVEFLAG_WATERWALKING) && !target->HasAuraType(SPELL_AURA_WATER_WALK))
         SendSysMessage("- Water walking");
     if (target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNK_0))
@@ -1210,7 +1303,7 @@ bool ChatHandler::GetDeletedCharacterInfoList(DeletedInfoList& foundList, bool u
         {
             // search by GUID
             if (isNumeric(searchString))
-                resultChar = CharacterDatabase.PQuery("SELECT `guid`, `deleteInfos_Name`, `deleteInfos_Account`, `deleteDate` FROM `characters` WHERE `deleteDate` IS NOT NULL AND `guid` = %u LIMIT 0,50", uint32(atoi(searchString.c_str())));
+                resultChar = CharacterDatabase.PQuery("SELECT `guid`, `deleted_name`, `deleted_account`, `deleted_time` FROM `characters` WHERE `deleted_time` IS NOT NULL AND `guid` = %u LIMIT 0,50", uint32(atoi(searchString.c_str())));
             // search by name
             else
             {
@@ -1219,14 +1312,14 @@ bool ChatHandler::GetDeletedCharacterInfoList(DeletedInfoList& foundList, bool u
 
                 CharacterDatabase.escape_string(searchString);
 
-                resultChar = CharacterDatabase.PQuery("SELECT `guid`, `deleteInfos_Name`, `deleteInfos_Account`, `deleteDate` FROM `characters` WHERE `deleteDate` IS NOT NULL AND `deleteInfos_Name` " _LIKE_ " " _CONCAT2_("'%s'", "'%%'") " LIMIT 0,50", searchString.c_str());
+                resultChar = CharacterDatabase.PQuery("SELECT `guid`, `deleted_name`, `deleted_account`, `deleted_time` FROM `characters` WHERE `deleted_time` IS NOT NULL AND `deleted_name` " _LIKE_ " " _CONCAT2_("'%s'", "'%%'") " LIMIT 0,50", searchString.c_str());
             }
         }
         else
         {
             // search by account id
             if (isNumeric(searchString))
-                resultChar = CharacterDatabase.PQuery("SELECT `guid`, `deleteInfos_Name`, `deleteInfos_Account`, `deleteDate` FROM `characters` WHERE `deleteDate` IS NOT NULL AND `deleteInfos_Account` = %u LIMIT 0,50", uint32(atoi(searchString.c_str())));
+                resultChar = CharacterDatabase.PQuery("SELECT `guid`, `deleted_name`, `deleted_account`, `deleted_time` FROM `characters` WHERE `deleted_time` IS NOT NULL AND `deleted_account` = %u LIMIT 0,50", uint32(atoi(searchString.c_str())));
             // search by account name
             else
             {
@@ -1254,12 +1347,12 @@ bool ChatHandler::GetDeletedCharacterInfoList(DeletedInfoList& foundList, bool u
                 std::copy(list.begin(), list.end(), std::ostream_iterator<int>(accountStream, ","));
                 std::string accounts = accountStream.str();
                 accounts.pop_back();
-                resultChar = CharacterDatabase.PQuery("SELECT `guid`, `deleteInfos_Name`, `deleteInfos_Account`, `deleteDate` FROM `characters` WHERE `deleteDate` IS NOT NULL AND `deleteInfos_Account` IN (%s) LIMIT 0,50", accounts.c_str());
+                resultChar = CharacterDatabase.PQuery("SELECT `guid`, `deleted_name`, `deleted_account`, `deleted_time` FROM `characters` WHERE `deleted_time` IS NOT NULL AND `deleted_account` IN (%s) LIMIT 0,50", accounts.c_str());
             }
         }
     }
     else
-        resultChar = CharacterDatabase.Query("SELECT `guid`, `deleteInfos_Name`, `deleteInfos_Account`, `deleteDate` FROM `characters` WHERE `deleteDate` IS NOT NULL LIMIT 0,50");
+        resultChar = CharacterDatabase.Query("SELECT `guid`, `deleted_name`, `deleted_account`, `deleted_time` FROM `characters` WHERE `deleted_time` IS NOT NULL LIMIT 0,50");
 
     if (resultChar)
     {
@@ -1420,7 +1513,7 @@ void ChatHandler::HandleCharacterDeletedRestoreHelper(DeletedInfo const& delInfo
         return;
     }
 
-    CharacterDatabase.PExecute("UPDATE `characters` SET `name`='%s', `account`='%u', `deleteDate`=NULL, `deleteInfos_Name`=NULL, `deleteInfos_Account`=NULL WHERE `deleteDate` IS NOT NULL AND `guid` = %u",
+    CharacterDatabase.PExecute("UPDATE `characters` SET `name`='%s', `account`='%u', `deleted_time`=NULL, `deleted_name`=NULL, `deleted_account`=NULL WHERE `deleted_time` IS NOT NULL AND `guid` = %u",
         delInfo.name.c_str(), delInfo.accountId, delInfo.lowguid);
 }
 
@@ -1645,7 +1738,7 @@ bool ChatHandler::HandleCleanCharactersItemsCommand(char* args)
     PSendSysMessage("%u items to delete.", lDeleteEntries.size());
     delete listDeleteItems;
 
-    QueryResult* allPlayersItems = CharacterDatabase.Query("SELECT `guid`, `itemEntry`, `owner_guid` FROM `item_instance`;");
+    QueryResult* allPlayersItems = CharacterDatabase.Query("SELECT `guid`, `item_id`, `owner_guid` FROM `item_instance`;");
     if (!allPlayersItems)
     {
         SendSysMessage("Unable to retrieve player items list.");
@@ -1660,21 +1753,21 @@ bool ChatHandler::HandleCleanCharactersItemsCommand(char* args)
     {
         ++totalItems;
         fields = allPlayersItems->Fetch();
-        uint32 item_guid  = fields[0].GetUInt32();
-        uint32 item_entry = fields[1].GetUInt32();
-        uint32 owner_guid = fields[2].GetUInt32();
+        uint32 itemGuid  = fields[0].GetUInt32();
+        uint32 itemId = fields[1].GetUInt32();
+        uint32 ownerGuid = fields[2].GetUInt32();
 
         for (itr = lDeleteEntries.begin(); itr != lDeleteEntries.end(); ++itr)
         {
-            if ((*itr) == item_entry)
+            if ((*itr) == itemId)
             {
                 if (Real)
                 {
                     // InGame ?
-                    if (Player* pPlayer = sObjectMgr.GetPlayer(owner_guid))
-                        pPlayer->DestroyItemCount(item_entry, 255, true);
+                    if (Player* pPlayer = sObjectMgr.GetPlayer(ownerGuid))
+                        pPlayer->DestroyItemCount(itemId, 255, true);
                     else
-                        Item::DeleteAllFromDB(item_guid);
+                        Item::DeleteAllFromDB(itemGuid);
                 }
                 ++deleteCount;
                 break;
@@ -1783,7 +1876,7 @@ bool ChatHandler::HandleCharacterRenameCommand(char* args)
 
         PSendSysMessage(LANG_RENAME_PLAYER, GetNameLink(target).c_str());
         target->SetAtLoginFlag(AT_LOGIN_RENAME);
-        CharacterDatabase.PExecute("UPDATE `characters` SET `at_login` = `at_login` | '1' WHERE `guid` = '%u'", target->GetGUIDLow());
+        CharacterDatabase.PExecute("UPDATE `characters` SET `at_login_flags` = `at_login_flags` | '1' WHERE `guid` = '%u'", target->GetGUIDLow());
     }
     else
     {
@@ -1794,7 +1887,7 @@ bool ChatHandler::HandleCharacterRenameCommand(char* args)
         std::string oldNameLink = playerLink(target_name);
 
         PSendSysMessage(LANG_RENAME_PLAYER_GUID, oldNameLink.c_str(), target_guid.GetCounter());
-        CharacterDatabase.PExecute("UPDATE `characters` SET `at_login` = `at_login` | '1' WHERE `guid` = '%u'", target_guid.GetCounter());
+        CharacterDatabase.PExecute("UPDATE `characters` SET `at_login_flags` = `at_login_flags` | '1' WHERE `guid` = '%u'", target_guid.GetCounter());
     }
 
     return true;
@@ -1852,7 +1945,7 @@ bool ChatHandler::HandleCharacterHasItemCommand(char* args)
     else
     {
         std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery(
-            "SELECT SUM(`count`) AS item_count FROM `item_instance` ii WHERE `itemEntry` = %u and `owner_guid` = %u",
+            "SELECT SUM(`count`) AS item_count FROM `item_instance` ii WHERE `item_id` = %u and `owner_guid` = %u",
             itemId, target_guid.GetCounter()
         ));
 
@@ -2101,7 +2194,8 @@ bool ChatHandler::HandleCharacterCopySkinCommand(char* args)
         std::string plName(args);
         CharacterDatabase.escape_string(plName); // No SQL injection
 
-        QueryResult* result = CharacterDatabase.PQuery("SELECT `playerBytes`, `playerBytes2` & 0xFF, `gender` FROM `characters` WHERE `name`='%s'", plName.c_str());
+        //                                                      0       1       2             3             4              5
+        QueryResult* result = CharacterDatabase.PQuery("SELECT `skin`, `face`, `hair_style`, `hair_color`, `facial_hair`, `gender` FROM `characters` WHERE `name`='%s'", plName.c_str());
         if (!result)
         {
             PSendSysMessage("Player %s not found.", args);
@@ -2109,12 +2203,17 @@ bool ChatHandler::HandleCharacterCopySkinCommand(char* args)
             return false;
         }
         Field* fields = result->Fetch();
-        uint32 bytes = fields[0].GetUInt32();
-        uint32 bytes2 = fields[1].GetUInt32();
-        uint8 gender = fields[2].GetUInt8();
-        bytes2 |= (target->GetUInt32Value(PLAYER_BYTES_2) & 0xFFFFFF00);
-        target->SetUInt32Value(PLAYER_BYTES, bytes);
-        target->SetUInt32Value(PLAYER_BYTES_2, bytes2);
+        uint8 skin = fields[0].GetUInt32();
+        uint8 face = fields[1].GetUInt32();
+        uint8 hairStyle = fields[2].GetUInt32();
+        uint8 hairColor = fields[3].GetUInt32();
+        uint8 facialHair = fields[4].GetUInt32();
+        uint8 gender = fields[5].GetUInt8();
+        target->SetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_SKIN_ID, skin);
+        target->SetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_FACE_ID, face);
+        target->SetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_HAIR_STYLE_ID, hairStyle);
+        target->SetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_HAIR_COLOR_ID, hairColor);
+        target->SetByteValue(PLAYER_BYTES_2, PLAYER_BYTES_2_OFFSET_FACIAL_STYLE, facialHair);
         target->SetByteValue(UNIT_FIELD_BYTES_0, UNIT_BYTES_0_OFFSET_GENDER, gender);
         SendSysMessage("Modification du skin/genre OK.");
         return true;
@@ -2328,13 +2427,13 @@ bool ChatHandler::HandleModifyHonorCommand(char* args)
         if (amount < 0 || amount > 255)
             return false;
         // rank points is sent to client with same size of uint8(255) for each rank
-        target->SetByteValue(PLAYER_FIELD_BYTES2, 0, amount);
+        target->SetByteValue(PLAYER_FIELD_BYTES2, PLAYER_FIELD_BYTES_2_OFFSET_HONOR_RANK_BAR, amount);
     }
     else if (hasStringAbbr(field, "rank"))
     {
         if (amount < 0 || amount >= HONOR_RANK_COUNT)
             return false;
-        target->SetByteValue(PLAYER_BYTES_3, 3, amount);
+        target->SetByteValue(PLAYER_BYTES_3, PLAYER_BYTES_3_OFFSET_HONOR_RANK, amount);
     }
     else if (hasStringAbbr(field, "todaykills"))
         target->SetUInt16Value(PLAYER_FIELD_SESSION_KILLS, 0, (uint32)amount);
@@ -3091,7 +3190,7 @@ bool ChatHandler::HandleDeleteItemCommand(char* args)
     else
     {
         std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery(
-            "SELECT SUM(`count`) AS item_count FROM `item_instance` ii WHERE `itemEntry` = %u and `owner_guid` = %u",
+            "SELECT SUM(`count`) AS item_count FROM `item_instance` ii WHERE `item_id` = %u and `owner_guid` = %u",
             itemId, target_guid.GetCounter()
         ));
 
@@ -3115,7 +3214,7 @@ bool ChatHandler::HandleDeleteItemCommand(char* args)
         while (stacksToRemove)
         {
             result.reset(CharacterDatabase.PQuery(
-                "SELECT `guid`, `count` FROM `item_instance` ii WHERE `itemEntry` = %u and `owner_guid` = %u ORDER BY `count` DESC",
+                "SELECT `guid`, `count` FROM `item_instance` ii WHERE `item_id` = %u and `owner_guid` = %u ORDER BY `count` DESC",
                 itemId, target_guid.GetCounter()
             ));
 
@@ -3151,7 +3250,7 @@ bool ChatHandler::HandleDeleteItemCommand(char* args)
                     return false;
                 }
                 
-                if (!CharacterDatabase.DirectPExecute("DELETE FROM `character_inventory` WHERE `item` = %u", guid))
+                if (!CharacterDatabase.DirectPExecute("DELETE FROM `character_inventory` WHERE `item_guid` = %u", guid))
                 {
                     SendSysMessage("Encountered an error while attempting to remove item from inventory");
                     SetSentErrorMessage(true);
@@ -3274,7 +3373,7 @@ bool ChatHandler::HandleListItemCommand(char* args)
 
     // inventory case
     uint32 inv_count = 0;
-    result = CharacterDatabase.PQuery("SELECT COUNT(`item_template`) FROM `character_inventory` WHERE `item_template`='%u'", item_id);
+    result = CharacterDatabase.PQuery("SELECT COUNT(`item_id`) FROM `character_inventory` WHERE `item_id`='%u'", item_id);
     if (result)
     {
         inv_count = (*result)[0].GetUInt32();
@@ -3282,10 +3381,10 @@ bool ChatHandler::HandleListItemCommand(char* args)
     }
 
     result = CharacterDatabase.PQuery(
-                 //          0             1                 2          3                    4                       5
-                 "SELECT ci.`item`, cibag.`slot` AS bag, ci.`slot`, ci.`guid`, `characters`.`account`, `characters`.`name` "
-                 "FROM `character_inventory` AS ci LEFT JOIN `character_inventory` AS cibag ON (cibag.`item`=ci.`bag`), `characters` "
-                 "WHERE ci.`item_template`='%u' AND ci.`guid` = `characters`.`guid` LIMIT %u ",
+                 //          0                  1                 2          3                    4                       5
+                 "SELECT ci.`item_guid`, cibag.`slot` AS bag, ci.`slot`, ci.`guid`, `characters`.`account`, `characters`.`name` "
+                 "FROM `character_inventory` AS ci LEFT JOIN `character_inventory` AS cibag ON (cibag.`item_guid`=ci.`bag`), `characters` "
+                 "WHERE ci.`item_id`='%u' AND ci.`guid` = `characters`.`guid` LIMIT %u ",
                  item_id, uint32(count));
 
     if (result)
@@ -3327,7 +3426,7 @@ bool ChatHandler::HandleListItemCommand(char* args)
 
     // mail case
     uint32 mail_count = 0;
-    result = CharacterDatabase.PQuery("SELECT COUNT(`item_template`) FROM `mail_items` WHERE `item_template`='%u'", item_id);
+    result = CharacterDatabase.PQuery("SELECT COUNT(`item_id`) FROM `mail_items` WHERE `item_id`='%u'", item_id);
     if (result)
     {
         mail_count = (*result)[0].GetUInt32();
@@ -3337,10 +3436,10 @@ bool ChatHandler::HandleListItemCommand(char* args)
     if (count > 0)
     {
         result = CharacterDatabase.PQuery(
-                     //                    0                   1                2                  3                 4              5                 6
-                     "SELECT `mail_items`.`item_guid`, `mail`.`sender`, `mail`.`receiver`, char_s.`account`, char_s.`name`, char_r.`account`, char_r.`name` "
+                     //                    0                   1                     2                  3                 4              5                 6
+                     "SELECT `mail_items`.`item_guid`, `mail`.`sender_guid`, `mail`.`receiver_guid`, char_s.`account`, char_s.`name`, char_r.`account`, char_r.`name` "
                      "FROM `mail`, `mail_items`, `characters` as char_s, `characters` as char_r "
-                     "WHERE `mail_items`.`item_template`='%u' AND char_s.`guid` = `mail`.`sender` AND char_r.`guid` = `mail`.`receiver` AND `mail`.`id`=`mail_items`.`mail_id` LIMIT %u",
+                     "WHERE `mail_items`.`item_id`='%u' AND char_s.`guid` = `mail`.`sender_guid` AND char_r.`guid` = `mail`.`receiver_guid` AND `mail`.`id`=`mail_items`.`mail_id` LIMIT %u",
                      item_id, uint32(count));
     }
     else
@@ -3378,7 +3477,7 @@ bool ChatHandler::HandleListItemCommand(char* args)
 
     // auction case
     uint32 auc_count = 0;
-    result = CharacterDatabase.PQuery("SELECT COUNT(`item_template`) FROM `auction` WHERE `item_template`='%u'", item_id);
+    result = CharacterDatabase.PQuery("SELECT COUNT(`item_id`) FROM `auction` WHERE `item_id`='%u'", item_id);
     if (result)
     {
         auc_count = (*result)[0].GetUInt32();
@@ -3388,9 +3487,9 @@ bool ChatHandler::HandleListItemCommand(char* args)
     if (count > 0)
     {
         result = CharacterDatabase.PQuery(
-                     //                  0                     1                         2                       3
-                     "SELECT  `auction`.`itemguid`, `auction`.`itemowner`, `characters`.`account`, `characters`.`name` "
-                     "FROM `auction`, `characters` WHERE `auction`.`item_template`='%u' AND `characters`.`guid` = `auction`.`itemowner` LIMIT %u",
+                     //                  0                      1                           2                       3
+                     "SELECT  `auction`.`item_guid`, `auction`.`seller_guid`, `characters`.`account`, `characters`.`name` "
+                     "FROM `auction`, `characters` WHERE `auction`.`item_id`='%u' AND `characters`.`guid` = `auction`.`seller_guid` LIMIT %u",
                      item_id, uint32(count));
     }
     else
@@ -3576,7 +3675,7 @@ bool ChatHandler::HandleResetSpellsCommand(char* args)
     }
     else
     {
-        CharacterDatabase.PExecute("UPDATE `characters` SET `at_login` = `at_login` | '%u' WHERE `guid` = '%u'", uint32(AT_LOGIN_RESET_SPELLS), target_guid.GetCounter());
+        CharacterDatabase.PExecute("UPDATE `characters` SET `at_login_flags` = `at_login_flags` | '%u' WHERE `guid` = '%u'", uint32(AT_LOGIN_RESET_SPELLS), target_guid.GetCounter());
         PSendSysMessage(LANG_RESET_SPELLS_OFFLINE, target_name.c_str());
     }
 
@@ -3602,7 +3701,7 @@ bool ChatHandler::HandleResetTalentsCommand(char* args)
     else if (target_guid)
     {
         uint32 at_flags = AT_LOGIN_RESET_TALENTS;
-        CharacterDatabase.PExecute("UPDATE `characters` SET `at_login` = `at_login` | '%u' WHERE `guid` = '%u'", at_flags, target_guid.GetCounter());
+        CharacterDatabase.PExecute("UPDATE `characters` SET `at_login_flags` = `at_login_flags` | '%u' WHERE `guid` = '%u'", at_flags, target_guid.GetCounter());
         std::string nameLink = playerLink(target_name);
         PSendSysMessage(LANG_RESET_TALENTS_OFFLINE, nameLink.c_str());
     }
@@ -3692,7 +3791,7 @@ bool ChatHandler::HandleResetAllCommand(char* args)
         return false;
     }
 
-    CharacterDatabase.PExecute("UPDATE `characters` SET `at_login` = `at_login` | '%u' WHERE (`at_login` & '%u') = '0'", atLogin, atLogin);
+    CharacterDatabase.PExecute("UPDATE `characters` SET `at_login_flags` = `at_login_flags` | '%u' WHERE (`at_login_flags` & '%u') = '0'", atLogin, atLogin);
     HashMapHolder<Player>::MapType const& plist = sObjectAccessor.GetPlayers();
     for (const auto& itr : plist)
         itr.second->SetAtLoginFlag(atLogin);
@@ -3963,7 +4062,7 @@ bool ChatHandler::HandleModifyGenderCommand(char *args)
 
     // Set gender
     player->SetByteValue(UNIT_FIELD_BYTES_0, UNIT_BYTES_0_OFFSET_GENDER, gender);
-    player->SetUInt16Value(PLAYER_BYTES_3, 0, uint16(gender) | (player->GetDrunkValue() & 0xFFFE));
+    player->SetUInt16Value(PLAYER_BYTES_3, PLAYER_BYTES_3_OFFSET_GENDER_AND_INEBRIATION, uint16(gender) | (player->GetDrunkValue() & 0xFFFE));
 
     // Change display ID
     player->InitPlayerDisplayIds();
@@ -4264,21 +4363,6 @@ bool ChatHandler::HandleModifySpeedCommand(char* args)
     if (modSpeed > 4.0f && GetAccessLevel() < SEC_BASIC_ADMIN)
         modSpeed = 4.0f;
 
-    if (m_session->IsReplaying())
-    {
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_9_4
-        WorldPacket dataForMe(SMSG_FORCE_RUN_SPEED_CHANGE, 18);
-        dataForMe << m_session->GetRecorderGuid().WriteAsPacked();
-        dataForMe << uint32(0);
-#else
-        WorldPacket dataForMe(SMSG_FORCE_RUN_SPEED_CHANGE, 14);
-        dataForMe << m_session->GetRecorderGuid().WriteAsPacked();
-#endif
-        dataForMe << float(7 * modSpeed);
-        m_session->SendPacket(&dataForMe);
-        return true;
-    }
-
     if (modSpeed > 100 || modSpeed < 0.1)
     {
         SendSysMessage(LANG_BAD_VALUE);
@@ -4326,21 +4410,6 @@ bool ChatHandler::HandleModifySwimCommand(char* args)
     if (modSpeed > 4.0f && GetAccessLevel() < SEC_BASIC_ADMIN)
         modSpeed = 4.0f;
 
-    if (m_session->IsReplaying())
-    {
-        
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_9_4
-        WorldPacket dataForMe(SMSG_FORCE_SWIM_SPEED_CHANGE, 18);
-        dataForMe << m_session->GetRecorderGuid().WriteAsPacked();
-        dataForMe << uint32(0);
-#else
-        WorldPacket dataForMe(SMSG_FORCE_SWIM_SPEED_CHANGE, 14);
-        dataForMe << m_session->GetRecorderGuid().WriteAsPacked();
-#endif
-        dataForMe << float(4.722222f * modSpeed);
-        m_session->SendPacket(&dataForMe);
-        return true;
-    }
     if (modSpeed > 100.0f || modSpeed < 0.01f)
     {
         SendSysMessage(LANG_BAD_VALUE);
@@ -4558,7 +4627,7 @@ bool ChatHandler::HandleModifyHairStyleCommand(char* args)
     if (!target)
         target = m_session->GetPlayer();
 
-    target->SetByteValue(PLAYER_BYTES, 2, hairstyle);
+    target->SetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_HAIR_STYLE_ID, hairstyle);
     target->SetDisplayId(DISPLAY_ID_BOX);
     target->DirectSendPublicValueUpdate(UNIT_FIELD_DISPLAYID);
     target->DeMorph();
@@ -4578,7 +4647,7 @@ bool ChatHandler::HandleModifyHairColorCommand(char* args)
     if (!target)
         target = m_session->GetPlayer();
 
-    target->SetByteValue(PLAYER_BYTES, 3, haircolor);
+    target->SetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_HAIR_COLOR_ID, haircolor);
     target->SetDisplayId(DISPLAY_ID_BOX);
     target->DirectSendPublicValueUpdate(UNIT_FIELD_DISPLAYID);
     target->DeMorph();
@@ -4598,7 +4667,7 @@ bool ChatHandler::HandleModifySkinColorCommand(char* args)
     if (!target)
         target = m_session->GetPlayer();
 
-    target->SetByteValue(PLAYER_BYTES, 0, skincolor);
+    target->SetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_SKIN_ID, skincolor);
     target->SetDisplayId(DISPLAY_ID_BOX);
     target->DirectSendPublicValueUpdate(UNIT_FIELD_DISPLAYID);
     target->DeMorph();
@@ -4618,7 +4687,7 @@ bool ChatHandler::HandleModifyAccessoriesCommand(char* args)
     if (!target)
         target = m_session->GetPlayer();
 
-    target->SetByteValue(PLAYER_BYTES_2, 0, accessories);
+    target->SetByteValue(PLAYER_BYTES_2, PLAYER_BYTES_2_OFFSET_FACIAL_STYLE, accessories);
     target->SetDisplayId(DISPLAY_ID_BOX);
     target->DirectSendPublicValueUpdate(UNIT_FIELD_DISPLAYID);
     target->DeMorph();
@@ -5033,7 +5102,7 @@ bool ChatHandler::HandlePetRenameCommand(char* args)
         return false;
     }
 
-    std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery("SELECT `owner`, `name` FROM `character_pet` WHERE `id` = %u", petId));
+    std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery("SELECT `owner_guid`, `name` FROM `character_pet` WHERE `id` = %u", petId));
 
     if (!result)
     {
@@ -5072,7 +5141,7 @@ bool ChatHandler::HandlePetDeleteCommand(char* args)
         SetSentErrorMessage(true);
         return false;
     }
-    PSendSysMessage("Pet #%u (\"%s\", owner #%u) deleted.", petData->id, petData->name.c_str(), petData->owner);
+    PSendSysMessage("Pet #%u (\"%s\", owner #%u) deleted.", petData->id, petData->name.c_str(), petData->ownerGuid);
     CharacterDatabase.PExecute("DELETE FROM `character_pet` WHERE `id` = %u", petId);
     sCharacterDatabaseCache.DeleteCharacterPetById(petId);
     return true;
@@ -5190,7 +5259,7 @@ bool ChatHandler::HandleServiceDeleteCharacters(char* args)
              "    `characters`.`account`,"
              "    `characters`.`level` AS `level`,"
              "    `characters`.`money` AS `money`,"
-             "    `characters`.`totaltime` AS `totaltime`,"
+             "    `characters`.`played_time_total` AS `played_time_total`,"
              "    COUNT(`characters`.`guid`) AS `items`,"
              "    `characters`.`logout_time` AS `logout_time` "
              "FROM `characters` "
@@ -5234,7 +5303,7 @@ bool ChatHandler::HandleServiceDeleteCharacters(char* args)
             if (!ExtractUInt32(&args, maxPlayedTime))
                 return false;
 
-            s << (_and ? "AND " : "") << "`totaltime` <= " << maxPlayedTime << " ";
+            s << (_and ? "AND " : "") << "`played_time_total` <= " << maxPlayedTime << " ";
             _and = true;
         }
 

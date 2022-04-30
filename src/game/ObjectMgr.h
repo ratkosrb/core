@@ -492,6 +492,7 @@ enum PermVariables
     VAR_TOURNAMENT  = 30021,    // last quest completion time
     VAR_TOURN_GOES  = 30022,    // tournament was started already
     VAR_TOURN_OVER  = 30023,    // tournament is over
+    VAR_TOURN_WINNER = 30056,   // for gosssip menu condition
 
     // War Effort shared contributions
     VAR_WE_ALLIANCE_COPPER          = 30024,
@@ -601,8 +602,8 @@ class ObjectMgr
         static GameObjectInfo const* GetGameObjectInfo(uint32 id) { return sGOStorage.LookupEntry<GameObjectInfo>(id); }
 
         void AssignZoneIdsToSpawns();
-        void LoadGameobjectInfo();
-        void CheckGameObjectInfos();
+        std::set<uint32> LoadGameobjectInfo();
+        std::set<uint32> CheckGameObjectInfos();
         void AddGameobjectInfo(GameObjectInfo* goinfo);
         void LoadGameObjectDisplayInfoAddon();
         void LoadGameobjectsRequirements();
@@ -668,6 +669,8 @@ class ObjectMgr
         void LoadTaxiNodes();
         TaxiNodesEntry const* GetTaxiNodeEntry(uint32 id) const { return id < GetMaxTaxiNodeId() ? m_TaxiNodes[id].get() : nullptr; }
         uint32 GetMaxTaxiNodeId() const { return m_TaxiNodes.size(); }
+
+        ObjectGuid GetFullTransportGuidFromLowGuid(uint32 lowGuid);
 
         Quest const* GetQuestTemplate(uint32 quest_id) const
         {

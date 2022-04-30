@@ -219,6 +219,7 @@ class SpellAuraHolder
             SetAuraDuration(duration);
         }
 
+        bool HasAuraType(AuraType auraType) const;
         bool HasMechanic(uint32 mechanic) const;
         bool HasMechanicMask(uint32 mechanicMask) const;
 
@@ -343,6 +344,7 @@ class Aura
         void HandleAuraModTotalHealthPercentRegen(bool Apply, bool Real);
         void HandleAuraModTotalManaPercentRegen(bool Apply, bool Real);
         void HandleAuraModResistance(bool Apply, bool Real);
+        void HandleDetectAmore(bool apply, bool Real);
         void HandleAuraModRoot(bool Apply, bool Real);
         void HandleAuraModSilence(bool Apply, bool Real);
         void HandleAuraModStat(bool Apply, bool Real);
@@ -374,6 +376,7 @@ class Aura
         void HandleModCastingSpeed(bool Apply, bool Real);
         void HandleAuraMounted(bool Apply, bool Real);
         void HandleWaterBreathing(bool Apply, bool Real);
+        void HandleModWaterBreathing(bool apply, bool Real);
         void HandleModBaseResistance(bool Apply, bool Real);
         void HandleModRegen(bool Apply, bool Real);
         void HandleModPowerRegen(bool Apply, bool Real);

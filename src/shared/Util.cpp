@@ -80,7 +80,7 @@ uint32 WorldTimer::tick()
     m_iPrevTime = m_iTime;
 
     //get the new one and don't forget to persist current system time in m_SystemTickTime
-    m_iTime = WorldTimer::getMSTime_internal(true);
+    m_iTime = WorldTimer::getMSTime_internal();
 
     //return tick diff
     return getMSTimeDiff(m_iPrevTime, m_iTime);
@@ -91,7 +91,7 @@ uint32 WorldTimer::getMSTime()
     return getMSTime_internal();
 }
 
-uint32 WorldTimer::getMSTime_internal(bool /*savetime*/ /*= false*/)
+uint32 WorldTimer::getMSTime_internal()
 {
     //get current time
     ACE_Time_Value const currTime = ACE_OS::gettimeofday();
@@ -574,4 +574,34 @@ int32 dither(float v)
 uint32 ditheru(float v)
 {
     return std::copysign(std::floor(std::abs(v) + frand(0,1)), v);
+}
+
+void SetByteValue(uint32& variable, uint8 offset, uint8 value)
+{
+    if (offset > 4)
+    {
+        sLog.outError("Utility::SetByteValue: wrong offset %u", offset);
+        return;
+    }
+
+    if (uint8(variable >> (offset * 8)) != value)
+    {
+        variable &= ~uint32(uint32(0xFF) << (offset * 8));
+        variable |= uint32(uint32(value) << (offset * 8));
+    }
+}
+
+void SetUInt16Value(uint32& variable, uint8 offset, uint16 value)
+{
+    if (offset > 2)
+    {
+        sLog.outError("Utility::SetUInt16Value: wrong offset %u", offset);
+        return;
+    }
+
+    if (uint16(variable >> (offset * 16)) != value)
+    {
+        variable &= ~uint32(uint32(0xFFFF) << (offset * 16));
+        variable |= uint32(uint32(value) << (offset * 16));
+    }
 }

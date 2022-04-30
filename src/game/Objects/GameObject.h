@@ -33,6 +33,7 @@ class Unit;
 class GameObjectAI;
 class GameObjectModel;
 class Transport;
+struct TransportAnimation;
 
 struct GameObjectDisplayInfoEntry;
 
@@ -42,14 +43,14 @@ class GameObject : public SpellCaster
         explicit GameObject();
         ~GameObject() override;
 
+        static GameObject* CreateGameObject(uint32 entry);
+
         void AddToWorld() override;
         void RemoveFromWorld() override;
 
-        bool Create(uint32 guidlow, uint32 name_id, Map* map, float x, float y, float z, float ang, float rotation0, float rotation1, float rotation2, float rotation3, uint32 animprogress, GOState go_state);
+        virtual bool Create(uint32 guidlow, uint32 name_id, Map* map, float x, float y, float z, float ang, float rotation0, float rotation1, float rotation2, float rotation3, uint32 animprogress, GOState go_state);
         void Update(uint32 update_diff, uint32 p_time) override;
         GameObjectInfo const* GetGOInfo() const;
-
-        bool IsTransport() const;
 
         bool HasStaticDBSpawnData() const;                  // listed in `gameobject` table and have fixed in DB guid
         uint32 GetDBTableGUIDLow() const { return HasStaticDBSpawnData() ? GetGUIDLow() : 0; }
@@ -220,17 +221,24 @@ class GameObject : public SpellCaster
         void AIM_Initialize();
         GameObjectAI* AI() { return i_AI; }
 
-        // NOSTALRIUS: GOCollision
         void UpdateCollisionState();
         void UpdateModel();                                 // updates model in case displayId were changed
         GameObjectModel* m_model;
         void UpdateModelPosition();
+
+        float GetStationaryX() const { if (GetGOInfo()->type != GAMEOBJECT_TYPE_MO_TRANSPORT) return m_stationaryPosition.x; return 0.f; }
+        float GetStationaryY() const { if (GetGOInfo()->type != GAMEOBJECT_TYPE_MO_TRANSPORT) return m_stationaryPosition.y; return 0.f; }
+        float GetStationaryZ() const { if (GetGOInfo()->type != GAMEOBJECT_TYPE_MO_TRANSPORT) return m_stationaryPosition.z; return 0.f; }
+        float GetStationaryO() const { if (GetGOInfo()->type != GAMEOBJECT_TYPE_MO_TRANSPORT) return m_stationaryPosition.o; return GetOrientation(); }
+
         GameObjectData const*  GetGOData() const;
 
         // Transports system
+        bool IsTransport() const;
+        bool IsMoTransport() const;
+        GenericTransport* ToTransport();
+        GenericTransport const* ToTransport() const;
         uint64 GetRotation() const { return m_rotation; }
-        Transport* ToTransport() { if (GetGOInfo()->type == GAMEOBJECT_TYPE_MO_TRANSPORT) return reinterpret_cast<Transport*>(this); else return nullptr; }
-        Transport const* ToTransport() const { if (GetGOInfo()->type == GAMEOBJECT_TYPE_MO_TRANSPORT) return reinterpret_cast<Transport const*>(this); else return nullptr; }
 
         bool IsVisible() const { return m_visible; }
         void SetVisible(bool b);
@@ -267,6 +275,8 @@ class GameObject : public SpellCaster
 
         uint64 m_rotation;
         GameObjectInfo const* m_goInfo;
+
+        Position m_stationaryPosition;
 
         GameObjectAI* i_AI;
 
