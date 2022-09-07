@@ -260,7 +260,7 @@ void Unit::Update(uint32 update_diff, uint32 p_time)
         {
             // Pet in combat ?
             Pet* myPet = GetPet();
-            if (!myPet || myPet->GetHostileRefManager().isEmpty())
+            if (HasUnitState(UNIT_STAT_FEIGN_DEATH) || !myPet || myPet->GetHostileRefManager().isEmpty())
             {
                 if (m_HostileRefManager.isEmpty())
                 {
@@ -732,13 +732,15 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
 
         duel_hasEnded = true;
     }
-    //Get in CombatState
+
+    // Enter combat or extend leash timer.
     if ((pVictim != this) && (damagetype != DOT || (spellProto && spellProto->HasEffect(SPELL_EFFECT_PERSISTENT_AREA_AURA))) &&
-       (!spellProto || !spellProto->HasAura(SPELL_AURA_DAMAGE_SHIELD)))
+       (!spellProto || !spellProto->HasAura(SPELL_AURA_DAMAGE_SHIELD)) && (!spell || !spell->IsTriggeredByProc()))
     {
         SetInCombatWithVictim(pVictim);
         pVictim->SetInCombatWithAggressor(this);
     }
+
     if (pVictim->IsCreature())
         pVictim->ToCreature()->CountDamageTaken(damage, GetCharmerOrOwnerOrOwnGuid().IsPlayer() || pVictim == this);
     else if (pVictim != this)
@@ -1338,7 +1340,7 @@ void Unit::CalculateMeleeDamage(Unit* pVictim, uint32 damage, CalcDamageInfo* da
     // Physical Immune check
     if (immune)
     {
-        damageInfo->HitInfo |= HITINFO_NORMALSWING;
+        damageInfo->HitInfo &= ~HITINFO_AFFECTS_VICTIM;
         damageInfo->TargetState = VICTIMSTATE_IS_IMMUNE;
 
         damageInfo->procEx |= PROC_EX_IMMUNE;
@@ -6410,7 +6412,7 @@ void Unit::CheckPendingMovementChanges()
 
     Player* pPlayer = ToPlayer();
     if (pPlayer && pPlayer->IsBeingTeleportedFar())
-            return;
+        return;
 
     Player* pController = GetPlayerMovingMe();
     if (!pController || !pController->IsInWorld() || !pController->GetSession()->IsConnected())
@@ -6461,43 +6463,10 @@ void Unit::CheckPendingMovementChanges()
             return;
         }
 
-        if (oldestChange.resent)
-        {
-            // Change was resent but still no reply. Enforce the flags.
-            pController->GetCheatData()->OnFailedToAckChange();
-            ResolvePendingMovementChange(oldestChange, true);
-            PopPendingMovementChange();
-        }
-        else
-        {
-            // Send the change a second time and wait for reply.
-            oldestChange.resent = true;
-            oldestChange.time = WorldTimer::getMSTime();
-
-            if (oldestChange.movementCounter < GetMovementCounter())
-                oldestChange.movementCounter = GetMovementCounterAndInc();
-
-            switch (oldestChange.movementChangeType)
-            {
-                case ROOT:
-                case WATER_WALK:
-                case SET_HOVER:
-                case FEATHER_FALL:
-                    MovementPacketSender::SendMovementFlagChangeToController(this, pController, oldestChange);
-                    return;
-                case SPEED_CHANGE_WALK:
-                case SPEED_CHANGE_RUN:
-                case SPEED_CHANGE_RUN_BACK:
-                case SPEED_CHANGE_SWIM:
-                case SPEED_CHANGE_SWIM_BACK:
-                case RATE_CHANGE_TURN:
-                    MovementPacketSender::SendSpeedChangeToController(this, pController, oldestChange);
-                    return;
-                default:
-                    sLog.outError("Unit::CheckPendingMovementChange - Unhandled resendable movement change type %u", oldestChange.movementChangeType);
-                    return;
-            }
-        }
+        // Enforce the change.
+        pController->GetCheatData()->OnFailedToAckChange();
+        ResolvePendingMovementChange(oldestChange, true);
+        PopPendingMovementChange();
     }
 }
 
@@ -8020,6 +7989,15 @@ CharmInfo* Unit::InitCharmInfo(Unit* charm)
     return m_charmInfo;
 }
 
+void Unit::ClearCharmInfo()
+{
+    if (CharmInfo* pInfo = m_charmInfo)
+    {
+        m_charmInfo = nullptr;
+        delete pInfo;
+    }
+}
+
 CharmInfo::CharmInfo(Unit* unit)
     : m_unit(unit), m_originalFactionTemplate(nullptr), m_commandState(COMMAND_FOLLOW), m_reactState(REACT_PASSIVE), m_petNumber(0),
       m_isCommandAttack(false), m_isCommandFollow(false), m_isAtStay(false), m_isFollowing(false), m_isReturning(false),
@@ -8710,16 +8688,12 @@ void Unit::StopMoving(bool force)
         return;
 
     Movement::MoveSplineInit init(*this, "StopMoving");
-    if (GenericTransport* t = GetTransport()) {
+    if (GenericTransport* t = GetTransport())
         init.SetTransport(t->GetGUIDLow());
-    }
 
-    if (!movespline->Finalized() || force) {
+    if (!movespline->Finalized() || force)
+    {
         init.SetStop(); // Will trigger CMSG_MOVE_SPLINE_DONE from client.
-        init.Launch();
-    }
-    else if (!IsPlayer()) {
-        init.SetFacing(GetOrientation());
         init.Launch();
     }
 
@@ -8874,6 +8848,18 @@ void Unit::SetFeignDeath(bool apply, ObjectGuid casterGuid, bool success)
             RemoveAurasWithInterruptFlags(AURA_INTERRUPT_STEALTH_INVIS_CANCELS);
 
             GetHostileRefManager().deleteReferences();
+
+            // you should remain in combat with pet's victim
+            if (Pet* pPet = GetPet())
+            { 
+                if (pPet->IsInCombat())
+                {
+                    if (Unit* pVictim = pPet->GetVictim())
+                    {
+                        SetInCombatWithVictim(pVictim, false, 6000);
+                    }
+                }
+            }
         }
 
         SetFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_DEAD);
@@ -8885,9 +8871,6 @@ void Unit::SetFeignDeath(bool apply, ObjectGuid casterGuid, bool success)
     }
     else
     {
-        // blizz like 2.0.x
-        //SetFlag(UNIT_FIELD_FLAGS_2, UNIT_FLAG2_FEIGN_DEATH); [-ZERO] remove/replace ?
-
         RemoveFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_DEAD);
 
         ClearUnitState(UNIT_STAT_FEIGN_DEATH);
@@ -10431,6 +10414,38 @@ bool Unit::HasBreakableByDamageCrowdControlAura(Unit* excludeCasterChannel) cons
             || HasBreakableByDamageAuraType(SPELL_AURA_MOD_STUN, excludeAura)
             //|| HasBreakableByDamageAuraType(SPELL_AURA_MOD_ROOT, excludeAura)    // no breakable roots in vanilla
             || HasBreakableByDamageAuraType(SPELL_AURA_TRANSFORM, excludeAura));
+}
+
+void Unit::SetReactState(ReactStates state)
+{
+    if (CharmInfo* pCharmInfo = GetCharmInfo())
+        pCharmInfo->SetReactState(state);
+    else if (Creature* pCreature = ToCreature())
+        pCreature->SetCreatureReactState(state);
+    else
+        sLog.outError("SetReactState called for non-charmed player!");
+}
+
+ReactStates Unit::GetReactState() const
+{
+    if (CharmInfo* pCharmInfo = GetCharmInfo())
+        return pCharmInfo->GetReactState();
+
+    if (Creature const* pCreature = ToCreature())
+        return pCreature->GetCreatureReactState();
+
+    return REACT_DEFENSIVE;
+}
+
+bool Unit::HasReactState(ReactStates state) const
+{
+    if (CharmInfo* pCharmInfo = GetCharmInfo())
+        return pCharmInfo->HasReactState(state);
+
+    if (Creature const* pCreature = ToCreature())
+        return pCreature->HasCreatureReactState(state);
+
+    return state == REACT_DEFENSIVE;
 }
 
 void Unit::UpdateControl()

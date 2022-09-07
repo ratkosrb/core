@@ -1404,6 +1404,7 @@ bool Player::CheckMirrorTimerDeactivation(MirrorTimer::Type timer) const
             return false;
     }
 }
+
 void Player::OnMirrorTimerExpirationPulse(MirrorTimer::Type timer)
 {
     switch (timer)
@@ -1433,6 +1434,7 @@ void Player::OnMirrorTimerExpirationPulse(MirrorTimer::Type timer)
             return;
     }
 }
+
 uint32 Player::GetMirrorTimerMaxDuration(MirrorTimer::Type timer) const
 {
     switch (timer)
@@ -1449,6 +1451,7 @@ uint32 Player::GetMirrorTimerMaxDuration(MirrorTimer::Type timer) const
             return 0;
     }
 }
+
 SpellAuraHolder const* Player::GetMirrorTimerBuff(MirrorTimer::Type timer) const
 {
     switch (timer)
@@ -17498,7 +17501,7 @@ void Player::PetSpellInitialize()
     WorldPacket data(SMSG_PET_SPELLS, 8 + 4 + 1 + 1 + 2 + 4 * MAX_UNIT_ACTION_BAR_INDEX + 1 + 1);
     data << pet->GetObjectGuid();
     data << uint32(0);
-    data << uint8(pet->GetReactState());
+    data << uint8(charmInfo->GetReactState());
     data << uint8(charmInfo->GetCommandState());
     data << uint8(0);
     data << uint8(pet->IsEnabled() ? 0x0 : 0x8);
@@ -17545,9 +17548,20 @@ void Player::PossessSpellInitialize()
         return;
     }
 
+    int32 duration = 0;
+    auto const& possesAuras = charm->GetAurasByType(SPELL_AURA_MOD_POSSESS);
+    for (auto const& aura : possesAuras)
+    {
+        if (aura->GetCasterGuid() == GetObjectGuid() && aura->GetAuraDuration() > 0)
+        {
+            duration = aura->GetAuraDuration();
+            break;
+        }
+    }
+
     WorldPacket data(SMSG_PET_SPELLS, 8 + 4 + 4 + 4 * MAX_UNIT_ACTION_BAR_INDEX + 1 + 1);
     data << charm->GetObjectGuid();
-    data << uint32(0);
+    data << int32(duration);
     data << uint32(0);
 
     charmInfo->BuildActionBar(&data);
@@ -17588,11 +17602,24 @@ void Player::CharmSpellInitialize()
         }
     }
 
+    int32 duration = 0;
+    auto const& charmAuras = charm->GetAurasByType(SPELL_AURA_MOD_CHARM);
+    for (auto const& aura : charmAuras)
+    {
+        if (aura->GetCasterGuid() == GetObjectGuid() && aura->GetAuraDuration() > 0)
+        {
+            duration = aura->GetAuraDuration();
+            break;
+        }
+    }
+
     WorldPacket data(SMSG_PET_SPELLS, 8 + 4 + 1 + 1 + 2 + 4 * MAX_UNIT_ACTION_BAR_INDEX + 1 + 4 * addlist + 1);
     data << charm->GetObjectGuid();
-    data << uint32(0x00000000);
-
-    data << uint8(charmInfo->GetReactState()) << uint8(charmInfo->GetCommandState()) << uint16(0);
+    data << int32(duration);
+    data << uint8(charmInfo->GetReactState());
+    data << uint8(charmInfo->GetCommandState());
+    data << uint8(0);
+    data << uint8(0);
 
     charmInfo->BuildActionBar(&data);
 
@@ -18893,7 +18920,7 @@ void Player::UpdateVisibilityOf(WorldObject const* viewPoint, T* target, UpdateD
             ObjectGuid t_guid = target->GetObjectGuid();
 
             // Make sure mobs who become out of range leave combat before grid unload.
-            if (target->IsCreature() && IsInCombat() && !GetMap()->IsDungeon())
+            if (target->IsCreature() && target->FindMap() && IsInCombat() && !GetMap()->IsDungeon())
                 BeforeVisibilityDestroy((Creature*)target);
 
             target->BuildOutOfRangeUpdateBlock(data);
@@ -22140,7 +22167,7 @@ bool Player::IsInCombatWithCreature(Creature const* pCreature)
 
     while (pReference)
     {
-        if (pCreature == pReference->getSourceUnit())
+        if (pReference->isValid() && pCreature == pReference->getSourceUnit())
             return true;
 
         pReference = pReference->next();
