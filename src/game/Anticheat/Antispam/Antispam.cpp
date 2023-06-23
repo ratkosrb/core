@@ -59,7 +59,7 @@ Antispam::Antispam()
 
 void Antispam::loadFromDB()
 {
-    sLog.outString("Loading table 'antispam_blacklist'");
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, "Loading table 'antispam_blacklist'");
     m_blackList.clear();
 
     QueryResult* result = LoginDatabase.Query("SELECT * FROM antispam_blacklist");
@@ -74,10 +74,10 @@ void Antispam::loadFromDB()
         delete result;
     }
 
-    sLog.outString(">> %u blacklist words loaded", m_blackList.size());
-    sLog.outString();
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, ">> %u blacklist words loaded", m_blackList.size());
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, "");
 
-    sLog.outString("Loading table 'antispam_replacement'");
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, "Loading table 'antispam_replacement'");
     m_replacement.clear();
 
     result = LoginDatabase.Query("SELECT * FROM antispam_replacement");
@@ -92,10 +92,10 @@ void Antispam::loadFromDB()
         delete result;
     }
 
-    sLog.outString(">> %u replacements loaded", m_replacement.size());
-    sLog.outString();
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, ">> %u replacements loaded", m_replacement.size());
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, "");
 
-    sLog.outString("Loading table 'antispam_scores'");
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, "Loading table 'antispam_scores'");
 
     m_scores[MSG_TYPE_NORMALIZED].clear();
     m_scores[MSG_TYPE_ORIGINAL].clear();
@@ -112,10 +112,10 @@ void Antispam::loadFromDB()
         delete result;
     }
 
-    sLog.outString(">> %u scores loaded", m_scores[MSG_TYPE_NORMALIZED].size() + m_scores[MSG_TYPE_ORIGINAL].size());
-    sLog.outString();
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, ">> %u scores loaded", m_scores[MSG_TYPE_NORMALIZED].size() + m_scores[MSG_TYPE_ORIGINAL].size());
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, "");
     
-    sLog.outString("Loading table 'antispam_unicode'");
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, "Loading table 'antispam_unicode'");
     m_unicode.clear();
 
     result = LoginDatabase.Query("SELECT * FROM antispam_unicode");
@@ -137,8 +137,8 @@ void Antispam::loadFromDB()
         delete result;
     }
 
-    sLog.outString(">> %u unicode symbols loaded", m_unicode.size());
-    sLog.outString();
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, ">> %u unicode symbols loaded", m_unicode.size());
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, "");
 }
 
 void Antispam::loadMuted()
