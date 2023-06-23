@@ -32,6 +32,7 @@ AnticheatManager* GetAnticheatLib()
 #include "World.h"
 #include "WorldSession.h"
 
+#include "Antispam/Antispam.h"
 #include "MovementAnticheat/MovementAnticheat.h"
 #include "WardenAnticheat/Warden.hpp"
 #include "WardenAnticheat/WardenScanMgr.hpp"
@@ -51,6 +52,10 @@ AnticheatManager::~AnticheatManager()
 
 void AnticheatManager::LoadAnticheatData()
 {
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_MINIMAL, "");
+    sLog.Out(LOG_ANTICHEAT, LOG_LVL_MINIMAL, "Loading antispam system ...");
+    sAntispam->loadConfig();
+  
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_MINIMAL, "");
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_MINIMAL, "Loading warden checks...");
     sWardenScanMgr.LoadFromDB();
@@ -177,6 +182,11 @@ void AnticheatManager::RemoveWardenSession(Warden* warden)
 {
     std::lock_guard<std::mutex> guard(m_wardenSessionsMutex);
     m_wardenSessionsToRemove.push_back(warden);
+}
+
+AntispamInterface* AnticheatManager::GetAntispam() const
+{
+    return sAntispam;
 }
 
 #endif

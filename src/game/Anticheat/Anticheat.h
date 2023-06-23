@@ -135,8 +135,10 @@ public:
     ~AnticheatManager();
     void LoadAnticheatData();
 
-    Warden * CreateWardenFor(WorldSession* client, BigNumber* K);
+    Warden* CreateWardenFor(WorldSession* client, BigNumber* K);
     MovementAnticheat* CreateAnticheatFor(Player* player);
+
+    AntispamInterface* GetAntispam() const;
 
     void StartWardenUpdateThread();
     void StopWardenUpdateThread();
@@ -166,6 +168,8 @@ private:
         return new MovementAnticheat();
     }
 
+    AntispamInterface* GetAntispam() const { return nullptr; }
+
     void StartWardenUpdateThread() {}
     void StopWardenUpdateThread() {}
     void UpdateWardenSessions() {}
@@ -175,7 +179,6 @@ private:
 
 public:
     // Antispam wrappers
-    AntispamInterface* GetAntispam() const { return nullptr; }
     bool CanWhisper(AccountPersistentData const& data, MasterPlayer* player) { return true; }
 
     static AnticheatManager* instance();
