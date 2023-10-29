@@ -69,7 +69,7 @@
 #  define _ENDIAN_PLATFORM "Win32 (" _ENDIAN_STRING ")"
 # endif
 # define _MANGOSD_CONFIG  SYSCONFDIR "mangosd.conf"
-# define _REALMD_CONFIG   SYSCONFDIR "realmd.conf"
+# define _REALMD_CONFIG   SYSCONFDIR "bnetserver.conf"
 # define _MODS_CONFIG     SYSCONFDIR "mods.conf"
 #else
 # if defined  (__FreeBSD__)
@@ -88,7 +88,7 @@
 #  define _ENDIAN_PLATFORM "Unix_" ARCHITECTURE " (" _ENDIAN_STRING ")"
 # endif
 # define _MANGOSD_CONFIG  SYSCONFDIR "mangosd.conf"
-# define _REALMD_CONFIG  SYSCONFDIR "realmd.conf"
+# define _REALMD_CONFIG  SYSCONFDIR "bnetserver.conf"
 # define _MODS_CONFIG  SYSCONFDIR "mods.conf"
 #endif
 

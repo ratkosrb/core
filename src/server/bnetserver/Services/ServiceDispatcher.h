@@ -63,6 +63,6 @@ namespace Battlenet
     };
 }
 
-#define sServiceDispatcher ServiceDispatcher::Instance()
+#define sServiceDispatcher Battlenet::ServiceDispatcher::Instance()
 
 #endif // ServiceDispatcher_h__

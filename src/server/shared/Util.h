@@ -412,6 +412,7 @@ void vutf8printf(FILE* out, char const* str, va_list* ap);
 
 bool IsIPAddress(char const* ipaddress);
 uint32 CreatePIDFile(std::string const& filename);
+uint32 GetPID();
 
 void hexEncodeByteArray(uint8* bytes, uint32 arrayLen, std::string& result);
 std::string ByteArrayToHexStr(uint8 const* bytes, uint32 length, bool reverse = false);

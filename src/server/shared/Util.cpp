@@ -387,6 +387,17 @@ uint32 CreatePIDFile(std::string const& filename)
     return (uint32)pid;
 }
 
+uint32 GetPID()
+{
+#ifdef _WIN32
+    DWORD pid = GetCurrentProcessId();
+#else
+    pid_t pid = getpid();
+#endif
+
+    return uint32(pid);
+}
+
 size_t utf8length(std::string& utf8str)
 {
     try

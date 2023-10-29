@@ -31,6 +31,7 @@
 #include "Auth/Sha1.h"
 #include "SRP6/SRP6.h"
 #include "ByteBuffer.h"
+#include "Utilities/MessageBuffer.h"
 #include "BufferedSocket.h"
 #include <google/protobuf/message.h>
 
@@ -108,6 +109,12 @@ class AuthSocket: public BufferedSocket
         static void InitTcpSSL();
         void SendResponse(uint32 token, pb::Message const* response);
         void SendResponse(uint32 token, uint32 status);
+        void SendRequest(uint32 serviceHash, uint32 methodId, pb::Message const* request, std::function<void(MessageBuffer)> callback)
+        {
+            _responseCallbacks[_requestToken] = std::move(callback);
+            SendRequest(serviceHash, methodId, request);
+        }
+        void SendRequest(uint32 serviceHash, uint32 methodId, pb::Message const* request);
 
         void OnAccept();
         void OnRead();
@@ -170,6 +177,9 @@ class AuthSocket: public BufferedSocket
         AccountTypes m_accountDefaultSecurityLevel = SEC_PLAYER;
         typedef std::map<uint32, AccountTypes> AccountSecurityMap;
         AccountSecurityMap m_accountSecurityOnRealm;
+
+        std::unordered_map<uint32, std::function<void(MessageBuffer)>> _responseCallbacks;
+        uint32 _requestToken = 0;
 };
 #endif
 // @}

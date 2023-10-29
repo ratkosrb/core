@@ -53,8 +53,8 @@
 
 #ifdef WIN32
 #include "ServiceWin32.h"
-char serviceName[] = "realmd";
-char serviceLongName[] = "MaNGOS realmd service";
+char serviceName[] = "bnetserver";
+char serviceLongName[] = "MaNGOS bnetserver service";
 char serviceDescription[] = "Massive Network Game Object Server";
 /*
  * -1 - not in service mode
@@ -94,7 +94,7 @@ void usage(const char *prog)
         ,prog);
 }
 
-char const* g_mainLogFileName = "Realmd.log";
+char const* g_mainLogFileName = "bnetserver.log";
 
 // Launch the realm server
 extern int main(int argc, char **argv)
@@ -207,7 +207,7 @@ extern int main(int argc, char **argv)
     if (confVersion < _REALMDCONFVERSION)
     {
         sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "*****************************************************************************");
-        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, " WARNING: Your realmd.conf version indicates your conf file is out of date!");
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, " WARNING: Your bnetserver.conf version indicates your conf file is out of date!");
         sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "          Please check for updates, as your current default values may cause");
         sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "          strange behavior.");
         sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "*****************************************************************************");
@@ -239,7 +239,7 @@ extern int main(int argc, char **argv)
 
     sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Max allowed open files is %d", ACE::max_handles());
 
-    // realmd PID file creation
+    // bnetserver PID file creation
     std::string pidfile = sConfig.GetStringDefault("PidFile", "");
     if(!pidfile.empty())
     {
@@ -307,7 +307,7 @@ extern int main(int argc, char **argv)
 
     if(acceptor.open(bind_addr, ACE_Reactor::instance(), ACE_NONBLOCK) == -1)
     {
-        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "MaNGOS realmd can not bind to %s:%d", bind_ip.c_str(), rmport);
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "MaNGOS bnetserver can not bind to %s:%d", bind_ip.c_str(), rmport);
         Log::WaitBeforeContinueIfNeed();
         return 1;
     }
@@ -332,7 +332,7 @@ extern int main(int argc, char **argv)
 
                 if(!curAff )
                 {
-                    sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Processors marked in UseProcessors bitmask (hex) %x not accessible for realmd. Accessible processors bitmask (hex): %x",Aff,appAff);
+                    sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Processors marked in UseProcessors bitmask (hex) %x not accessible for bnetserver. Accessible processors bitmask (hex): %x",Aff,appAff);
                 }
                 else
                 {
@@ -350,9 +350,9 @@ extern int main(int argc, char **argv)
         if(Prio)
         {
             if(SetPriorityClass(hProcess,HIGH_PRIORITY_CLASS))
-                sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "realmd process priority class set to HIGH");
+                sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "bnetserver process priority class set to HIGH");
             else
-                sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Can't set realmd process priority class.");
+                sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Can't set bnetserver process priority class.");
             sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "");
         }
     }

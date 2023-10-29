@@ -106,18 +106,34 @@ void AuthSocket::OnAccept()
 // Read the packet from the client
 void AuthSocket::OnRead()
 {
+    size_t recvLen = recv_len();
     std::vector<uint8> buf;
-    buf.resize(recv_len());
-    recv((char*)&buf[0], recv_len());
+    buf.resize(recvLen);
+    recv((char*)&buf[0], recvLen);
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Received %u bytes", recvLen);
+
+    ASSERT(buf.size() > sizeof(uint16));
+    uint16 headerSize = *((uint16*)buf.data());
+    EndianConvertReverse(headerSize);
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Header size is %u", headerSize);
 
     Header header;
-    ASSERT(header.ParseFromArray(buf.data(), buf.size()));
+    ASSERT(header.ParseFromArray(buf.data() + sizeof(uint16), headerSize));
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Service id is %u, service hash is %u", header.service_id(), header.service_hash());
 
-    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Recieved request for service id %u", header.service_id());
+    MessageBuffer msgBuffer;
+    msgBuffer.Write(buf.data() + sizeof(uint16) + header.size(), recvLen - (sizeof(uint16) + header.size()));
+
+    if (header.service_id() != 0xFE)
+    {
+        sServiceDispatcher.Dispatch(this, header.service_hash(), header.token(), header.method_id(), std::move(msgBuffer));
+    }
 }
 
 void AuthSocket::SendResponse(uint32 token, pb::Message const* response)
 {
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "SendResponse: token %u", token);
+
     Header header;
     header.set_token(token);
     header.set_service_id(0xFE);
@@ -135,11 +151,13 @@ void AuthSocket::SendResponse(uint32 token, pb::Message const* response)
     packet.WriteCompleted(response->ByteSize());
     response->SerializeToArray(ptr, response->ByteSize());
 
-    //AsyncWrite(&packet);
+    send((char*)packet.GetBasePointer(), packet.GetBufferSize());
 }
 
 void AuthSocket::SendResponse(uint32 token, uint32 status)
 {
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "SendResponse: token %u status %u", token, status);
+
     Header header;
     header.set_token(token);
     header.set_status(status);
@@ -154,7 +172,33 @@ void AuthSocket::SendResponse(uint32 token, uint32 status)
     packet.WriteCompleted(header.ByteSize());
     header.SerializeToArray(ptr, header.ByteSize());
 
-    //AsyncWrite(&packet);
+    send((char*)packet.GetBasePointer(), packet.GetBufferSize());
+}
+
+void AuthSocket::SendRequest(uint32 serviceHash, uint32 methodId, pb::Message const* request)
+{
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "SendResponse: serviceHash %u methodId %u", serviceHash, methodId);
+
+    Header header;
+    header.set_service_id(0);
+    header.set_service_hash(serviceHash);
+    header.set_method_id(methodId);
+    header.set_size(request->ByteSize());
+    header.set_token(_requestToken++);
+
+    uint16 headerSize = header.ByteSize();
+    EndianConvertReverse(headerSize);
+
+    MessageBuffer packet;
+    packet.Write(&headerSize, sizeof(headerSize));
+    uint8* ptr = packet.GetWritePointer();
+    packet.WriteCompleted(header.ByteSize());
+    header.SerializeToArray(ptr, header.ByteSize());
+    ptr = packet.GetWritePointer();
+    packet.WriteCompleted(request->ByteSize());
+    request->SerializeToArray(ptr, request->ByteSize());
+
+    send((char*)packet.GetBasePointer(), packet.GetBufferSize());
 }
 
 void AuthSocket::LoadRealmlist(ByteBuffer &pkt)
