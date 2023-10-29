@@ -4,7 +4,7 @@
 /**
  *  @file     Pagefile_Memory_Pool.h
  *
- *  @author Dougls C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Dougls C. Schmidt <d.schmidt@vanderbilt.edu>
  *  @author Prashant Jain <pjain@cs.wustl.edu>
  */
 //=============================================================================
@@ -66,7 +66,7 @@ public:
                             const OPTIONS *options = 0);
 
   /// Destructor
-  virtual ~ACE_Pagefile_Memory_Pool (void);
+  virtual ~ACE_Pagefile_Memory_Pool ();
 
   /// Ask system for initial chunk of shared memory.
   void *init_acquire (size_t nbytes,

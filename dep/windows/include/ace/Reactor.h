@@ -5,7 +5,7 @@
  *  @file    Reactor.h
  *
  *  @author Irfan Pyarali <irfan@cs.wustl.edu>
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  */
 //=============================================================================
 
@@ -341,7 +341,6 @@ public:
                         ACE_Reactor_Mask mask);
 
 #if defined (ACE_WIN32)
-
   /**
    * Register handler for OS events.
    *
@@ -360,7 +359,6 @@ public:
    */
   int register_handler (ACE_Event_Handler *event_handler,
                         ACE_HANDLE event_handle = ACE_INVALID_HANDLE);
-
 #endif /* ACE_WIN32 */
 
   /**

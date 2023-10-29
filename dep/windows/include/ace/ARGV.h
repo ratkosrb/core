@@ -4,7 +4,7 @@
 /**
  *  @file    ARGV.h
  *
- *  @author Doug Schmidt <schmidt@cs.wustl.edu>
+ *  @author Doug Schmidt <d.schmidt@vanderbilt.edu>
  *  @author Everett Anderson <eea1@cs.wustl.edu>
  */
 //==========================================================================
@@ -34,7 +34,6 @@ template <typename CHAR_TYPE>
 class ACE_ARGV_Queue_Entry_T
 {
 public:
-  // = Initialization and termination.
   /// Initialize a ACE_ARGV_Queue_Entry_T.
   ACE_ARGV_Queue_Entry_T (void);
 
@@ -56,9 +55,15 @@ public:
    */
   ACE_ARGV_Queue_Entry_T (const ACE_ARGV_Queue_Entry_T<CHAR_TYPE> &entry);
 
+#if defined (ACE_HAS_CPP11)
+  ACE_ARGV_Queue_Entry_T (ACE_ARGV_Queue_Entry_T&&) = default;
+  ACE_ARGV_Queue_Entry_T &operator = (const ACE_ARGV_Queue_Entry_T &) = default;
+  ACE_ARGV_Queue_Entry_T &operator = (ACE_ARGV_Queue_Entry_T &&)  = default;
+#endif /* ACE_HAS_CPP11 */
+
   /// We need this destructor to keep some compilers from complaining.
   /// It's just a no-op, however.
-  ~ACE_ARGV_Queue_Entry_T (void);
+  ~ACE_ARGV_Queue_Entry_T ();
 
   /// Dump the state of this object.
   void dump (void) const;
@@ -94,7 +99,6 @@ template <typename CHAR_TYPE>
 class ACE_ARGV_T
 {
 public:
-  // = Initialization and termination.
   /**
    * Splits the specified string into an argument vector. Arguments in the
    * string are delimited by whitespace. Whitespace-containing arguments

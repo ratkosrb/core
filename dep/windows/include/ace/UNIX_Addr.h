@@ -37,7 +37,6 @@ ACE_BEGIN_VERSIONED_NAMESPACE_DECL
 class ACE_Export ACE_UNIX_Addr : public ACE_Addr
 {
 public:
-  // = Initialization methods.
   /// Default constructor.
   ACE_UNIX_Addr (void);
 
@@ -49,6 +48,9 @@ public:
 
   /// Creates an ACE_INET_Addr from a sockaddr_un structure.
   ACE_UNIX_Addr (const sockaddr_un *, int len);
+
+  /// Assignment operator
+  ACE_UNIX_Addr &operator = (const ACE_UNIX_Addr &rhs);
 
   /// Creates an ACE_UNIX_Addr from another ACE_UNIX_Addr.
   int set (const ACE_UNIX_Addr &sa);

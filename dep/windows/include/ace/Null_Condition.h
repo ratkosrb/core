@@ -6,7 +6,7 @@
  *
  *   Moved from Synch.h.
  *
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  */
 //==========================================================================
 
@@ -66,7 +66,7 @@ public:
 
   /// Returns 0.
   int broadcast (void) {return 0;}
-  ACE_Null_Mutex &mutex (void) {return this->mutex_;};
+  ACE_Null_Mutex &mutex () {return this->mutex_;}
 
   /// Dump the state of an object.
   void dump (void) const {}

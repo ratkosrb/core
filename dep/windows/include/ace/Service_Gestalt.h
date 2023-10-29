@@ -263,9 +263,9 @@ public:
 #if (ACE_USES_CLASSIC_SVC_CONF == 1)
   /// Dynamically link the shared object file and retrieve a pointer to
   /// the designated shared object in this file. Also account for the
-  /// possiblity to have static services registered when loading the DLL, by
-  /// ensuring that the dynamic sevice is registered before any of its
-  /// subordibnate static services. Thus avoiding any finalization order
+  /// possibility to have static services registered when loading the DLL, by
+  /// ensuring that the dynamic service is registered before any of its
+  /// subordinate static services. Thus avoiding any finalization order
   /// problems.
   int initialize (const ACE_Service_Type_Factory *,
                   const ACE_TCHAR *parameters);
@@ -328,7 +328,6 @@ public:
   ACE_Service_Repository* current_service_repository (void);
 
 protected:
-
   int parse_args_i (int, ACE_TCHAR *argv[],
                     bool& ignore_default_svc_conf_file);
 
@@ -389,7 +388,6 @@ protected:
   int init_i (void);
 
 protected:
-
   /// Maintain a queue of services to be configured from the
   /// command-line.
   typedef ACE_Unbounded_Queue<ACE_TString> ACE_SVC_QUEUE;
@@ -414,7 +412,6 @@ protected:
   friend class ACE_Service_Config_Guard;
 
 protected:
-
   /// Do we own the service repository instance, or have only been
   /// given a ptr to the singleton?
   bool svc_repo_is_owned_;
@@ -508,7 +505,6 @@ private:
 // FUZZ: enable check_for_ACE_Guard
 #endif
 };
-
 
 ACE_END_VERSIONED_NAMESPACE_DECL
 

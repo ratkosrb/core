@@ -6,7 +6,7 @@
  *
  *  @author Irfan Pyrali <irfan@cs.wustl.edu>
  *  @author Tim Harrison <harrison@cs.wustl.edu>
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  *  @author Bill Fulton <bill_a_fulton@raytheon.com>
  *  @author Don Hinton <dhinton@objectsciences.com>
  */
@@ -191,8 +191,6 @@ public:
     DEFOPTS = DEFOPT_BINDADDR | DEFOPT_NULLIFACE
   };
 
-  // = Initialization routines.
-
   /// Create an unitialized instance and define per-instance optional
   /// functionality.
   /**
@@ -337,12 +335,12 @@ public:
   /// Declare the dynamic allocation hooks.
   ACE_ALLOC_HOOK_DECLARE;
 
-  /// Override write acessor for the constructor options (@see enum options above)
+  /// Override write accessor for the constructor options (@see enum options above)
   /// This class is typically default instantiated in a connection handler templated
   /// framework so these cannot be specified on construction.
   void opts (int opts);
 
-  /// Read acessor for the constructor options (@see enum options above)
+  /// Read accessor for the constructor options (@see enum options above)
   int opts () const;
 
 private:
@@ -354,7 +352,7 @@ private:
                      int reuse_addr);
 
   /// Do subscription processing w/out updating the subscription list.
-  /// (Layered method for <subscribe> processing).
+  /// (Layered method for subscribe() processing).
   int subscribe_i (const ACE_INET_Addr &mcast_addr,
                    int reuse_addr = 1,
                    const ACE_TCHAR *net_if = 0);
@@ -369,7 +367,6 @@ private:
                      const ACE_TCHAR *net_if = 0);
 
 protected:
-
   /// Contains common open functionality so that inheriting classes can
   /// reuse it.
   int open_i (const ACE_INET_Addr &mcast_addr,        // Bound & sendto address.

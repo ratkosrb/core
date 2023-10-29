@@ -4,7 +4,7 @@
 /**
  *  @file   OS_NS_sys_stat.h
  *
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  *  @author Jesper S. M|ller<stophph@diku.dk>
  *  @author and a cast of thousands...
  *
@@ -34,8 +34,7 @@
 
 ACE_BEGIN_VERSIONED_NAMESPACE_DECL
 
-# if defined (_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS == 64  \
-     && defined (ACE_WIN32)
+# if defined (_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS == 64 && defined (ACE_WIN32)
 #   if defined (__BORLANDC__)
 typedef struct stati64 ACE_stat;
 #       define ACE_STAT_FUNC_NAME ::_stati64

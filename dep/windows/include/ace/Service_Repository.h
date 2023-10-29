@@ -4,7 +4,7 @@
 /**
  *  @file    Service_Repository.h
  *
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  */
 //=============================================================================
 
@@ -56,7 +56,6 @@ public:
     DEFAULT_SIZE = ACE_DEFAULT_SERVICE_REPOSITORY_SIZE
   };
 
-  // = Initialization and termination methods.
   /// Initialize the repository.
   ACE_Service_Repository (size_t size = DEFAULT_SIZE);
 
@@ -191,9 +190,9 @@ protected:
 
   /// The typedef of the array used to store the services.
 #if defined (ACE_HAS_ALLOC_HOOKS)
-      typedef ACE_Array_Map<size_t, const ACE_Service_Type*, std::equal_to<size_t>, ACE_Allocator_Std_Adapter<std::pair<size_t, const ACE_Service_Type*> > > array_type;
+  typedef ACE_Array_Map<size_t, const ACE_Service_Type*, std::equal_to<size_t>, ACE_Allocator_Std_Adapter<std::pair<size_t, const ACE_Service_Type*> > > array_type;
 #else
-      typedef ACE_Array_Map<size_t, const ACE_Service_Type*> array_type;
+  typedef ACE_Array_Map<size_t, const ACE_Service_Type*> array_type;
 #endif /* ACE_HAS_ALLOC_HOOKS */
 
   /// Contains all the configured services.
@@ -220,7 +219,6 @@ protected:
 class ACE_Export ACE_Service_Repository_Iterator
 {
 public:
-  // = Initialization and termination methods.
   /// Constructor initializes the iterator.
   ACE_Service_Repository_Iterator (ACE_Service_Repository &sr,
                                    bool ignored_suspended = true);

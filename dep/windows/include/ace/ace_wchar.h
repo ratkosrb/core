@@ -94,6 +94,11 @@ typedef char ACE_ANTI_TCHAR;
 # define ACE_TEXT_CHAR_TO_TCHAR(STRING) ACE_Ascii_To_Wide (STRING).wchar_rep ()
 # define ACE_TEXT_WCHAR_TO_TCHAR(STRING) STRING
 # define ACE_TEXT_ANTI_TO_TCHAR(STRING) ACE_Ascii_To_Wide (STRING).wchar_rep ()
+# if !defined (ACE_WIN32)
+#   define ACE_TEXT_PRIs ACE_TEXT("ls")
+# else
+#   define ACE_TEXT_PRIs ACE_TEXT("s")
+# endif
 #else /* ACE_USES_WCHAR */
 typedef char ACE_TCHAR;
 typedef wchar_t ACE_ANTI_TCHAR;
@@ -103,6 +108,7 @@ typedef wchar_t ACE_ANTI_TCHAR;
 # define ACE_TEXT_CHAR_TO_TCHAR(STRING) STRING
 # define ACE_TEXT_WCHAR_TO_TCHAR(STRING) ACE_Wide_To_Ascii (STRING).char_rep ()
 # define ACE_TEXT_ANTI_TO_TCHAR(STRING) ACE_Wide_To_Ascii (STRING).char_rep ()
+# define ACE_TEXT_PRIs ACE_TEXT("s")
 #endif /* ACE_USES_WCHAR */
 
 // The OS_String module defines some wide-char functions that are not
@@ -228,6 +234,7 @@ ACE_END_VERSIONED_NAMESPACE_DECL
 #define ACE_TEXT_CreateFileMapping               ::CreateFileMappingW
 #define ACE_TEXT_CreateMutex                     ::CreateMutexW
 #define ACE_TEXT_CreateProcess                   ::CreateProcessW
+#define ACE_TEXT_CreateProcessAsUser             ::CreateProcessAsUserW
 #define ACE_TEXT_CreateSemaphore                 ::CreateSemaphoreW
 #define ACE_TEXT_CreateService                   ::CreateServiceW
 #define ACE_TEXT_ExpandEnvironmentStrings        ::ExpandEnvironmentStringsW
@@ -288,6 +295,7 @@ ACE_END_VERSIONED_NAMESPACE_DECL
 #define ACE_TEXT_CreateFileMapping               ::CreateFileMappingA
 #define ACE_TEXT_CreateMutex                     ::CreateMutexA
 #define ACE_TEXT_CreateProcess                   ::CreateProcessA
+#define ACE_TEXT_CreateProcessAsUser             ::CreateProcessAsUserA
 #define ACE_TEXT_CreateSemaphore                 ::CreateSemaphoreA
 #define ACE_TEXT_CreateService                   ::CreateServiceA
 #define ACE_TEXT_ExpandEnvironmentStrings        ::ExpandEnvironmentStringsA

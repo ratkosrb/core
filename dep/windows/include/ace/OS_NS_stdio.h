@@ -4,7 +4,7 @@
 /**
  *  @file   OS_NS_stdio.h
  *
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  *  @author Jesper S. M|ller<stophph@diku.dk>
  *  @author and a cast of thousands...
  *
@@ -26,6 +26,7 @@
 #include "ace/os_include/os_stdio.h"
 #include "ace/os_include/os_fcntl.h"
 #include "ace/os_include/os_inttypes.h"
+#include "ace/os_include/os_errno.h"
 #include /**/ "ace/ACE_export.h"
 
 /* OPENVMS needs unistd for cuserid() */
@@ -126,6 +127,9 @@ inline ACE_HANDLE ace_fileno_helper (FILE *fp)
 # if defined (fileno)
   return (ACE_HANDLE)fileno (fp);
 # undef fileno
+# elif defined (ACE_LACKS_FILENO)
+  ACE_UNUSED_ARG (fp);
+  ACE_NOTSUP_RETURN (ACE_INVALID_HANDLE);
 # else
   return (ACE_HANDLE)(intptr_t)ACE_STD_NAMESPACE::fileno (fp);
 # endif /* defined (fileno) */
@@ -559,7 +563,7 @@ namespace ACE_OS {
   int vsnprintf (wchar_t *buffer, size_t maxlen, const wchar_t *format, va_list argptr);
 #endif /* ACE_HAS_WCHAR */
 
-#ifndef ACE_LACKS_VA_FUNCTIONS
+#if defined (ACE_HAS_VSNPRINTF_EMULATION)
   extern ACE_Export
   int vsnprintf_emulation (char *buf, size_t max, const char *fmt, va_list ap);
 #endif

@@ -4,7 +4,7 @@
 /**
  *  @file   Cleanup.h
  *
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  *  @author Jesper S. M|ller<stophph@diku.dk>
  *  @author and a cast of thousands...
  *
@@ -145,7 +145,6 @@ private:
    */
   ACE_Cleanup_Info_Node_List registered_objects_;
 };
-
 
 ACE_END_VERSIONED_NAMESPACE_DECL
 

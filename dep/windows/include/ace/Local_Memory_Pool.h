@@ -4,7 +4,7 @@
 /**
  *  @file     Local_Memory_Pool.h
  *
- *  @author Dougls C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Dougls C. Schmidt <d.schmidt@vanderbilt.edu>
  *  @author Prashant Jain <pjain@cs.wustl.edu>
  */
 //=============================================================================
@@ -122,7 +122,6 @@ protected:
   /// Implement the algorithm for rounding up the request to an
   /// appropriate chunksize.
   virtual size_t round_up (size_t nbytes);
-
 };
 
 ACE_END_VERSIONED_NAMESPACE_DECL

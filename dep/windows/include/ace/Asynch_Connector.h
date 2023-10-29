@@ -48,7 +48,7 @@ public:
   ACE_Asynch_Connector (void);
 
   /// Virtual destruction
-  virtual ~ACE_Asynch_Connector (void);
+  virtual ~ACE_Asynch_Connector ();
 
   /**
    * This opens asynch connector
@@ -143,7 +143,6 @@ protected:
   virtual HANDLER *make_handler (void);
 
 private:
-
   /// Asynch_Connect used to make life easier :-)
   ACE_Asynch_Connect asynch_connect_;
 

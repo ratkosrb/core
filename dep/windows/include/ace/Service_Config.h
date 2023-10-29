@@ -4,7 +4,7 @@
 /**
  *  @file    Service_Config.h
  *
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  */
 //====================================================================
 
@@ -252,19 +252,19 @@ public:
  * The ACE_Service_Config uses the Monostate pattern.  Therefore,
  * you can only have one of these instantiated per-process. It
  * represents the process-wide collection of services, which is
- * typicaly shared among all other configurable entities. The only
+ * typically shared among all other configurable entities. The only
  * ACE_Service_Config instance is registered with and owned by the
  * ACE_Object_Manager.
  *
  * By contrast, the ACE_Service_Gestalt represents the collection
- * of services, pertaining to a configurable entity. Typicaly, a
+ * of services, pertaining to a configurable entity. Typically, a
  * "configurable entity" is an instance, which owns an instance of
- * ACE_Service_Gestalt in order to ensure full controll over the
+ * ACE_Service_Gestalt in order to ensure full control over the
  * services it needs.
  *
  * Another facet of ACE_Service_Config is that for a given thread,
  * it provides access to its current, process-global
- * ACE_Service_Gestalt instance through its curent() method.
+ * ACE_Service_Gestalt instance through its current() method.
  *
  * @note The signal_handler_ static member is allocated by the
  * ACE_Object_Manager.  The ACE_Service_Config constructor
@@ -276,7 +276,6 @@ public:
  */
 class ACE_Export ACE_Service_Config
 {
-
   /// The Instance, or the global (default) configuration context.
   /// The monostate would forward the calls to that instance. The TSS
   /// will point here
@@ -290,9 +289,6 @@ class ACE_Export ACE_Service_Config
   ACE_Threading_Helper<ACE_SYNCH_MUTEX> threadkey_;
 
 public:
-
-  // = Initialization and termination methods.
-
   /**
    * Initialize the Service Repository. Note that initialising @a
    * signum to a negative number will prevent a signal handler being
@@ -315,7 +311,6 @@ public:
   virtual ~ACE_Service_Config (void);
 
 private:
-
   /**
    * Performs an open without parsing command-line arguments.
    * Implements whats different in the opening sequence
@@ -512,7 +507,7 @@ private:
   static ACE_Service_Gestalt* static_svcs (void);
 
   /// Insert a static service descriptor for processing on open_i(). The
-  /// corresponding ACE_STATIC_SVC_* macros were chaged to use this method
+  /// corresponding ACE_STATIC_SVC_* macros were changed to use this method
   /// instead of obtaining a ptr to a container. See the note on static_svcs().
   /// Added to prevent exposing the internal storage representation of the
   /// services repository and provide a better way of debugging service
@@ -560,7 +555,7 @@ private:
   /// Dump the state of an object.
   void dump (void) const;
 
-  /// Set the signal_handler;for internal use by ACE_Object_Manager only.
+  /// Set the signal_handler for internal use by ACE_Object_Manager only.
   static ACE_INLINE void signal_handler (ACE_Sig_Adapter *);
 
   /// Declare the dynamic allocation hooks.
@@ -646,7 +641,6 @@ private:
   static int load_static_svcs (void);
 
 protected:
-
 #if (ACE_USES_CLASSIC_SVC_CONF == 1)
   /// @deprecated
   /// This is the implementation function that process_directives()
@@ -655,11 +649,7 @@ protected:
   static int process_directives_i (ACE_Svc_Conf_Param *param);
 #endif /* ACE_USES_CLASSIC_SVC_CONF == 1 */
 
-
-  // = Process-wide state.
-
 private:
-
   /// Have we called ACE_Service_Config::open() yet?
   bool is_opened_;
 
@@ -735,7 +725,6 @@ private:
 private:
   ACE_Intrusive_Auto_Ptr<ACE_Service_Gestalt> saved_;
 };
-
 
 ACE_END_VERSIONED_NAMESPACE_DECL
 

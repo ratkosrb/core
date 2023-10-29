@@ -37,7 +37,7 @@ public:
                   ACE_Bcast_Node *);
 
   /// Destructor.
-  ~ACE_Bcast_Node (void);
+  ~ACE_Bcast_Node ();
 
   /// Broadcast address for the interface.
   ACE_INET_Addr bcast_addr_;
@@ -57,7 +57,6 @@ public:
 class ACE_Export ACE_SOCK_Dgram_Bcast : public ACE_SOCK_Dgram
 {
 public:
-  // = Initialization and termination methods.
   /// Default constructor.
   ACE_SOCK_Dgram_Bcast (void);
 

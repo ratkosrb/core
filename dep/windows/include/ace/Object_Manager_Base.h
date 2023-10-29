@@ -4,7 +4,7 @@
 /**
  *  @file    Object_Manager_Base.h
  *
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  *  @author Jesper S. M|ller<stophph@diku.dk>
  *  @author and a cast of thousands...
  *
@@ -117,9 +117,7 @@ private:
 };
 
 extern "C"
-void
-ACE_OS_Object_Manager_Internal_Exit_Hook (void);
-
+void ACE_OS_Object_Manager_Internal_Exit_Hook (void);
 
 // @@ This forward declaration should go away.
 class ACE_Log_Msg;

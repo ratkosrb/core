@@ -36,16 +36,16 @@ ACE_OS::asctime_r (const struct tm *t, char *buf, int buflen)
   ACE_OSCALL_RETURN (::asctime_r (t, buf, buflen), char *, 0);
 #   endif /* ACE_HAS_SIZET_PTR_ASCTIME_R_AND_CTIME_R */
 # endif /* ACE_HAS_2_PARAM_ASCTIME_R_AND_CTIME_R */
-#elif defined (ACE_LACKS_ASCTIME_R)
-  ACE_UNUSED_ARG (t);
-  ACE_UNUSED_ARG (buf);
-  ACE_UNUSED_ARG (buflen);
-  ACE_NOTSUP_RETURN (0);
 #elif defined (ACE_HAS_TR24731_2005_CRT)
   char *result = buf;
   ACE_SECURECRTCALL (asctime_s (buf, static_cast<size_t> (buflen), t), \
                      char*, 0, result);
   return result;
+#elif defined (ACE_LACKS_ASCTIME)
+  ACE_UNUSED_ARG (t);
+  ACE_UNUSED_ARG (buf);
+  ACE_UNUSED_ARG (buflen);
+  ACE_NOTSUP_RETURN (0);
 #else
   char *result = 0;
   ACE_OSCALL (ACE_STD_NAMESPACE::asctime (t), char *, 0, result);
@@ -159,7 +159,7 @@ ACE_OS::ctime_r (const time_t *t, ACE_TCHAR *buf, int buflen)
 
 #   if defined (ACE_USES_WCHAR)
   ACE_Ascii_To_Wide wide_buf (bufp);
-  ACE_OS_String::strcpy (buf, wide_buf.wchar_rep ());
+  ACE_OS::strcpy (buf, wide_buf.wchar_rep ());
   return buf;
 #   else
   return bufp;
@@ -317,9 +317,9 @@ ACE_OS::gethrtime (const ACE_HRTimer_Op op)
   u_long most;
   u_long least;
 
-#if defined (ghs)
+#  if defined (ghs)
   ACE_OS::readPPCTimeBase (most, least);
-#else
+#  else
   u_long scratch;
 
   do {
@@ -328,7 +328,7 @@ ACE_OS::gethrtime (const ACE_HRTimer_Op op)
           "mftbu %2"
           : "=r" (most), "=r" (least), "=r" (scratch));
   } while (most != scratch);
-#endif
+#  endif
 
   return 0x100000000llu * most  +  least;
 
@@ -338,11 +338,11 @@ ACE_OS::gethrtime (const ACE_HRTimer_Op op)
   struct timespec ts;
 
   ACE_OS::clock_gettime (
-#if defined (ACE_HAS_CLOCK_GETTIME_MONOTONIC)
+#  if defined (ACE_HAS_CLOCK_GETTIME_MONOTONIC)
          CLOCK_MONOTONIC,
-#else
+#  else
          CLOCK_REALTIME,
-#endif /* !ACE_HAS_CLOCK_GETTIME_MONOTONIC */
+#  endif /* !ACE_HAS_CLOCK_GETTIME_MONOTONIC */
          &ts);
 
   // Carefully create the return value to avoid arithmetic overflow
@@ -380,7 +380,7 @@ ACE_OS::gmtime_r (const time_t *t, struct tm *res)
   struct tm *tm_p = res;
   ACE_SECURECRTCALL (gmtime_s (res, t), struct tm *, 0, tm_p);
   return tm_p;
-#elif defined (ACE_LACKS_GMTIME_R)
+#elif defined (ACE_LACKS_GMTIME)
   ACE_UNUSED_ARG (t);
   ACE_UNUSED_ARG (res);
   ACE_NOTSUP_RETURN (0);

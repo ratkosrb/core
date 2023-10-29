@@ -6,7 +6,7 @@
  *
  *   Moved from Synch.h.
  *
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  */
 //==========================================================================
 
@@ -22,7 +22,7 @@
 
 // This should probably go somewhere else, but it's only used here and
 // in Thread_Manager.
-// Note there is no ACE_TSS_SET because one would typicaly do
+// Note there is no ACE_TSS_SET because one would typically do
 // 'ACE_TSS_GET()->xyz_ = value', so the macro would have been too
 // complicated.
 # if defined (ACE_HAS_THREADS) && (defined (ACE_HAS_THREAD_SPECIFIC_STORAGE) || defined (ACE_HAS_TSS_EMULATION))
@@ -237,11 +237,11 @@ public:
 
   /// TYPE conversion.  Inlined here so that it should _always_ be
   /// inlined.
-  operator TYPE () const { return value_; };
+  operator TYPE () const { return value_; }
 
   /// TYPE & conversion.  Inlined here so that it should _always_ be
   /// inlined.
-  operator TYPE &() { return value_; };
+  operator TYPE &() { return value_; }
 
 private:
   /// The wrapped value.

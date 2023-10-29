@@ -96,9 +96,7 @@ ACE_BEGIN_VERSIONED_NAMESPACE_DECL
  */
 class ACE_Export ACE_NT_Service : public ACE_Task<ACE_MT_SYNCH>
 {
-
 public:
-  // = Initialization and termination methods.
   /// Constructor primarily for use when running the service.
   ACE_NT_Service (DWORD start_timeout = ACE_NT_SERVICE_START_TIMEOUT,
                   DWORD service_type = SERVICE_WIN32_OWN_PROCESS,
@@ -161,7 +159,7 @@ public:
   // SCM registry.
 
   /// Sets the name and description for the service.
-  /// If desc is 0, it takes the same value as name.
+  /// If @a desc is 0, it takes the same value as name.
   void name (const ACE_TCHAR *name, const ACE_TCHAR *desc = 0);
 
   /// Get the service name.
@@ -277,7 +275,7 @@ public:
    * Requests the service to stop.  Will wait up to @a wait_time for
    * the service to actually stop.  If not specified, the function
    * waits until the service either stops or gets stuck in some other
-   * state before it stops.  If <svc_state> is specified, it receives
+   * state before it stops.  If @a svc_state is specified, it receives
    * the last reported state of the service.  Returns 0 if the request
    * was made successfully, -1 if not.
    */
@@ -301,7 +299,7 @@ public:
   DWORD state (ACE_Time_Value *wait_hint = 0);
 
   /// A version of <state> that returns -1 for failure, 0 for success.
-  /// The DWORD pointed to by pstate receives the state value.
+  /// The DWORD pointed to by @a pstate receives the state value.
   int state (DWORD *pstate, ACE_Time_Value *wait_hint = 0);
 
   /**

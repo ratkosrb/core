@@ -31,10 +31,6 @@
 
 #define ACE_ISCTYPE_EQUIVALENT __isctype
 
-#ifndef ACE_HAS_NONCONST_FD_ISSET
-#define ACE_HAS_NONCONST_FD_ISSET
-#endif
-
 #define ACE_HAS_WORKING_EXPLICIT_TEMPLATE_DESTRUCTOR
 
 #define ACE_SIZE_T_FORMAT_SPECIFIER_ASCII "%lu"
@@ -102,8 +98,6 @@
 #define ACE_HAS_NONCONST_SELECT_TIMEVAL
 
 #define ACE_NEEDS_SCHED_H
-
-#define ACE_LACKS_MALLOC_H
 
 #define ACE_HAS_ALT_CUSERID
 
@@ -208,11 +202,19 @@
 #endif
 
 #define ACE_LACKS_CONDATTR_SETCLOCK
+
+#ifndef ACE_HAS_IPHONE
 #if __MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 #define ACE_LACKS_CLOCKID_T
 #define ACE_LACKS_CLOCK_MONOTONIC
 #define ACE_LACKS_CLOCK_REALTIME
 #endif
+#endif
+
+#if __cplusplus >= 201703L && !defined (_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR)
+# define ACE_LACKS_AUTO_PTR
+#endif
+
 // dlcompat package (not part of base Darwin) is needed for dlopen().
 // You may download directly from sourceforge and install or use fink
 // Fink installer puts libraries in /sw/lib and headers in /sw/include

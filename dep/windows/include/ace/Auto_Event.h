@@ -6,7 +6,7 @@
  *
  *   Moved from Synch.h.
  *
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  */
 //==========================================================================
 
@@ -53,7 +53,7 @@ public:
 #endif /* ACE_HAS_WCHAR */
 
   /// Default dtor.
-  virtual ~ACE_Auto_Event_T (void);
+  virtual ~ACE_Auto_Event_T ();
 
   /// Dump the state of an object.
   void dump (void) const;

@@ -117,10 +117,6 @@
 /* Define to 1 if platform has memchr(). */
 #define ACE_HAS_MEMCHR 1
 
-/* Define to 1 if unrolled ACE_OS::fast_memcpy() is faster than system
-   memcpy() */
-#define ACE_HAS_MEMCPY_LOOP_UNROLL 1
-
 /* Define to 1 if platform has mkdir(). */
 #define ACE_HAS_MKDIR 1
 
@@ -429,9 +425,6 @@
 
 /* */
 #define ACE_LACKS_UNBUFFERED_STREAMBUF 1
-
-/* Define to 1 if the system lacks the type `u_long_long_t'. */
-#define ACE_LACKS_U_LONGLONG_T 1
 
 /* Define to 1 if platform lacks wcsnicmp(). */
 #define ACE_LACKS_WCSNICMP 1

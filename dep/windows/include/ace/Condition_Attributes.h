@@ -6,7 +6,7 @@
  *
  *   Moved from Synch.h.
  *
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  */
 //==========================================================================
 
@@ -75,7 +75,7 @@ public:
   ACE_Condition_Attributes_T (int type = ACE_DEFAULT_SYNCH_TYPE);
 
   /// Destructor
-  ~ACE_Condition_Attributes_T (void);
+  ~ACE_Condition_Attributes_T ();
 
 private:
   // = Prevent assignment and initialization.

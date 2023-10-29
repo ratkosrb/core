@@ -4,7 +4,7 @@
 /**
  *  @file   OS_NS_stdlib.h
  *
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  *  @author Jesper S. M|ller<stophph@diku.dk>
  *  @author and a cast of thousands...
  *
@@ -100,10 +100,10 @@ namespace ACE_OS {
    */
   //@{
   ACE_NAMESPACE_INLINE_FUNCTION
-  void _exit (int status = 0);
+  void _exit (int status = 0) ACE_GCC_NO_RETURN;
 
   ACE_NAMESPACE_INLINE_FUNCTION
-  void abort (void);
+  void abort (void) ACE_GCC_NO_RETURN;
 
   /**
    * Register an at exit hook. The @a name can be used to analyze shutdown
@@ -180,7 +180,7 @@ namespace ACE_OS {
   void *calloc (size_t elements, size_t sizeof_elements);
 
   extern ACE_Export
-  void exit (int status = 0);
+  void exit (int status = 0) ACE_GCC_NO_RETURN;
 
   extern ACE_Export
   void free (void *);

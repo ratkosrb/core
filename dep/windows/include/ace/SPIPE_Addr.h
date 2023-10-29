@@ -4,7 +4,7 @@
 /**
  *  @file    SPIPE_Addr.h
  *
- *  @author Douglas C. Schmidt <schmidt@cs.wustl.edu>
+ *  @author Douglas C. Schmidt <d.schmidt@vanderbilt.edu>
  */
 //==========================================================================
 
@@ -33,7 +33,6 @@ ACE_BEGIN_VERSIONED_NAMESPACE_DECL
 class ACE_Export ACE_SPIPE_Addr : public ACE_Addr
 {
 public:
-  // = Initialization methods.
   /// Default constructor.
   ACE_SPIPE_Addr (void);
 
@@ -43,6 +42,9 @@ public:
   /// Create a ACE_SPIPE_Addr from a rendezvous point in the file
   /// system.
   ACE_SPIPE_Addr (const ACE_TCHAR *rendezvous_point, gid_t = 0, uid_t = 0);
+
+  /// Assignment operator
+  ACE_SPIPE_Addr &operator = (const ACE_SPIPE_Addr &rhs);
 
   /// Acts like a copy constructor...
   int set (const ACE_SPIPE_Addr &sa);

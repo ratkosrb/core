@@ -3,9 +3,8 @@ ACE_BEGIN_VERSIONED_NAMESPACE_DECL
 
 #if defined (ACE_VXWORKS)
 // Specialization to use native VxWorks Message Queues.
-
 ACE_INLINE MSG_Q_ID
-ACE_Message_Queue_Vx::msgq (void)
+ACE_Message_Queue_Vx::msgq ()
 {
   // Hijack the tail_ field to store the MSG_Q_ID.
   return static_cast<MSG_Q_ID> (
@@ -19,6 +18,13 @@ ACE_Message_Queue_Vx::msgq (void)
                                 reinterpret_cast<MSG_Q_ID> (tail_)
 #endif /* __RTP__ */
                                 );
+}
+
+ACE_INLINE int
+ACE_Message_Queue_Vx::peek_dequeue_head (ACE_Message_Block *&,
+                                         ACE_Time_Value *)
+{
+  ACE_NOTSUP_RETURN (-1);
 }
 
 #endif /* ACE_VXWORKS */

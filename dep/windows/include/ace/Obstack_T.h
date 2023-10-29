@@ -4,7 +4,7 @@
 /**
  *  @file    Obstack_T.h
  *
- *  @author Doug Schmidt <schmidt@cs.wustl.edu>
+ *  @author Doug Schmidt <d.schmidt@vanderbilt.edu>
  *  @author Nanbor Wang <nanbor@cs.wustl.edu>
  */
 //=============================================================================
@@ -36,7 +36,6 @@ template <class ACE_CHAR_T>
 class ACE_Obstack_T
 {
 public:
-  // = Initialization and termination methods.
   ACE_Obstack_T (size_t size = (4096 * sizeof (ACE_CHAR_T)) - sizeof (ACE_Obchunk),
                  ACE_Allocator *allocator_strategy = 0);
   ~ACE_Obstack_T (void);
@@ -75,7 +74,7 @@ public:
   /// "Unwind" the stack. If @a obj is a null pointer, everything allocated
   /// in the stack is released. Otherwise, @a obj must be an address of an
   /// object allocated in the stack. In this case, @a obj is released along
-  /// with everthing allocated in the Obstack since @a obj.
+  /// with everything allocated in the Obstack since @a obj.
   void unwind (void *obj);
 
   /// "Release" the entire stack of Obchunks, putting it back on the free
@@ -91,7 +90,7 @@ public:
 protected:
   class ACE_Obchunk *new_chunk (void);
 
-  /// Search through the list of Obchunks and release them. Helper funtion
+  /// Search through the list of Obchunks and release them. Helper function
   /// used by unwind.
   void unwind_i (void *obj);
 
