@@ -8,19 +8,9 @@
 # WITHOUT ANY WARRANTY, to the extent permitted by law; without even the
 # implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-cmake_minimum_required(VERSION 2.6...3.20)
-
-project(Recast)
-
-include_directories (
-	./Include
-	
-)
-
 set(Recast_STAT_SRCS
     Source/Recast.cpp 
     Source/RecastAlloc.cpp 
-	Source/RecastAssert.cpp 
     Source/RecastArea.cpp 
     Source/RecastContour.cpp 
     Source/RecastFilter.cpp 
@@ -33,4 +23,17 @@ set(Recast_STAT_SRCS
 
 add_library(Recast STATIC ${Recast_STAT_SRCS})
 
-SET_TARGET_PROPERTIES (Recast PROPERTIES FOLDER "3rd Party")
+target_include_directories(Recast
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/Include)
+
+target_link_libraries(Recast
+  PRIVATE
+    trinity-dependency-interface
+  PUBLIC
+    zlib)
+
+set_target_properties(Recast
+    PROPERTIES
+      FOLDER
+        "dep")

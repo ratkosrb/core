@@ -8,18 +8,8 @@
 # WITHOUT ANY WARRANTY, to the extent permitted by law; without even the
 # implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-cmake_minimum_required(VERSION 2.6...3.20)
-
-project(Detour)
-
-include_directories (
-	./Include
-	
-)
-
 set(Detour_STAT_SRCS
     Source/DetourAlloc.cpp 
-    Source/DetourAssert.cpp 
     Source/DetourCommon.cpp 
     Source/DetourNavMesh.cpp 
     Source/DetourNavMeshBuilder.cpp 
@@ -29,4 +19,17 @@ set(Detour_STAT_SRCS
 
 add_library(Detour STATIC ${Detour_STAT_SRCS})
 
-SET_TARGET_PROPERTIES (Detour PROPERTIES FOLDER "3rd Party")
+target_include_directories(Detour
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/Include)
+
+target_link_libraries(Detour
+  PRIVATE
+    trinity-dependency-interface
+  PUBLIC
+    zlib)
+
+set_target_properties(Detour
+    PROPERTIES
+      FOLDER
+        "dep")
