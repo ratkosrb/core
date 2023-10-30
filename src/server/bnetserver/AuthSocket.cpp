@@ -32,7 +32,6 @@
 #include "RealmList.h"
 #include "AuthSocket.h"
 #include "AuthCodes.h"
-#include "PatchHandler.h"
 #include "Util.h"
 #include "Service.h"
 #include "ServiceDispatcher.h"
