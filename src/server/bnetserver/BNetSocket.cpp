@@ -156,7 +156,7 @@ void BNetSocket::SendResponse(uint32 token, pb::Message const* response)
     packet.WriteCompleted(response->ByteSize());
     response->SerializeToArray(ptr, response->ByteSize());
 
-    send((char*)packet.GetBasePointer(), packet.GetBufferSize());
+    send((char*)packet.GetBasePointer(), packet.GetActiveSize());
 }
 
 void BNetSocket::SendResponse(uint32 token, uint32 status)
@@ -177,7 +177,7 @@ void BNetSocket::SendResponse(uint32 token, uint32 status)
     packet.WriteCompleted(header.ByteSize());
     header.SerializeToArray(ptr, header.ByteSize());
 
-    send((char*)packet.GetBasePointer(), packet.GetBufferSize());
+    send((char*)packet.GetBasePointer(), packet.GetActiveSize());
 }
 
 void BNetSocket::SendRequest(uint32 serviceHash, uint32 methodId, pb::Message const* request)
@@ -203,7 +203,7 @@ void BNetSocket::SendRequest(uint32 serviceHash, uint32 methodId, pb::Message co
     packet.WriteCompleted(request->ByteSize());
     request->SerializeToArray(ptr, request->ByteSize());
 
-    send((char*)packet.GetBasePointer(), packet.GetBufferSize());
+    send((char*)packet.GetBasePointer(), packet.GetActiveSize());
 }
 
 uint32 BNetSocket::HandleLogon(authentication::v1::LogonRequest const* logonRequest, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation)
