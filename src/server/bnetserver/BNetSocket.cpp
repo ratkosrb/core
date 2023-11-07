@@ -182,7 +182,7 @@ void BNetSocket::SendResponse(uint32 token, uint32 status)
 
 void BNetSocket::SendRequest(uint32 serviceHash, uint32 methodId, pb::Message const* request)
 {
-    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[BNetSocket::SendResponse] serviceHash %u methodId %u", serviceHash, methodId);
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[BNetSocket::SendRequest] serviceHash %u methodId %u", serviceHash, methodId);
 
     Header header;
     header.set_service_id(0);
