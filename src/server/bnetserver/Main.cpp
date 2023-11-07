@@ -29,7 +29,7 @@
 
 #include "Config/Config.h"
 #include "Log.h"
-#include "AuthSocket.h"
+#include "BNetSocket.h"
 #include "SystemConfig.h"
 #include "revision.h"
 #include "Util.h"
@@ -295,10 +295,10 @@ extern int main(int argc, char **argv)
     LoginDatabase.Execute("DELETE FROM `ip_banned` WHERE `unbandate`<=UNIX_TIMESTAMP() AND `unbandate`<>`bandate`");
     LoginDatabase.CommitTransaction();
 
-    AuthSocket::InitTcpSSL();
+    BNetSocket::InitTcpSSL();
 
     // Launch the listening network socket
-    ACE_Acceptor<AuthSocket, ACE_SSL_SOCK_Acceptor> acceptor;
+    ACE_Acceptor<BNetSocket, ACE_SSL_SOCK_Acceptor> acceptor;
 
     uint16 rmport = sConfig.GetIntDefault("BattlenetPort", DEFAULT_BATTLENET_PORT);
     std::string bind_ip = sConfig.GetStringDefault("BindIP", "0.0.0.0");

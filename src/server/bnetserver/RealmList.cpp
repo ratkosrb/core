@@ -25,7 +25,6 @@
 
 #include "Common.h"
 #include "RealmList.h"
-#include "AuthCodes.h"
 #include "Util.h"                                           // for Tokens typedef
 #include "Log.h"
 #include "Policies/SingletonImp.h"
@@ -36,12 +35,12 @@ INSTANTIATE_SINGLETON_1( RealmList );
 // list sorted from high to low build and first build used as low bound for accepted by default range (any > it will accepted by realmd at least)
 std::vector<RealmBuildInfo> ExpectedRealmdClientBuilds;
 
-std::vector<RealmBuildInfo const*> FindBuildInfo(uint16 build, uint32 os, uint32 platform)
+std::vector<RealmBuildInfo const*> FindBuildInfo(uint32 build, std::string os)
 {
     std::vector<RealmBuildInfo const*> matchingBuilds;
     for (auto const& itr : ExpectedRealmdClientBuilds)
     {
-        if (itr.build == build && itr.os == os && itr.platform == platform)
+        if (itr.build == build && itr.os == os)
             matchingBuilds.push_back(&itr);
     }
 
@@ -49,7 +48,7 @@ std::vector<RealmBuildInfo const*> FindBuildInfo(uint16 build, uint32 os, uint32
     return matchingBuilds;
 }
 
-RealmBuildInfo const* FindBuildInfo(uint16 build)
+RealmBuildInfo const* FindBuildInfo(uint32 build)
 {
     // first build is low bound of always accepted range
     if (build >= ExpectedRealmdClientBuilds[0].build)
@@ -106,7 +105,7 @@ void RealmList::UpdateRealm( uint32 ID, const std::string& name, const std::stri
         realm.realmbuilds.insert(build);
     }
 
-    uint16 first_build = !realm.realmbuilds.empty() ? *realm.realmbuilds.begin() : 0;
+    uint32 first_build = !realm.realmbuilds.empty() ? *realm.realmbuilds.begin() : 0;
 
     realm.realmBuildInfo.build = first_build;
     realm.realmBuildInfo.majorVersion = 0;
@@ -186,8 +185,8 @@ void RealmList::LoadAllowedClients()
     sLog.Out(LOG_BASIC, LOG_LVL_DETAIL, "Loading allowed clients...");
 
     QueryResult *result = LoginDatabase.Query(
-        //       0                 1               2                 3                 4        5     6           7
-        "SELECT `major_version`, `minor_version`, `bugfix_version`, `hotfix_version`, `build`, `os`, `platform`, `integrity_hash` "
+        //       0                 1               2                 3                 4        5     6
+        "SELECT `major_version`, `minor_version`, `bugfix_version`, `hotfix_version`, `build`, `os`, `integrity_hash` "
         "FROM `allowed_clients`");
 
     if (result)
@@ -202,17 +201,10 @@ void RealmList::LoadAllowedClients()
             buildInfo.bugfixVersion = fields[2].GetUInt8();
             std::string hotfixVersion = fields[3].GetCppString();
             buildInfo.hotfixVersion = hotfixVersion.empty() ? 0 : hotfixVersion[0];
-            buildInfo.build = fields[4].GetUInt16();
-            
-            std::string os = fields[5].GetCppString();
-            MANGOS_ASSERT(os.size() == 3);
-            memcpy(&buildInfo.os, os.data(), 4);
+            buildInfo.build = fields[4].GetUInt32();
+            buildInfo.os = fields[5].GetCppString();
 
-            std::string platform = fields[6].GetCppString();
-            MANGOS_ASSERT(platform.size() == 3);
-            memcpy(&buildInfo.platform, platform.data(), 4);
-
-            std::string integrityHash = fields[7].GetCppString();
+            std::string integrityHash = fields[6].GetCppString();
             if (!integrityHash.empty())
             {
                 MANGOS_ASSERT(integrityHash.size() == (20 * 2));

@@ -30,9 +30,9 @@
 #include "Config/Config.h"
 #include "Log.h"
 #include "RealmList.h"
-#include "AuthSocket.h"
-#include "AuthCodes.h"
+#include "BNetSocket.h"
 #include "Util.h"
+#include "BattlenetRpcErrorCodes.h"
 #include "Service.h"
 #include "ServiceDispatcher.h"
 #include "JSON/ProtobufJSON.h"
@@ -59,13 +59,12 @@ enum AccountFlags
     ACCOUNT_FLAG_PROPASS    = 0x00800000,
 };
 
-// Close patch file descriptor before leaving
-AuthSocket::~AuthSocket()
+BNetSocket::~BNetSocket()
 {
     
 }
 
-AccountTypes AuthSocket::GetSecurityOn(uint32 realmId) const
+AccountTypes BNetSocket::GetSecurityOn(uint32 realmId) const
 {
     AccountSecurityMap::const_iterator it = m_accountSecurityOnRealm.find(realmId);
     if (it == m_accountSecurityOnRealm.end())
@@ -75,7 +74,7 @@ AccountTypes AuthSocket::GetSecurityOn(uint32 realmId) const
 
 constexpr auto TCP_SSL_VERSION_LIST = "tlsv1,tlsv1.1,tlsv1.2,tlsv1.3";
 
-void AuthSocket::InitTcpSSL()
+void BNetSocket::InitTcpSSL()
 {
     ACE_SSL_Context::instance()->certificate("bnetserver.cert.pem", SSL_FILETYPE_PEM);
     ACE_SSL_Context::instance()->private_key("bnetserver.key.pem", SSL_FILETYPE_PEM);
@@ -96,42 +95,71 @@ void AuthSocket::InitTcpSSL()
     SSL_CTX_clear_options(sslHandler, SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION);
 }
 
-// Accept the connection and set the s random value for SRP6
-void AuthSocket::OnAccept()
+void BNetSocket::OnAccept()
 {
     sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Accepting connection from '%s'", get_remote_address().c_str());
 }
 
 // Read the packet from the client
-void AuthSocket::OnRead()
+void BNetSocket::OnRead()
 {
-    size_t recvLen = recv_len();
-    std::vector<uint8> buf;
-    buf.resize(recvLen);
-    recv((char*)&buf[0], recvLen);
-    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Received %u bytes", recvLen);
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[BNetSocket::OnRead] Received %u bytes", recv_len());
 
-    ASSERT(buf.size() > sizeof(uint16));
-    uint16 headerSize = *((uint16*)buf.data());
-    EndianConvertReverse(headerSize);
-    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Header size is %u", headerSize);
-
-    Header header;
-    ASSERT(header.ParseFromArray(buf.data() + sizeof(uint16), headerSize));
-    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Service id is %u, service hash is %u", header.service_id(), header.service_hash());
-
-    MessageBuffer msgBuffer;
-    msgBuffer.Write(buf.data() + sizeof(uint16) + header.size(), recvLen - (sizeof(uint16) + header.size()));
-
-    if (header.service_id() != 0xFE)
+    if (m_packetBuffer.currentState == BNET_PACKET_SIZE)
     {
-        sServiceDispatcher.Dispatch(this, header.service_hash(), header.token(), header.method_id(), std::move(msgBuffer));
+        if (recv_len() < sizeof(uint16))
+            return;
+
+        recv((char*)&m_packetBuffer.headerSize, sizeof(uint16));
+        EndianConvertReverse(m_packetBuffer.headerSize);
+        m_packetBuffer.currentState = BNET_PACKET_HEADER;
+        sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[BNetSocket::OnRead] Header size is %u", m_packetBuffer.headerSize);
+    }
+
+    if (m_packetBuffer.currentState == BNET_PACKET_HEADER)
+    {
+        if (recv_len() < m_packetBuffer.headerSize)
+            return;
+
+        m_packetBuffer.dataBuffer.resize(m_packetBuffer.headerSize);
+        recv((char*)m_packetBuffer.dataBuffer.contents(), m_packetBuffer.headerSize);
+
+        m_packetBuffer.header = std::make_unique<Header>();
+        if (!m_packetBuffer.header->ParseFromArray(m_packetBuffer.dataBuffer.contents(), m_packetBuffer.headerSize))
+        {
+            m_packetBuffer.Reset();
+            recv_skip(recv_len());
+            return;
+        }
+
+        m_packetBuffer.dataBuffer.clear();
+        m_packetBuffer.currentState = BNET_PACKET_DATA;
+        sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[BNetSocket::OnRead] Service id is %u, service hash is %u, size is %u", m_packetBuffer.header->service_id(), m_packetBuffer.header->service_hash(), m_packetBuffer.header->size());
+    }
+
+    if (m_packetBuffer.currentState == BNET_PACKET_DATA)
+    {
+        if (recv_len() < m_packetBuffer.header->size())
+            return;
+
+        m_packetBuffer.dataBuffer.resize(m_packetBuffer.header->size());
+        recv((char*)m_packetBuffer.dataBuffer.contents(), m_packetBuffer.header->size());
+
+        MessageBuffer msgBuffer;
+        msgBuffer.Write(m_packetBuffer.dataBuffer.contents(), m_packetBuffer.dataBuffer.size());
+
+        if (m_packetBuffer.header->service_id() != 0xFE)
+        {
+            sServiceDispatcher.Dispatch(this, m_packetBuffer.header->service_hash(), m_packetBuffer.header->token(), m_packetBuffer.header->method_id(), std::move(msgBuffer));
+        }
+
+        m_packetBuffer.Reset();
     }
 }
 
-void AuthSocket::SendResponse(uint32 token, pb::Message const* response)
+void BNetSocket::SendResponse(uint32 token, pb::Message const* response)
 {
-    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "SendResponse: token %u", token);
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[BNetSocket::SendResponse] token %u", token);
 
     Header header;
     header.set_token(token);
@@ -153,9 +181,9 @@ void AuthSocket::SendResponse(uint32 token, pb::Message const* response)
     send((char*)packet.GetBasePointer(), packet.GetBufferSize());
 }
 
-void AuthSocket::SendResponse(uint32 token, uint32 status)
+void BNetSocket::SendResponse(uint32 token, uint32 status)
 {
-    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "SendResponse: token %u status %u", token, status);
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[BNetSocket::SendResponse] token %u status %u", token, status);
 
     Header header;
     header.set_token(token);
@@ -174,9 +202,9 @@ void AuthSocket::SendResponse(uint32 token, uint32 status)
     send((char*)packet.GetBasePointer(), packet.GetBufferSize());
 }
 
-void AuthSocket::SendRequest(uint32 serviceHash, uint32 methodId, pb::Message const* request)
+void BNetSocket::SendRequest(uint32 serviceHash, uint32 methodId, pb::Message const* request)
 {
-    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "SendResponse: serviceHash %u methodId %u", serviceHash, methodId);
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[BNetSocket::SendResponse] serviceHash %u methodId %u", serviceHash, methodId);
 
     Header header;
     header.set_service_id(0);
@@ -200,7 +228,69 @@ void AuthSocket::SendRequest(uint32 serviceHash, uint32 methodId, pb::Message co
     send((char*)packet.GetBasePointer(), packet.GetBufferSize());
 }
 
-void AuthSocket::LoadRealmlist(ByteBuffer &pkt)
+uint32 BNetSocket::HandleLogon(authentication::v1::LogonRequest const* logonRequest, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation)
+{
+    m_locale = logonRequest->locale();
+    m_os = logonRequest->platform();
+    m_build = logonRequest->application_version();
+    
+    if (logonRequest->program() != "WoW")
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "[BNetSocket::LogonRequest] %s attempted to log in with game other than WoW (using %s)!", get_remote_address().c_str(), logonRequest->program().c_str());
+        return ERROR_BAD_PROGRAM;
+    }
+
+    if (m_os != "Win" && m_os != "Wn64" && m_os != "Mc64")
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "[BNetSocket::LogonRequest] %s attempted to log in from an unsupported platform (using %s)!", get_remote_address().c_str(), logonRequest->platform().c_str());
+        return ERROR_BAD_PLATFORM;
+    }
+
+    if (GetLocaleByName(m_locale) == LOCALE_enUS && m_locale != "enUS")
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "[BNetSocket::LogonRequest] %s attempted to log in with unsupported locale (using %s)!", get_remote_address().c_str(), logonRequest->locale().c_str());
+        return ERROR_BAD_LOCALE;
+    }
+
+    if (!VerifyVersion())
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "[BNetSocket::LogonRequest] %s attempted to log in with unsupported client build (using %u)!", get_remote_address().c_str(), m_build);
+        return ERROR_BAD_LOCALE;
+    }
+
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::LogonRequest] %s trying to login. Program: %s Build: %u Locale: %s", get_remote_address().c_str(), logonRequest->program().c_str(), m_build, m_locale.c_str());
+
+    if (logonRequest->has_cached_web_credentials())
+        return VerifyWebCredentials(logonRequest->cached_web_credentials(), continuation);
+
+    challenge::v1::ChallengeExternalRequest externalChallenge;
+    externalChallenge.set_payload_type("web_auth_url");
+    std::string restAddress = "https://" + sConfig.GetStringDefault("LoginREST.ExternalAddress", "127.0.0.1") + ":" + std::to_string(sConfig.GetIntDefault("LoginREST.Port", 8081)) + "/bnetserver/login/";
+    externalChallenge.set_payload(restAddress);
+    Battlenet::Service<challenge::v1::ChallengeListener>(this).OnExternalChallenge(&externalChallenge);
+    return ERROR_OK;
+}
+
+uint32 BNetSocket::HandleVerifyWebCredentials(authentication::v1::VerifyWebCredentialsRequest const* verifyWebCredentialsRequest, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation)
+{
+    if (verifyWebCredentialsRequest->has_web_credentials())
+        return VerifyWebCredentials(verifyWebCredentialsRequest->web_credentials(), continuation);
+
+    return ERROR_DENIED;
+}
+
+uint32 BNetSocket::VerifyWebCredentials(std::string const& webCredentials, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation)
+{
+    if (webCredentials.empty())
+        return ERROR_DENIED;
+
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::VerifyWebCredentials] Login Ticket %s", webCredentials.c_str());
+
+    // TODO: Implement verification of credentials. Query the database.
+    return ERROR_NO_AUTH;
+}
+
+void BNetSocket::LoadRealmlist(ByteBuffer &pkt)
 {
     for (RealmList::RealmMap::const_iterator i = sRealmList.begin(); i != sRealmList.end(); ++i)
     {
@@ -243,7 +333,7 @@ void AuthSocket::LoadRealmlist(ByteBuffer &pkt)
 }
 
 // Verify PIN entry data
-bool AuthSocket::VerifyPinData(uint32 pin, const PINData& clientData)
+bool BNetSocket::VerifyPinData(uint32 pin, const PINData& clientData)
 {
     // remap the grid to match the client's layout
     std::vector<uint8> grid { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
@@ -314,7 +404,7 @@ bool AuthSocket::VerifyPinData(uint32 pin, const PINData& clientData)
     return !memcmp(hash.AsDecStr(), clientHash.AsDecStr(), 20);
 }
 
-uint32 AuthSocket::GenerateTotpPin(const std::string& secret, int interval) {
+uint32 BNetSocket::GenerateTotpPin(const std::string& secret, int interval) {
     std::vector<uint8> decoded_key((secret.size() + 7) / 8 * 5);
     int key_size = base32_decode((const uint8_t*)secret.data(), decoded_key.data(), decoded_key.size());
 
@@ -346,7 +436,7 @@ uint32 AuthSocket::GenerateTotpPin(const std::string& secret, int interval) {
     return pin;
 }
 
-void AuthSocket::LoadAccountSecurityLevels(uint32 accountId)
+void BNetSocket::LoadAccountSecurityLevels(uint32 accountId)
 {
     QueryResult* result = LoginDatabase.PQuery("SELECT `gmlevel`, `RealmID` FROM `account_access` WHERE `id` = %u",
         accountId);
@@ -367,7 +457,7 @@ void AuthSocket::LoadAccountSecurityLevels(uint32 accountId)
     delete result;
 }
 
-bool AuthSocket::GeographicalLockCheck()
+bool BNetSocket::GeographicalLockCheck()
 {
     if (!sConfig.GetBoolDefault("GeoLocking", false))
     {
@@ -442,9 +532,9 @@ bool AuthSocket::GeographicalLockCheck()
     }
 }
 
-bool AuthSocket::VerifyVersion(uint8 const* a, int32 aLength, uint8 const* versionProof, bool isReconnect)
+bool BNetSocket::VerifyVersion()
 {
-    std::vector<RealmBuildInfo const*> allowedClients = FindBuildInfo(m_build, m_os, m_platform);
+    std::vector<RealmBuildInfo const*> allowedClients = FindBuildInfo(m_build, m_os);
     if (allowedClients.empty())
         return false;
 

@@ -18,11 +18,11 @@
 #include "ConnectionService.h"
 #include "Duration.h"
 #include "Log.h"
-#include "AuthSocket.h"
+#include "BNetSocket.h"
 #include "Util.h"
 #include "BattlenetRpcErrorCodes.h"
 
-Battlenet::Services::Connection::Connection(AuthSocket* session) : ConnectionService(session)
+Battlenet::Services::Connection::Connection(BNetSocket* session) : ConnectionService(session)
 {
 }
 

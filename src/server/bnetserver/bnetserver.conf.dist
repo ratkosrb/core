@@ -39,6 +39,14 @@ ConfVersion=2020010501
 #         on different IP addresses using default ports.
 #         DO NOT CHANGE THIS UNLESS YOU _REALLY_ KNOW WHAT YOU'RE DOING
 #
+#    LoginREST.Port
+#        Description: TCP port to reach the REST login method.
+#        Default:     8081
+#
+#    LoginREST.ExternalAddress
+#        Description: IP address sent to clients connecting from outside the network where bnetserver runs
+#                     Set it to your external IP address
+#
 #    PidFile
 #        Realmd daemon PID file
 #        Default: ""             - do not create PID file
@@ -159,6 +167,8 @@ LogsDir = ""
 PatchesDir = "./patches"
 MaxPingTime = 30
 BattlenetPort = 1119
+LoginREST.Port = 8081
+LoginREST.ExternalAddress=127.0.0.1
 BindIP = "0.0.0.0"
 PidFile = ""
 LogLevel = 0

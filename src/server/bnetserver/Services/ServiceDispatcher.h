@@ -21,6 +21,7 @@
 #include "Utilities/MessageBuffer.h"
 #include "Log.h"
 #include "Common.h"
+#include "AuthenticationService.h"
 #include "challenge_service.pb.h"
 #include "club_membership_listener.pb.h"
 #include "club_membership_service.pb.h"
@@ -32,14 +33,14 @@
 #include "resource_service.pb.h"
 #include "user_manager_service.pb.h"
 
-class AuthSocket;
+class BNetSocket;
 
 namespace Battlenet
 {
     class ServiceDispatcher
     {
     public:
-        void Dispatch(AuthSocket* session, uint32 serviceHash, uint32 token, uint32 methodId, MessageBuffer buffer);
+        void Dispatch(BNetSocket* session, uint32 serviceHash, uint32 token, uint32 methodId, MessageBuffer buffer);
 
         static ServiceDispatcher& Instance();
 
@@ -53,12 +54,12 @@ namespace Battlenet
         }
 
         template<class Service>
-        static void Dispatch(AuthSocket* session, uint32 token, uint32 methodId, MessageBuffer buffer)
+        static void Dispatch(BNetSocket* session, uint32 token, uint32 methodId, MessageBuffer buffer)
         {
             Service(session).CallServerMethod(token, methodId, std::move(buffer));
         }
 
-        typedef void(*ServiceMethod)(AuthSocket*, uint32, uint32, MessageBuffer);
+        typedef void(*ServiceMethod)(BNetSocket*, uint32, uint32, MessageBuffer);
         std::unordered_map<uint32, ServiceMethod> _dispatchers;
     };
 }

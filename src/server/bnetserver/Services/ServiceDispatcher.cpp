@@ -16,13 +16,13 @@
  */
 
 #include "ServiceDispatcher.h"
-#include "AuthSocket.h"
+#include "BNetSocket.h"
 #include "ConnectionService.h"
 
 Battlenet::ServiceDispatcher::ServiceDispatcher()
 {
     //AddService<Services::Account>();
-    //AddService<Services::Authentication>();
+    AddService<Services::Authentication>();
     AddService<Service<club::v1::membership::ClubMembershipService>>();
     AddService<Services::Connection>();
     AddService<Service<friends::v1::FriendsService>>();
@@ -34,7 +34,7 @@ Battlenet::ServiceDispatcher::ServiceDispatcher()
     AddService<Service<user_manager::v1::UserManagerService>>();
 }
 
-void Battlenet::ServiceDispatcher::Dispatch(AuthSocket* session, uint32 serviceHash, uint32 token, uint32 methodId, MessageBuffer buffer)
+void Battlenet::ServiceDispatcher::Dispatch(BNetSocket* session, uint32 serviceHash, uint32 token, uint32 methodId, MessageBuffer buffer)
 {
     auto itr = _dispatchers.find(serviceHash);
     if (itr != _dispatchers.end())

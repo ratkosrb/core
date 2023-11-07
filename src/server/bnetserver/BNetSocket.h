@@ -33,6 +33,7 @@
 #include "ByteBuffer.h"
 #include "Utilities/MessageBuffer.h"
 #include "BufferedSocket.h"
+#include "rpc_types.pb.h"
 #include <google/protobuf/message.h>
 
 namespace pb = google::protobuf;
@@ -97,14 +98,37 @@ enum LockFlag
     GEO_CITY        = 0x20
 };
 
+enum BNetPacketState
+{
+    BNET_PACKET_SIZE,
+    BNET_PACKET_HEADER,
+    BNET_PACKET_DATA
+};
+
+struct BNetPacketBuffer
+{
+    BNetPacketState currentState = BNET_PACKET_SIZE;
+    uint16 headerSize = 0;
+    std::unique_ptr<Header> header;
+    ByteBuffer dataBuffer;
+
+    void Reset()
+    {
+        currentState = BNET_PACKET_SIZE;
+        headerSize = 0;
+        header.reset();
+        dataBuffer.clear();
+    }
+};
+
 // Handle login commands
-class AuthSocket: public BufferedSocket
+class BNetSocket: public BufferedSocket
 {
     public:
         const static int s_BYTE_SIZE = 32;
 
-        AuthSocket() = default;
-        ~AuthSocket();
+        BNetSocket() = default;
+        ~BNetSocket();
 
         static void InitTcpSSL();
         void SendResponse(uint32 token, pb::Message const* response);
@@ -116,32 +140,26 @@ class AuthSocket: public BufferedSocket
         }
         void SendRequest(uint32 serviceHash, uint32 methodId, pb::Message const* request);
 
+        uint32 HandleLogon(authentication::v1::LogonRequest const* logonRequest, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
+        uint32 HandleVerifyWebCredentials(authentication::v1::VerifyWebCredentialsRequest const* verifyWebCredentialsRequest, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
+
         void OnAccept();
         void OnRead();
         void LoadRealmlist(ByteBuffer &pkt);
         bool VerifyPinData(uint32 pin, const PINData& clientData);
         uint32 GenerateTotpPin(const std::string& secret, int interval);
 
-
     private:
-        enum eStatus
-        {
-            STATUS_CHALLENGE,
-            STATUS_LOGON_PROOF,
-            STATUS_RECON_PROOF,
-            STATUS_PATCH,      // unused in CMaNGOS
-            STATUS_AUTHED,
-            STATUS_CLOSED
-        };
 
-        bool VerifyVersion(uint8 const* a, int32 aLength, uint8 const* versionProof, bool isReconnect);
+        bool VerifyVersion();
+        uint32 VerifyWebCredentials(std::string const& webCredentials, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
 
         SRP6 srp;
         BigNumber m_reconnectProof;
 
         bool m_promptPin = false;
 
-        eStatus m_status = STATUS_CHALLENGE;
+        BNetPacketBuffer m_packetBuffer;
 
         std::string m_login;
         std::string m_safelogin;
@@ -154,21 +172,15 @@ class AuthSocket: public BufferedSocket
         uint32 m_gridSeed = 0;
         uint32 m_geoUnlockPIN = 0;
 
-        static constexpr uint32 Win = 'Win';
-        static constexpr uint32 OSX = 'OSX';
-
-        static constexpr uint32 X86 = 'x86';
-        static constexpr uint32 PPC = 'PPC';
-
-        uint32 m_os = 0;
-        uint32 m_platform = 0;
+        std::string m_os;
+        std::string m_locale;
         uint32 m_accountId = 0;
         uint32 m_lastRealmListRequest = 0;
 
         // Since GetLocaleByName() is _NOT_ bijective, we have to store the locale as a string. Otherwise we can't differ
         // between enUS and enGB, which is important for the patch system
         std::string m_localizationName;
-        uint16 m_build = 0;
+        uint32 m_build = 0;
 
         AccountTypes GetSecurityOn(uint32 realmId) const;
         void LoadAccountSecurityLevels(uint32 accountId);

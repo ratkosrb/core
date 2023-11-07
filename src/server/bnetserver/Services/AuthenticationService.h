@@ -15,12 +15,12 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ConnectionService_h__
-#define ConnectionService_h__
+#ifndef AuthenticationService_h__
+#define AuthenticationService_h__
 
 #include "Common.h"
 #include "Service.h"
-#include "connection_service.pb.h"
+#include "authentication_service.pb.h"
 
 class BNetSocket;
 
@@ -28,19 +28,17 @@ namespace Battlenet
 {
     namespace Services
     {
-        class Connection : public Service<connection::v1::ConnectionService>
+        class Authentication : public Service<authentication::v1::AuthenticationService>
         {
-            typedef Service<connection::v1::ConnectionService> ConnectionService;
+            typedef Service<authentication::v1::AuthenticationService> AuthenticationService;
 
         public:
-            Connection(BNetSocket* session);
+            Authentication(BNetSocket* session);
 
-            uint32 HandleConnect(connection::v1::ConnectRequest const* request, connection::v1::ConnectResponse* response, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation) override;
-            uint32 HandleKeepAlive(NoData const* request) override;
-            uint32 HandleRequestDisconnect(connection::v1::DisconnectRequest const* request) override;
-
+            uint32 HandleLogon(authentication::v1::LogonRequest const* request, NoData* response, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation) override;
+            uint32 HandleVerifyWebCredentials(authentication::v1::VerifyWebCredentialsRequest const* request, NoData* response, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation) override;
         };
     }
 }
 
-#endif // ConnectionService_h__
+#endif // AuthenticationService_h__

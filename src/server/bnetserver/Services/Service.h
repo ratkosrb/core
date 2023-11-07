@@ -18,7 +18,7 @@
 #ifndef Service_h__
 #define Service_h__
 
-#include "AuthSocket.h"
+#include "BNetSocket.h"
 #include "Utilities/MessageBuffer.h"
 
 namespace bgs { namespace protocol { } }
@@ -30,7 +30,7 @@ namespace Battlenet
     class Service : public T
     {
     public:
-        Service(AuthSocket* session) : T(true), _session(session) { }
+        Service(BNetSocket* session) : T(true), _session(session) { }
 
     protected:
         void SendRequest(uint32 serviceHash, uint32 methodId, google::protobuf::Message const* request, std::function<void(MessageBuffer)> callback) override { _session->SendRequest(serviceHash, methodId, request, std::move(callback)); }
@@ -39,7 +39,7 @@ namespace Battlenet
         void SendResponse(uint32 /*serviceHash*/, uint32 /*methodId*/, uint32 token, google::protobuf::Message const* response) override { _session->SendResponse(token, response); }
         std::string GetCallerInfo() const override { return _session->get_remote_address(); }
 
-        AuthSocket* _session;
+        BNetSocket* _session;
     };
 }
 
