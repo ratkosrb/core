@@ -125,12 +125,9 @@ struct BNetPacketBuffer
 class BNetSocket: public BufferedSocket
 {
     public:
-        const static int s_BYTE_SIZE = 32;
-
         BNetSocket() = default;
         ~BNetSocket();
 
-        static void InitTcpSSL();
         void SendResponse(uint32 token, pb::Message const* response);
         void SendResponse(uint32 token, uint32 status);
         void SendRequest(uint32 serviceHash, uint32 methodId, pb::Message const* request, std::function<void(MessageBuffer)> callback)

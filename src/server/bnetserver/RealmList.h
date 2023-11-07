@@ -37,7 +37,7 @@ struct RealmBuildInfo
     char hotfixVersion = 0;
     uint32 build = 0;
     std::string os;
-    std::array<uint8, 20> integrityHash = { };
+    std::array<uint8, 16> authSeed = { };
 };
 
 RealmBuildInfo const* FindBuildInfo(uint32 build);

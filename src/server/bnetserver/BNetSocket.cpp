@@ -31,6 +31,7 @@
 #include "Log.h"
 #include "RealmList.h"
 #include "BNetSocket.h"
+#include "SystemConfig.h"
 #include "Util.h"
 #include "BattlenetRpcErrorCodes.h"
 #include "Service.h"
@@ -72,32 +73,9 @@ AccountTypes BNetSocket::GetSecurityOn(uint32 realmId) const
     return it->second;
 }
 
-constexpr auto TCP_SSL_VERSION_LIST = "tlsv1,tlsv1.1,tlsv1.2,tlsv1.3";
-
-void BNetSocket::InitTcpSSL()
-{
-    ACE_SSL_Context::instance()->certificate("bnetserver.cert.pem", SSL_FILETYPE_PEM);
-    ACE_SSL_Context::instance()->private_key("bnetserver.key.pem", SSL_FILETYPE_PEM);
-
-    ACE_SSL_Context::instance()->filter_versions(TCP_SSL_VERSION_LIST);
-    auto sslHandler = ACE_SSL_Context::instance()->context();
-    // Enable ECDH cipher
-    if (!SSL_CTX_set_ecdh_auto(sslHandler, 1))
-    {
-        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "SSL_CTX_set_ecdh_auto  failed: %s", std::strerror(errno));
-    }
-    auto ciphers = "ALL:!RC4:!SSLv3:+HIGH:!MEDIUM:!LOW";
-    // auto ciphers = "HIGH:!aNULL:!eNULL:!kECDH:!aDH:!RC4:!3DES:!CAMELLIA:!MD5:!PSK:!SRP:!KRB5:@STRENGTH";
-    if (!SSL_CTX_set_cipher_list(sslHandler, ciphers))
-    {
-        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "SSL_CTX_set_cipher_list  failed: %s", std::strerror(errno));
-    }
-    SSL_CTX_clear_options(sslHandler, SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION);
-}
-
 void BNetSocket::OnAccept()
 {
-    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Accepting connection from '%s'", get_remote_address().c_str());
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::OnAccept] Accepting connection from '%s'", get_remote_address().c_str());
 }
 
 // Read the packet from the client
@@ -255,17 +233,17 @@ uint32 BNetSocket::HandleLogon(authentication::v1::LogonRequest const* logonRequ
     if (!VerifyVersion())
     {
         sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "[BNetSocket::LogonRequest] %s attempted to log in with unsupported client build (using %u)!", get_remote_address().c_str(), m_build);
-        return ERROR_BAD_LOCALE;
+        return ERROR_BAD_VERSION;
     }
 
-    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::LogonRequest] %s trying to login. Program: %s Build: %u Locale: %s", get_remote_address().c_str(), logonRequest->program().c_str(), m_build, m_locale.c_str());
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::LogonRequest] %s trying to login. OS: %s Build: %u Locale: %s", get_remote_address().c_str(), m_os.c_str(), m_build, m_locale.c_str());
 
     if (logonRequest->has_cached_web_credentials())
         return VerifyWebCredentials(logonRequest->cached_web_credentials(), continuation);
 
     challenge::v1::ChallengeExternalRequest externalChallenge;
     externalChallenge.set_payload_type("web_auth_url");
-    std::string restAddress = "https://" + sConfig.GetStringDefault("LoginREST.ExternalAddress", "127.0.0.1") + ":" + std::to_string(sConfig.GetIntDefault("LoginREST.Port", 8081)) + "/bnetserver/login/";
+    std::string restAddress = "https://" + sConfig.GetStringDefault("LoginREST.ExternalAddress", "127.0.0.1") + ":" + std::to_string(sConfig.GetIntDefault("LoginREST.Port", DEFAULT_REST_PORT)) + "/bnetserver/login/";
     externalChallenge.set_payload(restAddress);
     Battlenet::Service<challenge::v1::ChallengeListener>(this).OnExternalChallenge(&externalChallenge);
     return ERROR_OK;

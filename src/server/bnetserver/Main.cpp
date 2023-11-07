@@ -30,6 +30,7 @@
 #include "Config/Config.h"
 #include "Log.h"
 #include "BNetSocket.h"
+#include "RestSocket.h"
 #include "SystemConfig.h"
 #include "revision.h"
 #include "Util.h"
@@ -74,6 +75,29 @@ void HookSignals();
 bool stopEvent = false;                                     // Setting it to true stops the server
 
 DatabaseType LoginDatabase;                                 // Accessor to the realm server database
+
+constexpr auto TCP_SSL_VERSION_LIST = "tlsv1,tlsv1.1,tlsv1.2,tlsv1.3";
+
+void InitTcpSSL()
+{
+    ACE_SSL_Context::instance()->certificate("bnetserver.cert.pem", SSL_FILETYPE_PEM);
+    ACE_SSL_Context::instance()->private_key("bnetserver.key.pem", SSL_FILETYPE_PEM);
+
+    ACE_SSL_Context::instance()->filter_versions(TCP_SSL_VERSION_LIST);
+    auto sslHandler = ACE_SSL_Context::instance()->context();
+    // Enable ECDH cipher
+    if (!SSL_CTX_set_ecdh_auto(sslHandler, 1))
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "SSL_CTX_set_ecdh_auto  failed: %s", std::strerror(errno));
+    }
+    auto ciphers = "ALL:!RC4:!SSLv3:+HIGH:!MEDIUM:!LOW";
+    // auto ciphers = "HIGH:!aNULL:!eNULL:!kECDH:!aDH:!RC4:!3DES:!CAMELLIA:!MD5:!PSK:!SRP:!KRB5:@STRENGTH";
+    if (!SSL_CTX_set_cipher_list(sslHandler, ciphers))
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "SSL_CTX_set_cipher_list  failed: %s", std::strerror(errno));
+    }
+    SSL_CTX_clear_options(sslHandler, SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION);
+}
 
 // Print out the usage string for this program on the console.
 void usage(const char *prog)
@@ -295,22 +319,37 @@ extern int main(int argc, char **argv)
     LoginDatabase.Execute("DELETE FROM `ip_banned` WHERE `unbandate`<=UNIX_TIMESTAMP() AND `unbandate`<>`bandate`");
     LoginDatabase.CommitTransaction();
 
-    BNetSocket::InitTcpSSL();
+    InitTcpSSL();
 
-    // Launch the listening network socket
-    ACE_Acceptor<BNetSocket, ACE_SSL_SOCK_Acceptor> acceptor;
+    std::string bindIp = sConfig.GetStringDefault("BindIP", "0.0.0.0");
 
-    uint16 rmport = sConfig.GetIntDefault("BattlenetPort", DEFAULT_BATTLENET_PORT);
-    std::string bind_ip = sConfig.GetStringDefault("BindIP", "0.0.0.0");
+    // Launch the listening bnet socket
+    ACE_Acceptor<BNetSocket, ACE_SSL_SOCK_Acceptor> bnetAcceptor;
+    uint16 bnetPort = sConfig.GetIntDefault("BattlenetPort", DEFAULT_BATTLENET_PORT);
+    ACE_INET_Addr bnetBindAddr(bnetPort, bindIp.c_str());
 
-    ACE_INET_Addr bind_addr(rmport, bind_ip.c_str());
-
-    if(acceptor.open(bind_addr, ACE_Reactor::instance(), ACE_NONBLOCK) == -1)
+    if (bnetAcceptor.open(bnetBindAddr, ACE_Reactor::instance(), ACE_NONBLOCK) == -1)
     {
-        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "MaNGOS bnetserver can not bind to %s:%d", bind_ip.c_str(), rmport);
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "MaNGOS bnetserver can not bind to %s:%d", bindIp.c_str(), bnetPort);
         Log::WaitBeforeContinueIfNeed();
         return 1;
     }
+
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "BNet acceptor listening on %s:%u", bindIp.c_str(), bnetPort);
+    
+    // Launch the listening rest socket
+    ACE_Acceptor<RestSocket, ACE_SSL_SOCK_Acceptor> restAcceptor;
+    uint16 restPort = sConfig.GetIntDefault("LoginREST.Port", DEFAULT_REST_PORT);
+    ACE_INET_Addr restBindAddr(restPort, bindIp.c_str());
+
+    if (restAcceptor.open(restBindAddr, ACE_Reactor::instance(), ACE_NONBLOCK) == -1)
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "MaNGOS bnetserver can not bind to %s:%d", bindIp.c_str(), restPort);
+        Log::WaitBeforeContinueIfNeed();
+        return 1;
+    }
+
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Rest acceptor listening on %s:%u", bindIp.c_str(), restPort);
 
     // Catch termination signals
     HookSignals();

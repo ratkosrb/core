@@ -186,7 +186,7 @@ void RealmList::LoadAllowedClients()
 
     QueryResult *result = LoginDatabase.Query(
         //       0                 1               2                 3                 4        5     6
-        "SELECT `major_version`, `minor_version`, `bugfix_version`, `hotfix_version`, `build`, `os`, `integrity_hash` "
+        "SELECT `major_version`, `minor_version`, `bugfix_version`, `hotfix_version`, `build`, `os`, `auth_seed` "
         "FROM `allowed_clients`");
 
     if (result)
@@ -204,11 +204,11 @@ void RealmList::LoadAllowedClients()
             buildInfo.build = fields[4].GetUInt32();
             buildInfo.os = fields[5].GetCppString();
 
-            std::string integrityHash = fields[6].GetCppString();
-            if (!integrityHash.empty())
+            std::string authSeed = fields[6].GetCppString();
+            if (!authSeed.empty())
             {
-                MANGOS_ASSERT(integrityHash.size() == (20 * 2));
-                HexStrToByteArray(integrityHash, buildInfo.integrityHash.data());
+                MANGOS_ASSERT(authSeed.size() == (16 * 2));
+                HexStrToByteArray(authSeed, buildInfo.authSeed.data());
             }
 
             ExpectedRealmdClientBuilds.push_back(buildInfo);
