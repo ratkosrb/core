@@ -55,7 +55,7 @@ AccountOpResult AccountMgr::CreateAccount(std::string username, std::string pass
     }
 
     SRP6 srp;
-    srp.CalculateVerifier(CalculateShaPassHash(username, password));
+    srp.CalculateVerifier(SRP6::CalculateShaPassHash(username, password));
     const char* s_hex = srp.GetSalt().AsHexStr();
     const char* v_hex = srp.GetVerifier().AsHexStr();
 
@@ -136,7 +136,7 @@ AccountOpResult AccountMgr::ChangeUsername(uint32 accid, std::string new_uname, 
 
     SRP6 srp;
 
-    srp.CalculateVerifier(CalculateShaPassHash(new_uname, new_passwd));
+    srp.CalculateVerifier(SRP6::CalculateShaPassHash(new_uname, new_passwd));
 
     std::string safe_new_uname = new_uname;
     LoginDatabase.escape_string(safe_new_uname);
@@ -174,7 +174,7 @@ AccountOpResult AccountMgr::ChangePassword(uint32 accid, std::string new_passwd,
 
     SRP6 srp;
 
-    srp.CalculateVerifier(CalculateShaPassHash(username, new_passwd));
+    srp.CalculateVerifier(SRP6::CalculateShaPassHash(username, new_passwd));
 
     const char* s_hex = srp.GetSalt().AsHexStr();
     const char* v_hex = srp.GetVerifier().AsHexStr();
@@ -320,7 +320,7 @@ bool AccountMgr::CheckPassword(uint32 accid, std::string passwd, std::string use
         SRP6 srp;
 
         bool calcv = srp.CalculateVerifier(
-            CalculateShaPassHash(username, passwd), fields[0].GetCppString().c_str());
+            SRP6::CalculateShaPassHash(username, passwd), fields[0].GetCppString().c_str());
 
         if (calcv && srp.ProofVerifier(fields[1].GetCppString()))
         {
@@ -332,35 +332,6 @@ bool AccountMgr::CheckPassword(uint32 accid, std::string passwd, std::string use
     }
 
     return false;
-}
-
-bool AccountMgr::normalizeString(std::string& utf8str)
-{
-    std::wstring wstr_buf;
-    if (!Utf8toWStr(utf8str, wstr_buf))
-        return false;
-
-    if (wstr_buf.size() > MAX_ACCOUNT_STR)
-        return false;
-
-    std::transform(wstr_buf.begin(), wstr_buf.end(), wstr_buf.begin(), wcharToUpperOnlyLatin);
-
-    return WStrToUtf8(wstr_buf, utf8str);
-}
-
-std::string AccountMgr::CalculateShaPassHash(std::string& name, std::string& password)
-{
-    Sha1Hash sha;
-    sha.Initialize();
-    sha.UpdateData(name);
-    sha.UpdateData(":");
-    sha.UpdateData(password);
-    sha.Finalize();
-
-    std::string encoded;
-    hexEncodeByteArray(sha.GetDigest(), sha.GetLength(), encoded);
-
-    return encoded;
 }
 
 void AccountMgr::Update(uint32 diff)

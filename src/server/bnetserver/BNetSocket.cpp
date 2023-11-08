@@ -47,7 +47,6 @@
 
 #include <openssl/md5.h>
 #include <ctime>
-//#include "Util.h" -- for commented utf8ToUpperOnlyLatin
 
 #include <ace/OS_NS_unistd.h>
 #include <ace/OS_NS_fcntl.h>

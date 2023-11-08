@@ -3643,7 +3643,7 @@ uint32 ChatHandler::ExtractAccountId(char** args, std::string* accountName /*= n
     else
     {
         account_name = account_str;
-        if (!AccountMgr::normalizeString(account_name))
+        if (!normalizeString(account_name))
         {
             PSendSysMessage(LANG_ACCOUNT_NOT_EXIST, account_name.c_str());
             SetSentErrorMessage(true);

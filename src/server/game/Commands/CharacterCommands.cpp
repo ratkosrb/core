@@ -1327,7 +1327,7 @@ bool ChatHandler::GetDeletedCharacterInfoList(DeletedInfoList& foundList, bool u
             // search by account name
             else
             {
-                if (!AccountMgr::normalizeString(searchString))
+                if (!normalizeString(searchString))
                     return false;
 
                 LoginDatabase.escape_string(searchString);

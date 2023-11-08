@@ -185,7 +185,9 @@ bool Utf8toWStr(std::string const& utf8str, std::wstring& wstr, size_t max_len =
 bool WStrToUtf8(std::wstring& wstr, std::string& utf8str);
 
 size_t utf8length(std::string& utf8str);                    // set string to "" if invalid utf8 sequence
-void utf8truncate(std::string& utf8str,size_t len);
+
+#define MAX_ACCOUNT_STR 16
+bool normalizeString(std::string& utf8str);
 
 inline bool isBasicLatinCharacter(wchar_t wchar)
 {

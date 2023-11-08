@@ -411,6 +411,20 @@ size_t utf8length(std::string& utf8str)
     }
 }
 
+bool normalizeString(std::string& utf8str)
+{
+    std::wstring wstr_buf;
+    if (!Utf8toWStr(utf8str, wstr_buf))
+        return false;
+
+    if (wstr_buf.size() > MAX_ACCOUNT_STR)
+        return false;
+
+    std::transform(wstr_buf.begin(), wstr_buf.end(), wstr_buf.begin(), wcharToUpperOnlyLatin);
+
+    return WStrToUtf8(wstr_buf, utf8str);
+}
+
 bool Utf8toWStr(std::string const& utf8str, std::wstring& wstr, size_t max_len)
 {
     if (utf8str.empty())

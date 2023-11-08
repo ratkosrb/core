@@ -18,6 +18,7 @@
 
 #include "Common.h"
 #include "Log.h"
+#include "Util.h"
 #include "Auth/HMACSHA1.h"
 #include "Auth/base32.h"
 #include "SRP6.h"
@@ -26,6 +27,21 @@ SRP6::SRP6()
 {
     N.SetHexStr("894B645E89E1535BBDAD5B8B290650530801B18EBFBF5E8FAB3C82872A3E9BB7");
     g.SetDword(7);
+}
+
+std::string SRP6::CalculateShaPassHash(std::string& name, std::string& password)
+{
+    Sha1Hash sha;
+    sha.Initialize();
+    sha.UpdateData(name);
+    sha.UpdateData(":");
+    sha.UpdateData(password);
+    sha.Finalize();
+
+    std::string encoded;
+    hexEncodeByteArray(sha.GetDigest(), sha.GetLength(), encoded);
+
+    return encoded;
 }
 
 void SRP6::CalculateHostPublicEphemeral(void)

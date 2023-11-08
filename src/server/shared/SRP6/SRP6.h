@@ -35,6 +35,12 @@ class SRP6
         //! Initializes SRP with a predefined prime (N) and generator module (g)
         SRP6(void);
 
+        //! calculates sha_pass_hash for the account and password
+        /*!
+          \param username the unique identity of the account to authenticate
+        */
+        static std::string CalculateShaPassHash(std::string& name, std::string& password);
+
         //! calculates the host public ephemeral (B)
         /*!
           generates also a random number as host private ephemeral (b)

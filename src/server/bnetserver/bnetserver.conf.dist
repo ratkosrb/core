@@ -47,6 +47,10 @@ ConfVersion=2020010501
 #        Description: IP address sent to clients connecting from outside the network where bnetserver runs
 #                     Set it to your external IP address
 #
+#    LoginREST.TicketDuration
+#        Description: Determines how long the login ticket is valid (in seconds)
+#                     When using client -launcherlogin feature it is recommended to set it to a high value (like a week)
+#
 #    PidFile
 #        Realmd daemon PID file
 #        Default: ""             - do not create PID file
@@ -169,6 +173,7 @@ MaxPingTime = 30
 BattlenetPort = 1119
 LoginREST.Port = 8081
 LoginREST.ExternalAddress=127.0.0.1
+LoginREST.TicketDuration=3600
 BindIP = "0.0.0.0"
 PidFile = ""
 LogLevel = 0

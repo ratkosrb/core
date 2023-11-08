@@ -980,7 +980,7 @@ bool ChatHandler::HandleLookupAccountNameCommand(char* args)
         return false;
 
     std::string account = accountStr;
-    if (!AccountMgr::normalizeString(account))
+    if (!normalizeString(account))
         return false;
 
     LoginDatabase.escape_string(account);
@@ -1022,7 +1022,7 @@ bool ChatHandler::HandleLookupPlayerAccountCommand(char* args)
         return false;
 
     std::string account = accountStr;
-    if (!AccountMgr::normalizeString(account))
+    if (!normalizeString(account))
         return false;
 
     LoginDatabase.escape_string(account);

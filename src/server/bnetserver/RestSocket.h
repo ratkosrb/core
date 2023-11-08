@@ -31,6 +31,14 @@
 #include "BufferedSocket.h"
 #include "Login.pb.h"
 #include "http_parser.h"
+#include <memory>
+
+struct ParsedHttpPacket
+{
+    uint32 method = 0;
+    std::string url;
+    std::string body;
+};
 
 // Handle login commands
 class RestSocket: public BufferedSocket
@@ -39,14 +47,23 @@ class RestSocket: public BufferedSocket
         RestSocket() = default;
         ~RestSocket();
 
+        // Called from BufferedSocket
         void OnAccept();
         void OnRead();
-        void HandleGetForm();
+
+        // Called from http-parser
+        void SetParsedUrl(uint32 method, char const* at, size_t length);
+        void SetParsedBody(uint32 method, char const* at, size_t length);
+        void SetParsingDone(uint32 method);
+        
     private:
         void WriteResponseHeader(ByteBuffer& buffer, std::string const& content);
         void SendResponse(google::protobuf::Message const& response);
-        http_parser_settings m_settings;
-        http_parser m_parser;
+        void HandleGetForm();
+        void HandlePostLogin(std::string const& body);
+        std::unique_ptr<http_parser_settings> m_settings;
+        std::unique_ptr<http_parser> m_parser;
+        ParsedHttpPacket m_parsedHttpPacket;
 };
 #endif
 // @}
