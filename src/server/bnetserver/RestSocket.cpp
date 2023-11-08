@@ -28,20 +28,31 @@
 #include "Config/Config.h"
 #include "Log.h"
 #include "RestSocket.h"
+#include "http_parser.h"
 
 #include <ace/OS_NS_unistd.h>
 #include <ace/OS_NS_fcntl.h>
 #include <ace/OS_NS_sys_stat.h>
-
 
 RestSocket::~RestSocket()
 {
     
 }
 
+int on_url(http_parser* parser, const char* at, size_t length)
+{
+    printf("Method: %d, Url: %.*s", parser->method, (int)length, at);
+    return 0;
+}
+
 void RestSocket::OnAccept()
 {
     sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[RestSocket::OnAccept] Accepting connection from '%s'", get_remote_address().c_str());
+
+    // Initialize http parser
+    m_settings.on_url = on_url;
+    http_parser_init(&m_parser, HTTP_REQUEST);
+    m_parser.data = this;
 }
 
 // Read the packet from the client
@@ -51,8 +62,18 @@ void RestSocket::OnRead()
 
     std::vector<char> buf;
     buf.resize(recv_len());
-    recv((char*)buf.data(), buf.size());
+    recv(buf.data(), buf.size());
 
-    for (auto chr : buf)
-        putchar(chr);
+    int nparsed = http_parser_execute(&m_parser, &m_settings, buf.data(), buf.size());
+
+    if (m_parser.upgrade)
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "[RestSocket::OnRead] Attempt to upgrade to new protocol!");
+        close_connection();
+    }
+    else if (nparsed != buf.size())
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "[RestSocket::OnRead] Failed to parse http request!");
+        close_connection();
+    }
 }

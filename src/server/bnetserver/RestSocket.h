@@ -29,6 +29,7 @@
 #include "Common.h"
 #include "ByteBuffer.h"
 #include "BufferedSocket.h"
+#include "http_parser.h"
 
 // Handle login commands
 class RestSocket: public BufferedSocket
@@ -39,7 +40,9 @@ class RestSocket: public BufferedSocket
 
         void OnAccept();
         void OnRead();
-
+    private:
+        http_parser_settings m_settings;
+        http_parser m_parser;
 };
 #endif
 // @}

@@ -47,6 +47,7 @@ target_link_libraries(bnetserver
     framework
     protobuf
     proto
+    http-parser
     ${ACE_LIBRARIES}
     ${MYSQL_LIBRARY}
     ${OPENSSL_LIBRARIES})
