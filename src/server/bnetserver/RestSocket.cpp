@@ -29,10 +29,43 @@
 #include "Log.h"
 #include "RestSocket.h"
 #include "http_parser.h"
-
+#include "ProtobufJSON.h"
+#include "Login.pb.h"
+#include <string>
+#include <iostream>
+#include <sstream>
 #include <ace/OS_NS_unistd.h>
 #include <ace/OS_NS_fcntl.h>
 #include <ace/OS_NS_sys_stat.h>
+
+static Battlenet::JSON::Login::FormInputs BuildLoginForm()
+{
+    // set up form inputs
+    Battlenet::JSON::Login::FormInput* input;
+    Battlenet::JSON::Login::FormInputs formInputs;
+
+    formInputs.set_type(Battlenet::JSON::Login::LOGIN_FORM);
+    input = formInputs.add_inputs();
+    input->set_input_id("account_name");
+    input->set_type("text");
+    input->set_label("E-mail");
+    input->set_max_length(320);
+
+    input = formInputs.add_inputs();
+    input->set_input_id("password");
+    input->set_type("password");
+    input->set_label("Password");
+    input->set_max_length(16);
+
+    input = formInputs.add_inputs();
+    input->set_input_id("log_in_submit");
+    input->set_type("submit");
+    input->set_label("Log In");
+    return formInputs;
+}
+
+static Battlenet::JSON::Login::FormInputs g_formInputs = BuildLoginForm();
+static char const g_urlLoginForm[] = "/bnetserver/login/";
 
 RestSocket::~RestSocket()
 {
@@ -42,6 +75,14 @@ RestSocket::~RestSocket()
 int on_url(http_parser* parser, const char* at, size_t length)
 {
     printf("Method: %d, Url: %.*s", parser->method, (int)length, at);
+    if (parser->method == HTTP_GET)
+    {
+        if (length == (sizeof(g_urlLoginForm) - 1) &&
+            memcmp(at, g_urlLoginForm, length) == 0)
+        {
+            ((RestSocket*)parser->data)->HandleGetForm();
+        }
+    }
     return 0;
 }
 
@@ -76,4 +117,31 @@ void RestSocket::OnRead()
         sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "[RestSocket::OnRead] Failed to parse http request!");
         close_connection();
     }
+}
+
+void RestSocket::WriteResponseHeader(ByteBuffer& buffer, std::string const& content)
+{
+    std::stringstream ss;
+    ss << "HTTP/1.1 200 Ok\r\n";
+    ss << "Content-Length: " << content.length() << "\r\n";
+    ss << "Content-Type: application/json;charset=UTF-8\r\n";
+    ss << "\r\n";
+    ss << content << "\r\n";
+
+    std::string response = ss.str();
+    buffer.append(response.c_str(), response.length());
+}
+
+void RestSocket::SendResponse(google::protobuf::Message const& response)
+{
+    std::string jsonResponse = JSON::Serialize(response);
+
+    ByteBuffer buffer;
+    WriteResponseHeader(buffer, jsonResponse);
+    send((char const*)buffer.contents(), buffer.size());;
+}
+
+void RestSocket::HandleGetForm()
+{
+    return SendResponse(g_formInputs);
 }

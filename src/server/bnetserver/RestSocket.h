@@ -29,6 +29,7 @@
 #include "Common.h"
 #include "ByteBuffer.h"
 #include "BufferedSocket.h"
+#include "Login.pb.h"
 #include "http_parser.h"
 
 // Handle login commands
@@ -40,7 +41,10 @@ class RestSocket: public BufferedSocket
 
         void OnAccept();
         void OnRead();
+        void HandleGetForm();
     private:
+        void WriteResponseHeader(ByteBuffer& buffer, std::string const& content);
+        void SendResponse(google::protobuf::Message const& response);
         http_parser_settings m_settings;
         http_parser m_parser;
 };
