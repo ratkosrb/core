@@ -263,8 +263,138 @@ uint32 BNetSocket::VerifyWebCredentials(std::string const& webCredentials, std::
 
     sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::VerifyWebCredentials] Login Ticket %s", webCredentials.c_str());
 
-    // TODO: Implement verification of credentials. Query the database.
-    return ERROR_NO_AUTH;
+    // Verify that this IP is not in the ip_banned table
+    // No SQL injection possible (paste the IP address as passed by the socket)
+    std::string address = get_remote_address();
+    LoginDatabase.escape_string(address);
+    std::unique_ptr<QueryResult> result(LoginDatabase.PQuery("SELECT `unbandate` FROM `ip_banned` WHERE "
+        //    permanent                    still banned
+        "(`unbandate` = `bandate` OR `unbandate` > UNIX_TIMESTAMP()) AND `ip` = '%s'", address.c_str()));
+    if (result)
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::VerifyWebCredentials] Banned ip '%s' tries to login!", get_remote_address().c_str());
+        return ERROR_DENIED;
+    }
+
+    std::string safeTicket = webCredentials;
+    LoginDatabase.escape_string(safeTicket);
+
+    // Get the account details from the account table
+    // No SQL injection (escaped login ticket)
+    //                                         0     1           2         3          4                      5              6       7
+    result.reset(LoginDatabase.PQuery("SELECT `id`, `username`, `locked`, `last_ip`, `login_ticket_expiry`, `email_verif`, `email`, UNIX_TIMESTAMP(`joindate`) FROM `account` WHERE `login_ticket` = '%s'", safeTicket.c_str()));
+    if (!result)
+        return ERROR_DENIED;
+
+    Field* fields = result->Fetch();
+
+    m_accountId = fields[0].GetUInt32();
+    m_login = fields[1].GetCppString();
+    LockFlag lockFlags = (LockFlag)fields[2].GetUInt32();
+    m_lastIP = fields[3].GetString();
+    uint32 loginTicketExpiry = fields[4].GetUInt32();
+    bool verified = fields[5].GetBool();
+    m_email = fields[6].GetCppString();
+    uint32 joinDate = fields[7].GetUInt32();
+
+    if (loginTicketExpiry < time(nullptr))
+        return ERROR_TIMED_OUT;
+
+    if (GeographicalLockCheck())
+        return ERROR_GAME_ACCOUNT_LOCKED;
+
+    // Prevent login if the user's email address has not been verified
+    bool requireVerification = sConfig.GetBoolDefault("ReqEmailVerification", false);
+    int32 requireEmailSince = sConfig.GetIntDefault("ReqEmailSince", 0);
+    
+    // Prevent login if the user's join date is bigger than the timestamp in configuration
+    if (requireEmailSince > 0)
+        requireVerification = requireVerification && (joinDate >= uint32(requireEmailSince));
+
+    if (requireVerification && !verified)
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::VerifyWebCredentials] Account '%s' using IP '%s' tries to login before verifying email", m_login.c_str(), get_remote_address().c_str());
+        return ERROR_GAME_ACCOUNT_LOCKED;
+    }
+
+    // If the IP is 'locked', check that the player comes indeed from the correct IP address
+    if (lockFlags & IP_LOCK)
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "[BNetSocket::VerifyWebCredentials] Account '%s' is locked to IP - '%s'", m_login.c_str(), m_lastIP.c_str());
+        sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "[BNetSocket::VerifyWebCredentials] Player address is '%s'", get_remote_address().c_str());
+
+        if (m_lastIP != get_remote_address())
+        {
+            sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "[BNetSocket::VerifyWebCredentials] Account IP differs");
+            return ERROR_RISK_ACCOUNT_LOCKED;
+        }
+    }
+
+    // If the account is banned, reject the logon attempt
+    result.reset(LoginDatabase.PQuery("SELECT `bandate`, `unbandate` FROM `account_banned` WHERE "
+        "`id` = %u AND `active` = 1 AND (`unbandate` > UNIX_TIMESTAMP() OR `unbandate` = `bandate`) LIMIT 1", m_accountId));
+
+    if (result)
+    {
+        if ((*result)[0].GetUInt64() == (*result)[1].GetUInt64())
+        {
+            sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::VerifyWebCredentials] Banned account '%s' using IP '%s' tries to login!", m_login.c_str(), get_remote_address().c_str());
+            return ERROR_GAME_ACCOUNT_BANNED;
+        }
+        else
+        {
+            sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::VerifyWebCredentials] Temporarily banned account '%s' using IP '%s' tries to login!", m_login.c_str(), get_remote_address().c_str());
+            return ERROR_GAME_ACCOUNT_SUSPENDED;
+        }
+    }
+
+    //                                         0          1
+    result.reset(LoginDatabase.PQuery("SELECT `realmid`, `numchars` FROM `realmcharacters` WHERE `acctid`='%u'", m_accountId));
+    if (result)
+    {
+        Field* fields = result->Fetch();
+        uint32 realmId = fields[0].GetUInt32();
+        uint8 count = fields[1].GetUInt8();
+        m_characterCounts[Battlenet::RealmHandle{ 1, 1, realmId }.GetAddress()] = count;
+    }
+
+    //                                         0           1                 2                 3
+    result.reset(LoginDatabase.PQuery("SELECT `realm_id`, `character_name`, `character_guid`, `last_played_time` FROM `last_played_character` WHERE `account_id`=%u", m_accountId));
+    if (result)
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+            Battlenet::RealmHandle realmId{ 1, 1, fields[0].GetUInt32() };
+            LastPlayedCharacterInfo& lastPlayedCharacter = m_lastPlayedCharacters[realmId.GetSubRegionAddress()];
+
+            lastPlayedCharacter.RealmId = realmId;
+            lastPlayedCharacter.CharacterName = fields[1].GetString();
+            lastPlayedCharacter.CharacterGUID = fields[2].GetUInt64();
+            lastPlayedCharacter.LastPlayedTime = fields[3].GetUInt32();
+
+        } while (result->NextRow());
+    }
+
+    authentication::v1::LogonResult logonResult;
+    logonResult.set_error_code(0);
+    logonResult.mutable_account_id()->set_low(m_accountId);
+    logonResult.mutable_account_id()->set_high(UI64LIT(0x100000000000000));
+
+    //for (auto itr = _accountInfo->GameAccounts.begin(); itr != _accountInfo->GameAccounts.end(); ++itr)
+    {
+        EntityId* gameAccountId = logonResult.add_game_account_id();
+        gameAccountId->set_low(m_accountId);
+        gameAccountId->set_high(UI64LIT(0x200000200576F57));
+    }
+
+    BigNumber k;
+    k.SetRand(8 * 64);
+    logonResult.set_session_key(k.AsByteArray(64).data(), 64);
+
+    m_authed = true;
+    Battlenet::Service<authentication::v1::AuthenticationListener>(this).OnLogonComplete(&logonResult);
+    return ERROR_OK;
 }
 
 void BNetSocket::LoadRealmlist(ByteBuffer &pkt)
@@ -307,110 +437,6 @@ void BNetSocket::LoadRealmlist(ByteBuffer &pkt)
 
         // WRITE REALM TO PACKET
     }
-}
-
-// Verify PIN entry data
-bool BNetSocket::VerifyPinData(uint32 pin, const PINData& clientData)
-{
-    // remap the grid to match the client's layout
-    std::vector<uint8> grid { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-    std::vector<uint8> remappedGrid(grid.size());
-
-    uint8* remappedIndex = remappedGrid.data();
-    uint32 seed = m_gridSeed;
-
-    for (size_t i = grid.size(); i > 0; --i)
-    {
-        auto remainder = seed % i;
-        seed /= i;
-        *remappedIndex = grid[remainder];
-
-        size_t copySize = i;
-        copySize -= remainder;
-        --copySize;
-
-        uint8* srcPtr = grid.data() + remainder + 1;
-        uint8* dstPtr = grid.data() + remainder;
-
-        std::copy(srcPtr, srcPtr + copySize, dstPtr);
-        ++remappedIndex;
-    }
-
-    // convert the PIN to bytes (for ex. '1234' to {1, 2, 3, 4})
-    std::vector<uint8> pinBytes;
-
-    while (pin != 0)
-    {
-        pinBytes.push_back(pin % 10);
-        pin /= 10;
-    }
-
-    std::reverse(pinBytes.begin(), pinBytes.end());
-
-    // validate PIN length
-    if (pinBytes.size() < 4 || pinBytes.size() > 10)
-        return false; // PIN outside of expected range
-
-    // remap the PIN to calculate the expected client input sequence
-    for (size_t i = 0; i < pinBytes.size(); ++i)
-    {
-        auto index = std::find(remappedGrid.begin(), remappedGrid.end(), pinBytes[i]);
-        pinBytes[i] = std::distance(remappedGrid.begin(), index);
-    }
-
-    // convert PIN bytes to their ASCII values
-    for (size_t i = 0; i < pinBytes.size(); ++i)
-        pinBytes[i] += 0x30;
-
-    // validate the PIN, x = H(client_salt | H(server_salt | ascii(pin_bytes)))
-    Sha1Hash sha;
-    sha.UpdateData(m_serverSecuritySalt.AsByteArray());
-    sha.UpdateData(pinBytes.data(), pinBytes.size());
-    sha.Finalize();
-
-    BigNumber hash, clientHash;
-    hash.SetBinary(sha.GetDigest(), sha.GetLength());
-    clientHash.SetBinary(clientData.hash, 20);
-
-    sha.Initialize();
-    sha.UpdateData(clientData.salt, sizeof(clientData.salt));
-    sha.UpdateData(hash.AsByteArray());
-    sha.Finalize();
-    hash.SetBinary(sha.GetDigest(), sha.GetLength());
-
-    return !memcmp(hash.AsDecStr(), clientHash.AsDecStr(), 20);
-}
-
-uint32 BNetSocket::GenerateTotpPin(const std::string& secret, int interval) {
-    std::vector<uint8> decoded_key((secret.size() + 7) / 8 * 5);
-    int key_size = base32_decode((const uint8_t*)secret.data(), decoded_key.data(), decoded_key.size());
-
-    if (key_size == -1)
-    {
-        sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "Unable to base32 decode TOTP key for user %s", m_safelogin.c_str());
-        return -1;
-    }
-
-    // not guaranteed by the standard to be the UNIX epoch but it is on all supported platforms
-    auto time = std::time(nullptr);
-    uint64 now = static_cast<uint64>(time);
-    uint64 step = static_cast<uint64>((floor(now / 30))) + interval;
-    EndianConvertReverse(step);
-
-    HmacHash hmac(decoded_key.data(), key_size);
-    hmac.UpdateData((uint8*)&step, sizeof(step));
-    hmac.Finalize();
-
-    auto hmac_result = hmac.GetDigest();
-
-    unsigned int offset = hmac_result[19] & 0xF;
-    std::uint32_t pin = (hmac_result[offset] & 0x7f) << 24 | (hmac_result[offset + 1] & 0xff) << 16
-        | (hmac_result[offset + 2] & 0xff) << 8 | (hmac_result[offset + 3] & 0xff);
-    EndianConvert(pin);
-
-    pin &= 0x7FFFFFFF;
-    pin %= 1000000;
-    return pin;
 }
 
 void BNetSocket::LoadAccountSecurityLevels(uint32 accountId)

@@ -411,6 +411,7 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recv_data)
         delete holder;                                      // delete all unprocessed queries
         return;
     }
+
     m_playerLoading = true;
     CharacterDatabase.DelayQueryHolderUnsafe(&chrHandler, &CharacterHandler::HandlePlayerLoginCallback, holder);
 }
@@ -734,7 +735,9 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
     std::string IP_str = GetRemoteAddress();
 
     sLog.Player(this, LOG_CHAR, "Login", LOG_LVL_DETAIL, alreadyOnline ? "Player was already online" : "");
-    
+    LoginDatabase.PExecute("REPLACE INTO `last_played_character` (`realm_id`, `account_id`, `character_name`, `character_guid`, `last_played_time` VALUES (%u, %u, '%s', %u, %u)",
+        realmID, GetAccountId(), pCurrChar->GetName(), pCurrChar->GetGUID(), sWorld.GetGameTime());
+
     if (!alreadyOnline && !pCurrChar->IsStandingUp() && !pCurrChar->HasUnitState(UNIT_STAT_STUNNED))
         pCurrChar->SetStandState(UNIT_STAND_STATE_STAND);
 

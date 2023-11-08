@@ -33,6 +33,7 @@
 #include "ByteBuffer.h"
 #include "Utilities/MessageBuffer.h"
 #include "BufferedSocket.h"
+#include "RealmList.h"
 #include "rpc_types.pb.h"
 #include <google/protobuf/message.h>
 
@@ -143,41 +144,35 @@ class BNetSocket: public BufferedSocket
         void OnAccept();
         void OnRead();
         void LoadRealmlist(ByteBuffer &pkt);
-        bool VerifyPinData(uint32 pin, const PINData& clientData);
-        uint32 GenerateTotpPin(const std::string& secret, int interval);
 
     private:
 
         bool VerifyVersion();
         uint32 VerifyWebCredentials(std::string const& webCredentials, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
 
-        SRP6 srp;
-        BigNumber m_reconnectProof;
-
-        bool m_promptPin = false;
-
         BNetPacketBuffer m_packetBuffer;
 
+        uint32 m_accountId = 0;
         std::string m_login;
-        std::string m_safelogin;
-        std::string m_securityInfo;
         std::string m_lastIP;
         std::string m_email;
-
-        BigNumber m_serverSecuritySalt;
         LockFlag m_lockFlags = NONE;
-        uint32 m_gridSeed = 0;
-        uint32 m_geoUnlockPIN = 0;
-
         std::string m_os;
         std::string m_locale;
-        uint32 m_accountId = 0;
-        uint32 m_lastRealmListRequest = 0;
-
-        // Since GetLocaleByName() is _NOT_ bijective, we have to store the locale as a string. Otherwise we can't differ
-        // between enUS and enGB, which is important for the patch system
-        std::string m_localizationName;
         uint32 m_build = 0;
+        uint32 m_lastRealmListRequest = 0;
+        bool m_authed = false;
+
+        struct LastPlayedCharacterInfo
+        {
+            Battlenet::RealmHandle RealmId;
+            std::string CharacterName;
+            uint64 CharacterGUID;
+            uint32 LastPlayedTime;
+        };
+
+        std::unordered_map<uint32 /*realmAddress*/, uint8> m_characterCounts;
+        std::unordered_map<std::string /*subRegion*/, LastPlayedCharacterInfo> m_lastPlayedCharacters;
 
         AccountTypes GetSecurityOn(uint32 realmId) const;
         void LoadAccountSecurityLevels(uint32 accountId);

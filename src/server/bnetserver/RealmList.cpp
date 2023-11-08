@@ -26,6 +26,7 @@
 #include "Common.h"
 #include "RealmList.h"
 #include "Util.h"                                           // for Tokens typedef
+#include "Utilities/StringFormat.h"
 #include "Log.h"
 #include "Policies/SingletonImp.h"
 #include "Database/DatabaseEnv.h"
@@ -216,4 +217,14 @@ void RealmList::LoadAllowedClients()
         } while (result->NextRow());
         delete result;
     }
+}
+
+std::string Battlenet::RealmHandle::GetAddressString() const
+{
+    return Trinity::StringFormat("%u-%u-%u", Region, Site, Realm);
+}
+
+std::string Battlenet::RealmHandle::GetSubRegionAddress() const
+{
+    return Trinity::StringFormat("%u-%u-0", Region, Site);
 }
