@@ -21,7 +21,7 @@
 
 Battlenet::ServiceDispatcher::ServiceDispatcher()
 {
-    //AddService<Services::Account>();
+    AddService<Services::Account>();
     AddService<Services::Authentication>();
     AddService<Service<club::v1::membership::ClubMembershipService>>();
     AddService<Services::Connection>();

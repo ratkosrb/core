@@ -227,8 +227,8 @@ void RestSocket::HandlePostLogin(std::string const& body)
 
     // Get the account details from the account table
     // No SQL injection (escaped user name)
-    //                                                                0     1         2          3    4    5               6                      7              8       9
-    std::unique_ptr<QueryResult> result(LoginDatabase.PQuery("SELECT `id`, `locked`, `last_ip`, `v`, `s`, `login_ticket`, `login_ticket_expiry`, `email_verif`, `email`, UNIX_TIMESTAMP(`joindate`) FROM `account` WHERE `username` = '%s'", safelogin.c_str()));
+    //                                                                0     1         2          3    4    5               6                      7              8       9                            10
+    std::unique_ptr<QueryResult> result(LoginDatabase.PQuery("SELECT `id`, `locked`, `last_ip`, `v`, `s`, `login_ticket`, `login_ticket_expiry`, `email_verif`, `email`, UNIX_TIMESTAMP(`joindate`), `failed_logins` FROM `account` WHERE `username` = '%s'", safelogin.c_str()));
     if (result)
     {
         Field* fields = result->Fetch();
@@ -268,14 +268,6 @@ void RestSocket::HandlePostLogin(std::string const& body)
                 sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "[RestSocket::HandlePostLogin] Account IP differs");
                 return;
             }
-            else
-            {
-                sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "[RestSocket::HandlePostLogin] Account IP matches");
-            }
-        }
-        else
-        {
-            sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "[RestSocket::HandlePostLogin] Account '%s' is not locked to ip", login.c_str());
         }
 
         std::string databaseV = fields[3].GetCppString();
@@ -294,6 +286,39 @@ void RestSocket::HandlePostLogin(std::string const& body)
         if (clientSrp.GetVerifier().AsHexStr() != databaseV)
         {
             sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[RestSocket::HandlePostLogin] Account '%s' tries to login with wrong password!", login.c_str());
+
+            uint32 maxWrongPassCount = sConfig.GetIntDefault("WrongPass.MaxCount", 0);
+            if (maxWrongPassCount > 0)
+            {
+                //Increment number of failed logins by one and if it reaches the limit temporarily ban that account or IP
+                LoginDatabase.PExecute("UPDATE `account` SET `failed_logins` = `failed_logins` + 1 WHERE `username` = '%s'", safelogin.c_str());
+
+                uint32 failedLogins = fields[10].GetUInt32() + 1;
+
+                if (failedLogins >= maxWrongPassCount)
+                {
+                    uint32 wrongPassBanTime = sConfig.GetIntDefault("WrongPass.BanTime", 600);
+                    bool wrongPassBanType = sConfig.GetBoolDefault("WrongPass.BanType", false);
+
+                    if (wrongPassBanType)
+                    {
+                        LoginDatabase.PExecute("INSERT INTO `account_banned` (`id`, `bandate`, `unbandate`, `bannedby`, `banreason`, `active`, `realm`) "
+                            "VALUES ('%u',UNIX_TIMESTAMP(),UNIX_TIMESTAMP()+'%u','MaNGOS realmd','Failed login autoban',1,1)",
+                            accountId, wrongPassBanTime);
+                        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[RestSocket::HandlePostLogin] Account '%s' using  IP '%s' got banned for '%u' seconds because it failed to authenticate '%u' times",
+                            login.c_str(), get_remote_address().c_str(), wrongPassBanTime, failedLogins);
+                    }
+                    else
+                    {
+                        std::string currentIp = get_remote_address();
+                        LoginDatabase.escape_string(currentIp);
+                        LoginDatabase.PExecute("INSERT INTO `ip_banned` VALUES ('%s',UNIX_TIMESTAMP(),UNIX_TIMESTAMP()+'%u','MaNGOS realmd','Failed login autoban')",
+                            currentIp.c_str(), wrongPassBanTime);
+                        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[RestSocket::HandlePostLogin] IP '%s' got banned for '%u' seconds because account '%s' failed to authenticate '%u' times",
+                            currentIp.c_str(), wrongPassBanTime, login.c_str(), failedLogins);
+                    }
+                }
+            }
             return;
         }
 

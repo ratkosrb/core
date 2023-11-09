@@ -287,9 +287,6 @@ uint32 BNetSocket::VerifyWebCredentials(std::string const& webCredentials, std::
     if (loginTicketExpiry < time(nullptr))
         return ERROR_TIMED_OUT;
 
-    if (GeographicalLockCheck())
-        return ERROR_GAME_ACCOUNT_LOCKED;
-
     // Prevent login if the user's email address has not been verified
     bool requireVerification = sConfig.GetBoolDefault("ReqEmailVerification", false);
     int32 requireEmailSince = sConfig.GetIntDefault("ReqEmailSince", 0);
@@ -317,6 +314,9 @@ uint32 BNetSocket::VerifyWebCredentials(std::string const& webCredentials, std::
         }
     }
 
+    if (GeographicalLockCheck())
+        return ERROR_RISK_ACCOUNT_LOCKED;
+
     // If the account is banned, reject the logon attempt
     result.reset(LoginDatabase.PQuery("SELECT `bandate`, `unbandate` FROM `account_banned` WHERE "
         "`id` = %u AND `active` = 1 AND (`unbandate` > UNIX_TIMESTAMP() OR `unbandate` = `bandate`) LIMIT 1", m_accountId));
@@ -334,6 +334,8 @@ uint32 BNetSocket::VerifyWebCredentials(std::string const& webCredentials, std::
             return ERROR_GAME_ACCOUNT_SUSPENDED;
         }
     }
+
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[NetSocket::VerifyWebCredentials] Account '%s' using IP '%s' successfully authenticated", m_login.c_str(), get_remote_address().c_str());
 
     //                                         0          1
     result.reset(LoginDatabase.PQuery("SELECT `realmid`, `numchars` FROM `realmcharacters` WHERE `acctid`='%u'", m_accountId));
@@ -381,6 +383,59 @@ uint32 BNetSocket::VerifyWebCredentials(std::string const& webCredentials, std::
 
     m_authed = true;
     Battlenet::Service<authentication::v1::AuthenticationListener>(this).OnLogonComplete(&logonResult);
+    return ERROR_OK;
+}
+
+uint32 BNetSocket::HandleGetAccountState(account::v1::GetAccountStateRequest const* request, account::v1::GetAccountStateResponse* response)
+{
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::HandleGetAccountState] Called by account %u", m_accountId);
+
+    if (!m_authed)
+        return ERROR_DENIED;
+
+    if (request->options().field_privacy_info())
+    {
+        response->mutable_state()->mutable_privacy_info()->set_is_using_rid(false);
+        response->mutable_state()->mutable_privacy_info()->set_is_visible_for_view_friends(false);
+        response->mutable_state()->mutable_privacy_info()->set_is_hidden_from_friend_finder(true);
+
+        response->mutable_tags()->set_privacy_info_tag(0xD7CA834D);
+    }
+
+    return ERROR_OK;
+}
+
+uint32 BNetSocket::HandleGetGameAccountState(account::v1::GetGameAccountStateRequest const* request, account::v1::GetGameAccountStateResponse* response)
+{
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::HandleGetGameAccountState] Called by account %u", m_accountId);
+
+    if (!m_authed)
+        return ERROR_DENIED;
+
+    if (request->options().field_game_level_info())
+    {
+        if (m_accountId == request->game_account_id().low())
+        {
+            response->mutable_state()->mutable_game_level_info()->set_name(m_login);
+            response->mutable_state()->mutable_game_level_info()->set_program(5730135); // WoW
+        }
+
+        response->mutable_tags()->set_game_level_info_tag(0x5C46D483);
+    }
+
+    if (request->options().field_game_status())
+    {
+        if (m_accountId == request->game_account_id().low())
+        {
+            response->mutable_state()->mutable_game_status()->set_is_suspended(false);
+            response->mutable_state()->mutable_game_status()->set_is_banned(false);
+            response->mutable_state()->mutable_game_status()->set_suspension_expires(0);
+        }
+
+        response->mutable_state()->mutable_game_status()->set_program(5730135); // WoW
+        response->mutable_tags()->set_game_status_tag(0x98B75F99);
+    }
+
     return ERROR_OK;
 }
 

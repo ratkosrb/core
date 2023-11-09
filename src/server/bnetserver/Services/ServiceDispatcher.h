@@ -21,6 +21,7 @@
 #include "Utilities/MessageBuffer.h"
 #include "Log.h"
 #include "Common.h"
+#include "AccountService.h"
 #include "AuthenticationService.h"
 #include "challenge_service.pb.h"
 #include "club_membership_listener.pb.h"
