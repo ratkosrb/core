@@ -1,9 +1,4 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
- * Copyright (C) 2009-2011 MaNGOSZero <https://github.com/mangos/zero>
- * Copyright (C) 2011-2016 Nostalrius <https://nostalrius.org>
- * Copyright (C) 2016-2017 Elysium Project <https://github.com/elysium-project>
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -19,13 +14,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-// \addtogroup realmd Realm Daemon
-// @{
-// \file
-
 #include "Common.h"
 #include "Database/DatabaseEnv.h"
 #include "RealmList.h"
+#include "BanManager.h"
 
 #include "Config/Config.h"
 #include "Log.h"
@@ -319,6 +311,7 @@ extern int main(int argc, char **argv)
     LoginDatabase.Execute("DELETE FROM `ip_banned` WHERE `unbandate`<=UNIX_TIMESTAMP() AND `unbandate`<>`bandate`");
     LoginDatabase.CommitTransaction();
 
+    sBanMgr.LoadIPBanList(false);
     InitTcpSSL();
 
     std::string bindIp = sConfig.GetStringDefault("BindIP", "0.0.0.0");
@@ -401,12 +394,15 @@ extern int main(int argc, char **argv)
     LoginDatabase.AllowAsyncTransactions();
 
     // maximum counter for next ping
-    uint32 numLoops = (sConfig.GetIntDefault( "MaxPingTime", 30 ) * (MINUTE * 1000000 / 100000));
-    uint32 loopCounter = 0;
+    uint32 numLoopsPing = (sConfig.GetIntDefault("MaxPingTime", 30) * (MINUTE * 1000000 / 100000));
+    uint32 numLoopsBans = (sConfig.GetIntDefault("BanListReloadTimer", 120) * (1000000 / 100000));
+    uint32 loopCounterPing = 0;
+    uint32 loopCounterBans = 0;
 
     #ifndef WIN32
     detachDaemon();
     #endif
+
     // Wait for termination signal
     while (!stopEvent)
     {
@@ -416,12 +412,19 @@ extern int main(int argc, char **argv)
         if (ACE_Reactor::instance()->run_reactor_event_loop(interval) == -1)
             break;
 
-        if( (++loopCounter) == numLoops )
+        if ((++loopCounterPing) == numLoopsPing)
         {
-            loopCounter = 0;
+            loopCounterPing = 0;
             sLog.Out(LOG_BASIC, LOG_LVL_DETAIL, "Ping MySQL to keep connection alive");
             LoginDatabase.Ping();
         }
+        if ((++loopCounterBans) == numLoopsBans)
+        {
+            loopCounterBans = 0;
+            sLog.Out(LOG_BASIC, LOG_LVL_DETAIL, "Reloading IP bans");
+            sBanMgr.LoadIPBanList(true);
+        }
+
 #ifdef WIN32
         if (m_ServiceStatus == 0) stopEvent = true;
         while (m_ServiceStatus == 2) Sleep(1000);

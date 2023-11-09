@@ -263,26 +263,13 @@ uint32 BNetSocket::VerifyWebCredentials(std::string const& webCredentials, std::
 
     sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::VerifyWebCredentials] Login Ticket %s", webCredentials.c_str());
 
-    // Verify that this IP is not in the ip_banned table
-    // No SQL injection possible (paste the IP address as passed by the socket)
-    std::string address = get_remote_address();
-    LoginDatabase.escape_string(address);
-    std::unique_ptr<QueryResult> result(LoginDatabase.PQuery("SELECT `unbandate` FROM `ip_banned` WHERE "
-        //    permanent                    still banned
-        "(`unbandate` = `bandate` OR `unbandate` > UNIX_TIMESTAMP()) AND `ip` = '%s'", address.c_str()));
-    if (result)
-    {
-        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[BNetSocket::VerifyWebCredentials] Banned ip '%s' tries to login!", get_remote_address().c_str());
-        return ERROR_DENIED;
-    }
-
     std::string safeTicket = webCredentials;
     LoginDatabase.escape_string(safeTicket);
 
     // Get the account details from the account table
     // No SQL injection (escaped login ticket)
     //                                         0     1           2         3          4                      5              6       7
-    result.reset(LoginDatabase.PQuery("SELECT `id`, `username`, `locked`, `last_ip`, `login_ticket_expiry`, `email_verif`, `email`, UNIX_TIMESTAMP(`joindate`) FROM `account` WHERE `login_ticket` = '%s'", safeTicket.c_str()));
+    std::unique_ptr<QueryResult> result(LoginDatabase.PQuery("SELECT `id`, `username`, `locked`, `last_ip`, `login_ticket_expiry`, `email_verif`, `email`, UNIX_TIMESTAMP(`joindate`) FROM `account` WHERE `login_ticket` = '%s'", safeTicket.c_str()));
     if (!result)
         return ERROR_DENIED;
 

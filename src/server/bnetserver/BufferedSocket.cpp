@@ -25,6 +25,7 @@
 
 #include "BufferedSocket.h"
 #include "Config/Config.h"
+#include "BanManager.h"
 
 #include <ace/OS_NS_string.h>
 #include <ace/INET_Addr.h>
@@ -61,10 +62,11 @@ BufferedSocket::BufferedSocket(void):
         return -1;
 
     char address[1024];
-
     addr.get_host_addr(address, 1024);
-
     this->remote_address_ = address;
+
+    if (sBanMgr.IsIPBanned(address))
+        return -1;
 
     this->OnAccept();
 
