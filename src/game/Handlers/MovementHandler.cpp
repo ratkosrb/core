@@ -170,6 +170,12 @@ void WorldSession::HandleMoveWorldportAckOpcode()
             GetPlayer()->SendInstanceResetWarning(mEntry->id, timeleft);
         }
     }
+    else if (!mEntry->IsDungeon())
+    {
+        MapEntry const* oldMapEntry = sMapStorage.LookupEntry<MapEntry>(oldLoc.mapId);
+        if (oldMapEntry->IsDungeon())
+            GetPlayer()->ResetPersonalInstanceOnLeaveDungeon(oldLoc.mapId);
+    }
 
     // mount allow check
     if (!mEntry->IsMountAllowed())
@@ -280,9 +286,8 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recvData)
     if (recvData.GetPacketTime() <= m_moveRejectTime)
         return;
 
-    Unit* pMover = _player->GetMover();
-
-    if (pMover->GetObjectGuid() != m_clientMoverGuid)
+    Unit* pMover = _player->GetConfirmedMover();
+    if (!pMover)
         return;
 
     if (pMover->HasPendingSplineDone())
@@ -340,6 +345,26 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recvData)
 
         pPlayerMover->UpdateFallInformationIfNeed(movementInfo, opcode);
     }
+
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
+    // this is here to accommodate 1.14 client behavior
+    // it does not interrupt falling when rooted
+    // verify that root is applied after having landed
+    if (pMover->HasUnitState(UNIT_STAT_ROOT_ON_LANDING))
+    {
+        if (movementInfo.HasMovementFlag(MOVEFLAG_ROOT) || !pMover->ShouldBeRooted())
+            pMover->ClearUnitState(UNIT_STAT_ROOT_ON_LANDING);
+        else if (!movementInfo.HasMovementFlag(MOVEFLAG_JUMPING | MOVEFLAG_FALLINGFAR))
+        {
+            sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "WorldSession::HandleMovementOpcodes: Player %s from account id %u has pending root on landing, but sent movement packet with opcode %u not containing root or falling flags!",
+                _player->GetName(), _player->GetSession()->GetAccountId(), opcode);
+            pMover->ClearUnitState(UNIT_STAT_ROOT_ON_LANDING);
+            pMover->SetRootedReal(true);
+            KickPlayer();
+            return;
+        }
+    }
+#endif
 
     // CMSG opcode has no handler in client, should not be sent to others.
     // It is sent by client when you jump and hit something on the way up,
@@ -416,10 +441,6 @@ void WorldSession::HandleForceSpeedChangeAckOpcodes(WorldPacket& recvData)
     movementInfo.UpdateTime(recvData.GetPacketTime());
     /*----------------*/
 
-    // now can skip not our packet
-    if (guid != m_clientMoverGuid && guid != _player->GetObjectGuid() && guid != _player->GetMover()->GetObjectGuid())
-        return;
-
     UnitMoveType move_type;
     switch (opcode)
     {
@@ -446,8 +467,7 @@ void WorldSession::HandleForceSpeedChangeAckOpcodes(WorldPacket& recvData)
             return;
     }
 
-    Unit* pMover = _player->GetMap()->GetUnit(guid);
-
+    Unit* pMover = GetMoverFromGuid(guid);
     if (!pMover)
         return;
 
@@ -538,12 +558,7 @@ void WorldSession::HandleMovementFlagChangeToggleAck(WorldPacket& recvData)
     bool applyReceived = applyInt != 0u;
     /*----------------*/
 
-    // make sure this client is allowed to control the unit which guid is provided
-    if (guid != m_clientMoverGuid && guid != _player->GetObjectGuid() && guid != _player->GetMover()->GetObjectGuid())
-        return;
-
-    Unit* pMover = _player->GetMap()->GetUnit(guid);
-
+    Unit* pMover = GetMoverFromGuid(guid);
     if (!pMover)
         return;
 
@@ -657,12 +672,7 @@ void WorldSession::HandleMoveRootAck(WorldPacket& recvData)
     movementInfo.UpdateTime(recvData.GetPacketTime());
     /*----------------*/
 
-    // make sure this client is allowed to control the unit which guid is provided
-    if (guid != m_clientMoverGuid && guid != _player->GetObjectGuid() && guid != _player->GetMover()->GetObjectGuid())
-        return;
-
-    Unit* pMover = _player->GetMap()->GetUnit(guid);
-
+    Unit* pMover = GetMoverFromGuid(guid);
     if (!pMover)
         return;
 
@@ -727,6 +737,31 @@ void WorldSession::HandleMoveRootAck(WorldPacket& recvData)
         }
     } while (false);
 
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
+    if (applyReceived && !movementInfo.HasMovementFlag(MOVEFLAG_ROOT))
+    {
+        // workaround to fix anticheat false positives when using 1.14 client
+        // modern client finishes falling to ground before applying the root
+        if (!movementInfo.HasMovementFlag(MOVEFLAG_JUMPING | MOVEFLAG_FALLINGFAR))
+        {
+            sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "WorldSession::HandleMoveRootAck: Player %s from account id %u sent root apply ack, but movement info does not have rooted movement flag!",
+                _player->GetName(), _player->GetSession()->GetAccountId());
+            KickPlayer();
+        }
+        else
+        {
+            sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "WorldSession::HandleMoveRootAck: Player %s from account id %u sent root apply ack, but continues falling. Using 1.14 client?",
+                _player->GetName(), _player->GetSession()->GetAccountId());
+            pMover->AddUnitState(UNIT_STAT_ROOT_ON_LANDING);
+            return;
+        }
+    }
+
+
+    // we need to always clear this on root packet for 1.14
+    pMover->ClearUnitState(UNIT_STAT_ROOT_ON_LANDING);
+#endif
+
     pMover->SetRootedReal(applyReceived);
     MovementPacketSender::SendMovementFlagChangeToObservers(pMover, MOVEFLAG_ROOT, applyReceived);
 }
@@ -745,11 +780,7 @@ void WorldSession::HandleMoveKnockBackAck(WorldPacket& recvData)
     movementInfo.UpdateTime(recvData.GetPacketTime());
     /*----------------*/
 
-    if (guid != m_clientMoverGuid && guid != _player->GetObjectGuid() && guid != _player->GetMover()->GetObjectGuid())
-        return;
-
-    Unit* pMover = _player->GetMap()->GetUnit(guid);
-
+    Unit* pMover = GetMoverFromGuid(guid);
     if (!pMover)
         return;
 
@@ -859,41 +890,40 @@ void WorldSession::HandleSetActiveMoverOpcode(WorldPacket& recvData)
     ObjectGuid guid;
     recvData >> guid;
 
-    ObjectGuid serverMoverGuid = _player->GetMover()->GetObjectGuid();
-
-    // Before 1.10, client sends 0 as guid if it has no control.
-#if SUPPORTED_CLIENT_BUILD <= CLIENT_BUILD_1_9_4
-    if ((serverMoverGuid == _player->GetObjectGuid()) && !_player->HasSelfMovementControl())
-        serverMoverGuid = ObjectGuid();
-#endif
-
-    if (serverMoverGuid != guid)
-    {
-        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "HandleSetActiveMoverOpcode: incorrect mover guid: mover is %s and should be %s",
-                      _player->GetMover()->GetGuidStr().c_str(), guid.GetString().c_str());
-        m_clientMoverGuid = _player->GetMover()->GetObjectGuid();
-        return;
-    }
-
     if (!guid.IsEmpty())
     {
-        Unit* pMover = _player->GetMap()->GetUnit(guid);
-
-        if (pMover && pMover->IsCreature() && pMover->IsRooted())
-            MovementPacketSender::AddMovementFlagChangeToController(pMover, MOVEFLAG_ROOT, true);
-    }
-
-    // mover swap after Eyes of the Beast, PetAI::UpdateAI handle the pet's return
-    // Check if we actually have a pet before looking up
-    if (_player->GetPetGuid() && _player->GetPetGuid() == m_clientMoverGuid)
-    {
-        if (Pet* pet = _player->GetPet())
+        Unit* pMover = _player->GetMover();
+        if (pMover->GetObjectGuid() != guid)
         {
-            pet->ClearUnitState(UNIT_STAT_POSSESSED);
-            pet->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_POSSESSED);
-            // out of range pet dismissed
-            if (!pet->IsWithinDistInMap(_player, pet->GetMap()->GetGridActivationDistance()))
-                _player->RemovePet(PET_SAVE_REAGENTS);
+            sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "HandleSetActiveMoverOpcode: incorrect mover guid: mover is %s and should be %s",
+                pMover->GetGuidStr().c_str(), guid.GetString().c_str());
+            m_clientMoverGuid = pMover->GetObjectGuid();
+            return;
+        }
+
+        if (pMover->IsCreature())
+        {
+            if (pMover->IsRooted())
+                MovementPacketSender::AddMovementFlagChangeToController(pMover, MOVEFLAG_ROOT, true);
+
+            // Older clients do not send spline done opcode for splines that started before they took control.
+#if SUPPORTED_CLIENT_BUILD <= CLIENT_BUILD_1_8_4
+            pMover->SetSplineDonePending(false);
+#endif
+        }
+
+        // mover swap after Eyes of the Beast, PetAI::UpdateAI handle the pet's return
+        // Check if we actually have a pet before looking up
+        if (_player->GetPetGuid() && _player->GetPetGuid() == m_clientMoverGuid)
+        {
+            if (Pet* pet = _player->GetPet())
+            {
+                pet->ClearUnitState(UNIT_STAT_POSSESSED);
+                pet->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_POSSESSED);
+                // out of range pet dismissed
+                if (!pet->IsWithinDistInMap(_player, pet->GetMap()->GetGridActivationDistance()))
+                    _player->RemovePet(PET_SAVE_REAGENTS);
+            }
         }
     }
 
@@ -1000,11 +1030,7 @@ void WorldSession::HandleMoveTimeSkippedOpcode(WorldPacket& recvData)
     uint32 lag;
     recvData >> lag;
 
-    if (guid != m_clientMoverGuid && guid != _player->GetObjectGuid() && guid != _player->GetMover()->GetObjectGuid())
-        return;
-
-    Unit* pMover = _player->GetMap()->GetUnit(guid);
-
+    Unit* pMover = GetMoverFromGuid(guid);
     if (!pMover)
         return;
 
@@ -1033,6 +1059,19 @@ void WorldSession::HandleMoveTimeSkippedOpcode(WorldPacket& recvData)
         pMover->SendMovementMessageToSet(std::move(data), true, _player);
     }
 #endif
+}
+
+// make sure this client is allowed to control the unit which guid is provided
+Unit* WorldSession::GetMoverFromGuid(ObjectGuid const& guid) const
+{
+    if (guid == _player->GetMover()->GetObjectGuid())
+        return _player->GetMover();
+    if (guid == _player->GetObjectGuid())
+        return _player;
+    if (guid == m_clientMoverGuid)
+        return _player->GetMap()->GetUnit(guid);
+
+    return nullptr;
 }
 
 bool WorldSession::VerifyMovementInfo(MovementInfo const& movementInfo) const

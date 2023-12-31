@@ -323,7 +323,7 @@ void Warden::RequestScans(std::vector<std::shared_ptr<Scan const>>&& scans)
     if (m_clientOS == CLIENT_OS_WIN && !m_maiev)
     {
         // indicates to the client that there are no further requests in this packet
-        buff << m_xor;
+        buff << uint8(m_module->scanTerminator ^ m_xor);
     }
 
     BeginTimeoutClock();
@@ -339,6 +339,8 @@ void Warden::ReadScanResults(ByteBuffer& buff)
 
     for (auto const& s : scans)
     {
+        sLog.OutWarden(this, LOG_LVL_DEBUG, "Checking result for %s", s->comment.c_str());
+
         // checks return true when they have discovered a hack 
         if (s->Check(this, buff))
         {
@@ -657,7 +659,18 @@ void Warden::Update()
         }
 
         for (auto& packet : packetQueue)
-            HandlePacket(packet);
+        {
+            try
+            {
+                HandlePacket(packet);
+            }
+            catch (ByteBufferException &)
+            {
+                sLog.OutWarden(this, LOG_LVL_ERROR, "ByteBufferException occured while parsing packet.  Kicking.");
+                KickSession();
+                return;
+            }
+        }
     }
 
     if (!!m_timeoutClock && WorldTimer::getMSTime() > m_timeoutClock)

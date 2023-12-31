@@ -54,7 +54,7 @@ enum MeleeHitOutcome
 struct SpellNonMeleeDamage {
     SpellNonMeleeDamage(SpellCaster* _attacker, Unit* _target, uint32 _SpellID, SpellSchools _school)
         : target(_target), attacker(_attacker), SpellID(_SpellID), damage(0), school(_school),
-        absorb(0), resist(0), periodicLog(false), unused(false), blocked(0), HitInfo(0), spell(nullptr)
+        absorb(0), resist(0), periodicLog(false), reflected(false), blocked(0), HitInfo(0), spell(nullptr)
     {}
 
     Unit* target;
@@ -65,7 +65,7 @@ struct SpellNonMeleeDamage {
     uint32 absorb;
     int32 resist;
     bool   periodicLog;
-    bool   unused;
+    bool   reflected;
     uint32 blocked;
     uint32 HitInfo;
     Spell* spell;
@@ -299,6 +299,7 @@ struct ProcSystemArguments
     uint32 procExtra;
 
     uint32 amount; // contains full heal or full damage
+    uint32 originalAmount; // before resist and absorb
     SpellEntry const* procSpell;
     WeaponAttackType attType;
 
@@ -306,7 +307,7 @@ struct ProcSystemArguments
     bool isSpellTriggeredByAuraOrItem;
     time_t procTime;
 
-    explicit ProcSystemArguments(Unit* pVictim_, uint32 procFlagsAttacker_, uint32 procFlagsVictim_, uint32 procExtra_, uint32 amount_, WeaponAttackType attType_ = BASE_ATTACK,
+    explicit ProcSystemArguments(Unit* pVictim_, uint32 procFlagsAttacker_, uint32 procFlagsVictim_, uint32 procExtra_, uint32 amount_, uint32 originalAmount_, WeaponAttackType attType_ = BASE_ATTACK,
         SpellEntry const* procSpell_ = nullptr, Spell const* spell = nullptr);
 };
 
@@ -386,7 +387,7 @@ public:
     float MeleeDamageBonusDone(Unit* pVictim, float damage, WeaponAttackType attType, SpellEntry const* spellProto = nullptr, SpellEffectIndex effectIndex = EFFECT_INDEX_0, DamageEffectType damagetype = DIRECT_DAMAGE, uint32 stack = 1, Spell* spell = nullptr, bool flat = true);
     virtual SpellSchoolMask GetMeleeDamageSchoolMask() const;
     float GetAPMultiplier(WeaponAttackType attType, bool normalized) const;
-    virtual uint32 DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDamage, DamageEffectType damagetype, SpellSchoolMask damageSchoolMask, SpellEntry const* spellProto, bool durabilityLoss, Spell* spell = nullptr);
+    virtual uint32 DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDamage, DamageEffectType damagetype, SpellSchoolMask damageSchoolMask, SpellEntry const* spellProto, bool durabilityLoss, Spell* spell = nullptr, bool reflected = false);
     void DealDamageMods(Unit* pVictim, uint32& damage, uint32* absorb);
     void DealSpellDamage(SpellNonMeleeDamage* damageInfo, bool durabilityLoss);
     void SendSpellNonMeleeDamageLog(SpellNonMeleeDamage* log) const;
@@ -404,7 +405,7 @@ public:
     DynamicObject* GetDynObject(uint32 spellId) const;
     void AddDynObject(DynamicObject* dynObj);
     void RemoveDynObject(uint32 spellid);
-    void RemoveDynObjectWithGUID(ObjectGuid guid) { m_dynObjGUIDs.remove(guid); }
+    void RemoveDynObjectWithGUID(ObjectGuid guid);
     void RemoveAllDynObjects();
 
     // cooldown system
@@ -436,8 +437,7 @@ protected:
     LockoutMap        m_lockoutMap;
     CooldownContainer m_cooldownMap;
 
-    typedef std::list<ObjectGuid> DynObjectGUIDs;
-    DynObjectGUIDs m_dynObjGUIDs;
+    std::vector<ObjectGuid> m_spellDynObjects;
 
     uint32 m_procsUpdateTimer = 0;
     std::vector<ProcSystemArguments> m_pendingProcChecks;

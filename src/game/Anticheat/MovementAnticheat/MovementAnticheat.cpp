@@ -12,6 +12,7 @@
 #include "MovementPacketSender.h"
 #include "Geometry.h"
 #include "AccountMgr.h"
+#include "BattleGround.h"
 
 using namespace Geometry;
 
@@ -519,90 +520,6 @@ UnitMoveType MovementAnticheat::GetMoveTypeForMovementInfo(MovementInfo const& m
     return type;
 }
 
-
-bool IsAnyMoveAckOpcode(uint16 opcode)
-{
-    switch (opcode)
-    {
-        case MSG_MOVE_TELEPORT_ACK:
-        case MSG_MOVE_WORLDPORT_ACK:
-        case MSG_MOVE_SET_RAW_POSITION_ACK:
-        case CMSG_FORCE_RUN_SPEED_CHANGE_ACK:
-        case CMSG_FORCE_RUN_BACK_SPEED_CHANGE_ACK:
-        case CMSG_FORCE_SWIM_SPEED_CHANGE_ACK:
-        case CMSG_FORCE_MOVE_ROOT_ACK:
-        case CMSG_FORCE_MOVE_UNROOT_ACK:
-        case CMSG_MOVE_KNOCK_BACK_ACK:
-        case CMSG_MOVE_HOVER_ACK:
-        case CMSG_MOVE_FEATHER_FALL_ACK:
-        case CMSG_MOVE_WATER_WALK_ACK:
-        case CMSG_FORCE_WALK_SPEED_CHANGE_ACK:
-        case CMSG_FORCE_SWIM_BACK_SPEED_CHANGE_ACK:
-        case CMSG_FORCE_TURN_RATE_CHANGE_ACK:
-            return true;
-    }
-
-    return false;
-}
-
-bool IsFlagAckOpcode(uint16 opcode)
-{
-    switch (opcode)
-    {
-        case CMSG_FORCE_MOVE_ROOT_ACK:
-        case CMSG_FORCE_MOVE_UNROOT_ACK:
-        case CMSG_MOVE_WATER_WALK_ACK:
-        case CMSG_MOVE_HOVER_ACK:
-        case CMSG_MOVE_FEATHER_FALL_ACK:
-            return true;
-    }
-
-    return false;
-}
-
-bool IsSpeedAckOpcode(uint16 opcode)
-{
-    switch (opcode)
-    {
-        case CMSG_FORCE_RUN_SPEED_CHANGE_ACK:
-        case CMSG_FORCE_RUN_BACK_SPEED_CHANGE_ACK:
-        case CMSG_FORCE_SWIM_SPEED_CHANGE_ACK:
-        case CMSG_FORCE_WALK_SPEED_CHANGE_ACK:
-        case CMSG_FORCE_SWIM_BACK_SPEED_CHANGE_ACK:
-        case CMSG_FORCE_TURN_RATE_CHANGE_ACK:
-            return true;
-    }
-
-    return false;
-}
-
-bool IsStopOpcode(uint16 opcode)
-{
-    switch (opcode)
-    {
-        case MSG_MOVE_STOP:
-        case MSG_MOVE_STOP_STRAFE:
-        case MSG_MOVE_STOP_TURN:
-        case MSG_MOVE_STOP_PITCH:
-        case MSG_MOVE_STOP_SWIM:
-            return true;
-    }
-
-    return false;
-}
-
-bool IsFallEndOpcode(uint16 opcode)
-{
-    switch (opcode)
-    {
-        case MSG_MOVE_FALL_LAND:
-        case MSG_MOVE_START_SWIM:
-            return true;
-    }
-
-    return false;
-}
-
 bool ShouldRejectMovement(uint32 cheatFlags)
 {
     if ((cheatFlags & (1 << CHEAT_TYPE_OVERSPEED_JUMP)) &&
@@ -822,7 +739,7 @@ uint32 MovementAnticheat::HandleFlagTests(Player* pPlayer, MovementInfo& movemen
     if ((currentMoveFlags & MOVEFLAG_ROOT) &&
         !(GetLastMovementInfo().moveFlags & MOVEFLAG_ROOT) &&
         !me->HasPendingMovementChange(ROOT) &&
-        !me->HasUnitState(UNIT_STAT_ROOT | UNIT_STAT_PENDING_ROOT | UNIT_STAT_STUNNED | UNIT_STAT_PENDING_STUNNED) &&
+        !me->HasUnitState(UNIT_STAT_ROOT | UNIT_STAT_PENDING_ROOT | UNIT_STAT_STUNNED | UNIT_STAT_PENDING_STUNNED | UNIT_STAT_ROOT_ON_LANDING) &&
         (opcode != CMSG_FORCE_MOVE_ROOT_ACK))
     {
         APPEND_CHEAT(CHEAT_TYPE_SELF_ROOT);
@@ -1055,7 +972,7 @@ bool MovementAnticheat::CheckMultiJump(uint16 opcode)
     return false;
 }
 
-#define NO_WALL_CLIMB_CHECK_MOVE_FLAGS (MOVEFLAG_JUMPING | MOVEFLAG_FALLINGFAR | MOVEFLAG_SWIMMING | MOVEFLAG_CAN_FLY | MOVEFLAG_FLYING | MOVEFLAG_PITCH_UP | MOVEFLAG_PITCH_DOWN | MOVEFLAG_ONTRANSPORT)
+#define NO_WALL_CLIMB_CHECK_MOVE_FLAGS (MOVEFLAG_JUMPING | MOVEFLAG_FALLINGFAR | MOVEFLAG_SWIMMING | MOVEFLAG_CAN_FLY | MOVEFLAG_FLYING | MOVEFLAG_PITCH_UP | MOVEFLAG_PITCH_DOWN | MOVEFLAG_ONTRANSPORT | MOVEFLAG_SPLINE_ELEVATION)
 #define NO_WALL_CLIMB_CHECK_UNIT_FLAGS (UNIT_FLAG_UNK_0 | UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_CONFUSED | UNIT_FLAG_FLEEING | UNIT_FLAG_POSSESSED)
 
 bool MovementAnticheat::CheckWallClimb(MovementInfo const& movementInfo, uint16 opcode) const
@@ -1073,13 +990,27 @@ bool MovementAnticheat::CheckWallClimb(MovementInfo const& movementInfo, uint16 
         return false;
 
     float const deltaZ = movementInfo.pos.z - GetLastMovementInfo().pos.z;
-    if (deltaZ < 0.5f)
+    if (deltaZ < 1.0f)
         return false;
 
     float const angleRad = atan(deltaZ / deltaXY);
     //float const angleDeg = angleRad * (360 / (M_PI_F * 2));
 
-    return angleRad > sWorld.getConfig(CONFIG_FLOAT_AC_MOVEMENT_CHEAT_WALL_CLIMB_ANGLE);
+    float const maxClimbAngle = sWorld.getConfig(CONFIG_FLOAT_AC_MOVEMENT_CHEAT_WALL_CLIMB_ANGLE);
+    if (angleRad > maxClimbAngle)
+    {
+        if (angleRad > (maxClimbAngle + 0.2f))
+            return true;
+
+        // check height with and without vmaps and compare
+        // if player is stepping over model like stairs, that can increase wall climb angle
+        float const height1 = me->GetMap()->GetHeight(movementInfo.pos.x, movementInfo.pos.y, movementInfo.pos.z, false);
+        float const height2 = me->GetMap()->GetHeight(movementInfo.pos.x, movementInfo.pos.y, movementInfo.pos.z, true);
+        if (std::abs(height1 - height2) < 0.5f)
+            return true;
+    }
+
+    return false;
 }
 
 bool MovementAnticheat::CheckForbiddenArea(MovementInfo const& movementInfo) const
@@ -1372,41 +1303,71 @@ void MovementAnticheat::CheckBotting(uint16 opcode, MovementInfo const& movement
 
 bool MovementAnticheat::CheckTeleport(MovementInfo const& movementInfo) const
 {
-    if (!sWorld.getConfig(CONFIG_BOOL_AC_MOVEMENT_CHEAT_TELEPORT_ENABLED))
+    if (!sWorld.getConfig(CONFIG_BOOL_AC_MOVEMENT_CHEAT_TELEPORT_ENABLED) ||
+        me->IsLaunched() || me->IsTaxiFlying() || me->IsBeingTeleported())
         return false;
 
-    if (!me->m_transport && !me->HasMovementFlag(MOVEFLAG_ONTRANSPORT) && !me->IsTaxiFlying())
+    if (!IsTeleportAllowed3D(movementInfo))
+        return true;
+
+    // check moving in given axis without appropriate move flags
+    // during fall collision with cliffs can change xy so skip that case
+    if (GetLastMovementInfo().ctime &&
+       !GetLastMovementInfo().HasMovementFlag(MOVEFLAG_MASK_XZ | MOVEFLAG_JUMPING | MOVEFLAG_FALLINGFAR) &&
+       !movementInfo.HasMovementFlag(MOVEFLAG_MASK_XZ | MOVEFLAG_JUMPING | MOVEFLAG_FALLINGFAR) &&
+        GetLastMovementInfo().HasMovementFlag(MOVEFLAG_ONTRANSPORT) == movementInfo.HasMovementFlag(MOVEFLAG_ONTRANSPORT))
     {
-        if (!IsTeleportAllowed(movementInfo))
+        float const distance2d = movementInfo.HasMovementFlag(MOVEFLAG_ONTRANSPORT) ?
+            GetDistance2D(GetLastMovementInfo().t_pos, movementInfo.t_pos) :
+            GetDistance2D(GetLastMovementInfo().pos, movementInfo.pos);
+        
+        if (distance2d > 1.0f)
             return true;
+
+        // swimming flag only included in check because of 1.14
+        // vanilla clients do not have a descend/ascend flag
+        if (!GetLastMovementInfo().HasMovementFlag(MOVEFLAG_SWIMMING) &&
+            !movementInfo.HasMovementFlag(MOVEFLAG_SWIMMING))
+        {
+            float const distanceZ = movementInfo.HasMovementFlag(MOVEFLAG_ONTRANSPORT) ?
+                std::abs(GetLastMovementInfo().t_pos.z - movementInfo.t_pos.z) :
+                std::abs(GetLastMovementInfo().pos.z - movementInfo.pos.z);
+            
+            if (distanceZ > 2.0f)
+                return true;
+        }
     }
+
+    return false;
+}
+
+bool MovementAnticheat::IsInTransportArea() const
+{
+    // Undercity Lift
+    if ((me->GetCachedZoneId() == 1497 && me->GetCachedAreaId() == 1497) ||
+    // Deeprun Tram
+        (me->GetCachedZoneId() == 2257) ||
+    // Thousand Needles Lift
+        (me->GetCachedZoneId() == 400 && me->GetCachedAreaId() == 485))
+    return true;
 
     return false;
 }
 
 #define ALLOWED_TRANSPORT_DISTANCE 100.0f
 
-bool MovementAnticheat::IsTeleportAllowed(MovementInfo const& movementInfo) const
+bool MovementAnticheat::IsTeleportAllowed3D(MovementInfo const& movementInfo) const
 {
-    if ((me->GetPositionX() == 0.0f || me->GetPositionY() == 0.0f || me->GetPositionZ() == 0.0f) ||
-       (movementInfo.GetPos().x == 0.0f || movementInfo.GetPos().y == 0.0f || movementInfo.GetPos().z == 0.0f) ||
-       (me->IsLaunched()) || 
-       (me->IsBeingTeleported()))
+    if (me->m_transport || me->HasMovementFlag(MOVEFLAG_ONTRANSPORT))
         return true;
 
     float const distance = GetDistance3D(me->GetPosition(), movementInfo.pos);
-    float maxDistance = sWorld.getConfig(CONFIG_FLOAT_AC_MOVEMENT_CHEAT_TELEPORT_DISTANCE) * std::max(1.0f, me->GetSpeedRate(GetMoveTypeForMovementInfo(movementInfo)) * 0.2f);
+    float const maxDistance = sWorld.getConfig(CONFIG_FLOAT_AC_MOVEMENT_CHEAT_TELEPORT_DISTANCE) * std::max(1.0f, me->GetSpeedRate(GetMoveTypeForMovementInfo(movementInfo)) * 0.2f);
 
     if (distance > maxDistance)
     {
         // Exclude elevators
-        
-        // Undercity Lift
-        if ((me->GetCachedZoneId() == 1497 && me->GetCachedAreaId() == 1497) ||
-        // Deeprun Tram
-           (me->GetCachedZoneId() == 2257) || 
-        // Thousand Needles Lift
-           (me->GetCachedZoneId() == 400 && me->GetCachedAreaId() == 485))
+        if (IsInTransportArea())
             return distance < ALLOWED_TRANSPORT_DISTANCE;
 
         return false;

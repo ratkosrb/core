@@ -26,11 +26,12 @@
 #include "Unit.h"
 #include "Database/DatabaseEnv.h"
 #include "GroupReference.h"
+#include "MapReference.h"
 #include "WorldSession.h"
 #include "Pet.h"
 #include "Util.h"                                           // for Tokens typedef
 #include "ReputationMgr.h"
-#include "BattleGround.h"
+#include "BattleGroundDefines.h"
 #include "SharedDefines.h"
 #include "GameObjectDefines.h"
 #include "SpellMgr.h"
@@ -39,6 +40,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <shared_mutex>
 
 struct Mail;
 struct ItemPrototype;
@@ -56,7 +58,7 @@ class Item;
 class ZoneScript;
 class PlayerAI;
 class PlayerBroadcaster;
-class MapReference;
+class BattleGround;
 
 #define PLAYER_MAX_SKILLS           127
 #define PLAYER_EXPLORED_ZONES_SIZE  64
@@ -197,7 +199,7 @@ struct PlayerCreateInfoItem
     uint32 item_amount;
 };
 
-typedef std::list<PlayerCreateInfoItem> PlayerCreateInfoItems;
+typedef std::vector<PlayerCreateInfoItem> PlayerCreateInfoItems;
 
 struct PlayerClassLevelInfo
 {
@@ -215,7 +217,7 @@ struct PlayerLevelInfo
     uint8 stats[MAX_STATS] = { 0 };
 };
 
-typedef std::list<uint32> PlayerCreateInfoSpells;
+typedef std::vector<uint32> PlayerCreateInfoSpells;
 
 struct PlayerCreateInfoAction
 {
@@ -227,7 +229,7 @@ struct PlayerCreateInfoAction
     uint32 action = 0;
 };
 
-typedef std::list<PlayerCreateInfoAction> PlayerCreateInfoActions;
+typedef std::vector<PlayerCreateInfoAction> PlayerCreateInfoActions;
 
 struct PlayerInfo
 {
@@ -321,6 +323,9 @@ enum PlayerFlags
     PLAYER_FLAGS_PVP_DESIRED            = 0x00000200,       // Stores player's permanent PvP flag preference
     PLAYER_FLAGS_HIDE_HELM              = 0x00000400,
     PLAYER_FLAGS_HIDE_CLOAK             = 0x00000800,
+#if SUPPORTED_CLIENT_BUILD < CLIENT_BUILD_1_6_1
+    PLAYER_FLAGS_CAN_SELF_RESURRECT     = 0x00001000,
+#endif
     PLAYER_FLAGS_PARTIAL_PLAY_TIME      = 0x00001000,       // played long time
     PLAYER_FLAGS_NO_PLAY_TIME           = 0x00002000,       // played too long time
     PLAYER_FLAGS_UNK15                  = 0x00004000,
@@ -491,16 +496,17 @@ enum AtLoginFlags
 
 enum PlayerCheatOptions : uint16
 {
-    PLAYER_CHEAT_GOD             = 0x001,
-    PLAYER_CHEAT_NO_COOLDOWN     = 0x002,
-    PLAYER_CHEAT_NO_CAST_TIME    = 0x004,
-    PLAYER_CHEAT_NO_POWER        = 0x008,
-    PLAYER_CHEAT_DEBUFF_IMMUNITY = 0x010,
-    PLAYER_CHEAT_ALWAYS_CRIT     = 0x020,
-    PLAYER_CHEAT_NO_CHECK_CAST   = 0x040,
-    PLAYER_CHEAT_ALWAYS_PROC     = 0x080,
-    PLAYER_CHEAT_TRIGGER_PASS    = 0x100,
-    PLAYER_CHEAT_IGNORE_TRIGGERS = 0x200,
+    PLAYER_CHEAT_GOD               = 0x001,
+    PLAYER_CHEAT_NO_COOLDOWN       = 0x002,
+    PLAYER_CHEAT_NO_CAST_TIME      = 0x004,
+    PLAYER_CHEAT_NO_POWER          = 0x008,
+    PLAYER_CHEAT_DEBUFF_IMMUNITY   = 0x010,
+    PLAYER_CHEAT_ALWAYS_CRIT       = 0x020,
+    PLAYER_CHEAT_NO_CHECK_CAST     = 0x040,
+    PLAYER_CHEAT_ALWAYS_PROC       = 0x080,
+    PLAYER_CHEAT_TRIGGER_PASS      = 0x100,
+    PLAYER_CHEAT_IGNORE_TRIGGERS   = 0x200,
+    PLAYER_CHEAT_DEBUG_TARGET_INFO = 0x400,
 };
 
 typedef std::map<uint32, QuestStatusData> QuestStatusMap;
@@ -665,7 +671,7 @@ enum DuelCompleteType
     DUEL_FLED        = 2
 };
 
-/// Type of environmental damages
+// Type of environmental damages
 enum EnvironmentalDamageType
 {
     DAMAGE_EXHAUSTED = 0,
@@ -753,6 +759,15 @@ enum PlayerRestState
     REST_STATE_RAF_LINKED       = 0x04                      // Exact use unknown
 };
 
+struct ResurrectionData
+{
+    ObjectGuid resurrectorGuid;
+    WorldLocation location;
+    uint32 instanceId = 0;
+    uint32 health = 0;
+    uint32 mana = 0;
+};
+
 class PlayerTaxi
 {
     public:
@@ -821,22 +836,22 @@ class PlayerTaxi
 
 std::ostringstream& operator<< (std::ostringstream& ss, PlayerTaxi const& taxi);
 
-/// Holder for BattleGround data
+// Holder for BattleGround data
 struct BGData
 {
-    uint32 bgInstanceID = 0;                                ///< This variable is set to bg->m_InstanceID, saved
-                                                            ///  when player is teleported to BG - (it is battleground's GUID)
+    uint32 bgInstanceID = 0;                                // This variable is set to bg->m_InstanceID, saved
+                                                            // when player is teleported to BG - (it is battleground's GUID)
     BattleGroundTypeId bgTypeID = BATTLEGROUND_TYPE_NONE;
 
     std::set<uint32>   bgAfkReporter;
     uint8              bgAfkReportedCount = 0;
     time_t             bgAfkReportedTimer = 0;
 
-    Team bgTeam = TEAM_NONE;                                ///< What side the player will be added to, saved
+    Team bgTeam = TEAM_NONE;                                // What side the player will be added to, saved
 
-    WorldLocation joinPos;                                  ///< From where player entered BG, saved
+    WorldLocation joinPos;                                  // From where player entered BG, saved
 
-    bool m_needSave = false;                                ///< true, if saved to DB fields modified after prev. save (marked as "saved" above)
+    bool m_needSave = false;                                // true, if saved to DB fields modified after prev. save (marked as "saved" above)
 };
 
 struct TransactionPart;
@@ -1015,6 +1030,7 @@ class Player final: public Unit
         void SetCheatAlwaysProc(bool on, bool notify = false);
         void SetCheatTriggerPass(bool on, bool notify = false);
         void SetCheatIgnoreTriggers(bool on, bool notify = false);
+        void SetCheatDebugTargetInfo(bool on, bool notify = false);
         uint16 GetCheatOptions() const { return m_cheatOptions; }
         bool HasCheatOption(PlayerCheatOptions o) const { return (m_cheatOptions & o); }
         void EnableCheatOption(PlayerCheatOptions o)    { m_cheatOptions |= o; }
@@ -1090,6 +1106,7 @@ class Player final: public Unit
         Item* GetItemByPos(uint8 bag, uint8 slot) const;
         Item* GetWeaponForAttack(WeaponAttackType attackType) const { return GetWeaponForAttack(attackType,false,false); }
         Item* GetWeaponForAttack(WeaponAttackType attackType, bool nonbroken, bool useable) const;
+        bool HasWeaponForParry() const;
         static uint32 GetAttackBySlot(uint8 slot);        // MAX_ATTACK if not weapon slot
         uint32 GetHighestKnownArmorProficiency() const;
         std::vector<Item*>& GetItemUpdateQueue() { return m_itemUpdateQueue; }
@@ -1501,7 +1518,9 @@ class Player final: public Unit
         SpellModList m_spellMods[MAX_SPELLMOD];
         uint32 m_lastFromClientCastedSpellID;
         std::map<uint32, ItemSetEffect> m_itemSetEffects;
-        
+#if SUPPORTED_CLIENT_BUILD < CLIENT_BUILD_1_6_1
+        uint32 m_resurrectionSpellId;
+#endif
         bool IsNeedCastPassiveLikeSpellAtLearn(SpellEntry const* spellInfo) const;
         void SendInitialSpells() const;
         bool AddSpell(uint32 spellId, bool active, bool learning, bool dependent, bool disabled);
@@ -1595,7 +1614,7 @@ class Player final: public Unit
         void SetFreeTalentPoints(uint32 points) { SetUInt32Value(PLAYER_CHARACTER_POINTS1, points); }
         bool ResetTalents(bool no_cost = false);
         void InitTalentForLevel();
-        void LearnTalent(uint32 talentId, uint32 talentRank);
+        bool LearnTalent(uint32 talentId, uint32 talentRank);
 
         /*********************************************************/
         /***                    STAT SYSTEM                    ***/
@@ -1672,6 +1691,7 @@ class Player final: public Unit
         void UpdateAllSpellCritChances();
         void UpdateSpellCritChance(uint32 school);
         void CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, float& min_damage, float& max_damage, uint8 index = 0) const;
+        float GetBonusHitChanceFromAuras(WeaponAttackType attType) const final;
 
         uint32 GetShieldBlockValue() const override;                 // overwrite Unit version (virtual)
         bool CanParry() const { return m_canParry; }
@@ -1909,12 +1929,12 @@ class Player final: public Unit
         void HandleFall(MovementInfo const& movementInfo);
         bool IsFalling() const { return GetPositionZ() < m_lastFallZ; }
 
-        bool IsControlledByOwnClient() const { return m_session->HasClientMovementControl(); }
+        bool IsControlledByOwnClient() const { return m_session->GetClientMoverGuid() == GetObjectGuid(); }
         void SetClientControl(Unit* target, uint8 allowMove);
         void SetMover(Unit* target) { m_mover = target ? target : this; }
-        Unit* GetMover() const { return m_mover; }
+        Unit* GetMover() const { return m_mover; } // can never be null
+        Unit* GetConfirmedMover() const; // only returns mover confirmed by client, can be null
         bool IsSelfMover() const { return m_mover == this; } // normal case for player not controlling other unit
-        bool HasSelfMovementControl() const;
         bool IsOutdoorOnTransport() const;
 
         ObjectGuid const& GetFarSightGuid() const { return GetGuidValue(PLAYER_FARSIGHT); }
@@ -2178,7 +2198,7 @@ class Player final: public Unit
         void SendMessageToSetInRange(WorldPacket* data, float fist, bool self) const override;
         void SendMessageToSetInRange(WorldPacket* data, float dist, bool self, bool own_team_only) const;
         void SendInitWorldStates(uint32 zone) const;
-        void SendUpdateWorldState(uint32 field, uint32 value) const;
+        void SendUpdateWorldState(uint32 state, uint32 value) const;
         void SendDirectMessage(WorldPacket* data) const;
 
         uint32 GetTotalPlayedTime() const { return m_playedTime[PLAYED_TIME_TOTAL]; }
@@ -2197,10 +2217,7 @@ class Player final: public Unit
         uint32 m_DetectInvTimer;
         uint32 m_ExtraFlags;
         ObjectGuid m_curSelectionGuid;
-        ObjectGuid m_resurrectGuid;
-        uint32 m_resurrectMap;
-        float m_resurrectX, m_resurrectY, m_resurrectZ;
-        uint32 m_resurrectHealth, m_resurrectMana;
+        ResurrectionData m_resurrectData;
         uint32 m_drunkTimer;
         uint16 m_drunk;
         void HandleSobering();
@@ -2235,25 +2252,27 @@ class Player final: public Unit
         void SetSelectedGobj(ObjectGuid guid) { m_selectedGobj = guid; }
         ObjectGuid const& GetSelectionGuid() const { return m_curSelectionGuid; }
         void SetSelectionGuid(ObjectGuid guid) { m_curSelectionGuid = guid; SetTargetGuid(guid); }
-        Unit* GetSelectedUnit() { return GetMap()->GetUnit(m_curSelectionGuid); }
-        Creature* GetSelectedCreature() { return GetMap()->GetCreature(m_curSelectionGuid); }
-        Player* GetSelectedPlayer() { return GetMap()->GetPlayer(m_curSelectionGuid); }
+        Unit* GetSelectedUnit();
+        Creature* GetSelectedCreature();
+        Player* GetSelectedPlayer();
         Object* GetObjectByTypeMask(ObjectGuid guid, TypeMask typemask);
 
-        void SetResurrectRequestData(ObjectGuid guid, uint32 mapId, float X, float Y, float Z, uint32 health, uint32 mana)
+        void SetResurrectRequestData(ObjectGuid guid, uint16 mapId, uint32 instanceId, float x, float y, float z, float o, uint32 health, uint32 mana)
         {
-            m_resurrectGuid = guid;
-            m_resurrectMap = mapId;
-            m_resurrectX = X;
-            m_resurrectY = Y;
-            m_resurrectZ = Z;
-            m_resurrectHealth = health;
-            m_resurrectMana = mana;
+            m_resurrectData.resurrectorGuid = guid;
+            m_resurrectData.location.mapId = mapId;
+            m_resurrectData.location.x = x;
+            m_resurrectData.location.y = y;
+            m_resurrectData.location.z = z;
+            m_resurrectData.location.o = o;
+            m_resurrectData.instanceId = instanceId;
+            m_resurrectData.health = health;
+            m_resurrectData.mana = mana;
         }
-        void ClearResurrectRequestData() { SetResurrectRequestData(ObjectGuid(), 0, 0.0f, 0.0f, 0.0f, 0, 0); }
-        bool IsRessurectRequestedBy(ObjectGuid guid) const { return m_resurrectGuid == guid; }
-        bool IsRessurectRequested() const { return !m_resurrectGuid.IsEmpty(); }
-        ObjectGuid const& GetResurrector() const { return m_resurrectGuid; }
+        void ClearResurrectRequestData() { SetResurrectRequestData(ObjectGuid(), 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0); }
+        bool IsRessurectRequestedBy(ObjectGuid guid) const { return m_resurrectData.resurrectorGuid == guid; }
+        bool IsRessurectRequested() const { return !m_resurrectData.resurrectorGuid.IsEmpty(); }
+        ObjectGuid const& GetResurrector() const { return m_resurrectData.resurrectorGuid; }
         void ResurectUsingRequestData();
 
         static bool IsActionButtonDataValid(uint8 button, uint32 action, uint8 type, Player* player);
@@ -2263,7 +2282,11 @@ class Player final: public Unit
         void SpawnCorpseBones();
         Corpse* CreateCorpse();
         void KillPlayer();
-        uint32 GetResurrectionSpellId() const;
+#if SUPPORTED_CLIENT_BUILD < CLIENT_BUILD_1_6_1
+        uint32 GetResurrectionSpellId() const { return m_resurrectionSpellId; }
+        void SetResurrectionSpellId(uint32 resurrectionSpellId) { m_resurrectionSpellId = resurrectionSpellId; }
+#endif
+        uint32 SelectResurrectionSpellId() const;
         void ResurrectPlayer(float restore_percent, bool applySickness = false);
         void BuildPlayerRepop();
         void RepopAtGraveyard();
@@ -2298,6 +2321,7 @@ class Player final: public Unit
         JoinedChannelsList m_channels;
         void UpdateLocalChannels(uint32 newZone);
         std::string m_name;
+        uint64 m_knownLanguagesMask;
     public:
         void JoinedChannel(Channel* c);
         void LeftChannel(Channel* c);
@@ -2325,6 +2349,10 @@ class Player final: public Unit
         void Say(char const* text, uint32 const language) const;
         void Yell(char const* text, uint32 const language) const;
         void TextEmote(char const* text) const;
+
+        void LearnLanguage(uint64 languageId) { m_knownLanguagesMask |= (1llu << languageId); }
+        void RemoveLanguage(uint64 languageId) { m_knownLanguagesMask &= ~(1llu << languageId);}
+        bool KnowsLanguage(uint64 languageId) const { return (m_knownLanguagesMask & (1llu << languageId)) != 0; }
 
         /*********************************************************/
         /***                   FACTION SYSTEM                  ***/
@@ -2370,6 +2398,8 @@ class Player final: public Unit
         void UpdatePvP(bool state, bool overriding = false);
         void UpdatePvPContested(bool state, bool overriding = false);
 
+        bool IsPvPDesired() const { return HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_PVP_DESIRED); }
+        void SetPvPDesired(bool state);
         bool IsFFAPvP() const { return HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_FFA_PVP); }
         void SetFFAPvP(bool state);
         bool IsInInterFactionMode() const;
@@ -2530,7 +2560,7 @@ class Player final: public Unit
         bool CanSpeak() const;
         bool FallGround(uint8 fallMode);
 
-        /// Anticheat
+        // Anticheat
         MovementAnticheat* GetCheatData() const { return m_session->GetCheatData(); }
         void OnDisconnected();
         void RelocateToLastClientPosition();
@@ -2550,22 +2580,26 @@ class Player final: public Unit
         /***                 INSTANCE SYSTEM                   ***/
         /*********************************************************/
 
+    public:
+        typedef std::unordered_map< uint32 /*mapId*/, InstancePlayerBind > BoundInstancesMap;
+
     private:
         bool   m_enableInstanceSwitch;
         bool   m_smartInstanceRebind;
         uint32 m_HomebindTimer;
+
+        void ResetInstance(InstanceResetMethod method, BoundInstancesMap::iterator& itr);
     public:
         void SendTransferAborted(uint8 reason) const;
         void SendInstanceResetWarning(uint32 mapid, uint32 time) const;
-
+        
         void ResetInstances(InstanceResetMethod method);
+        void ResetPersonalInstanceOnLeaveDungeon(uint32 mapId);
         void SendResetInstanceSuccess(uint32 MapId) const;
         void SendResetInstanceFailed(uint32 reason, uint32 MapId) const;
         void SendResetFailedNotify();
         bool CheckInstanceCount(uint32 instanceId) const;
         void AddInstanceEnterTime(uint32 instanceId, time_t enterTime) const;
-
-        typedef std::unordered_map< uint32 /*mapId*/, InstancePlayerBind > BoundInstancesMap;
 
         void UpdateHomebindTime(uint32 time);
         bool m_InstanceValid;

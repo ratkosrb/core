@@ -371,7 +371,7 @@ bool Map::EnsureGridLoaded(Cell const& cell)
         ASSERT(false);
     }
 
-    if (!isGridObjectDataLoaded(cell.GridX(), cell.GridY()))
+    if (!grid->isGridObjectDataLoaded())
     {
         //it's important to set it loaded before loading!
         //otherwise there is a possibility of infinity chain (grid loading will be called many times for the same grid)
@@ -379,7 +379,7 @@ bool Map::EnsureGridLoaded(Cell const& cell)
         //active object A(loaded with loader.LoadN call and added to the  map)
         //summons some active object B, while B added to map grid loading called again and so on..
         ASSERT(!m_unloading && "Trying to load grid while unloading the whole map !");
-        setGridObjectDataLoaded(true, cell.GridX(), cell.GridY());
+        grid->setGridObjectDataLoaded(true);
         ObjectGridLoader loader(*grid, this, cell);
         loader.LoadN();
 
@@ -669,7 +669,8 @@ void Map::MessageDistBroadcast(WorldObject const* obj, WorldPacket* msg, float d
 
 bool Map::loaded(GridPair const& p) const
 {
-    return (getNGrid(p.x_coord, p.y_coord) && isGridObjectDataLoaded(p.x_coord, p.y_coord));
+    NGridType const* grid = getNGrid(p.x_coord, p.y_coord);
+    return (grid && grid->isGridObjectDataLoaded());
 }
 
 void Map::UpdateSync(uint32 const diff)
@@ -824,7 +825,7 @@ inline void Map::UpdateCells(uint32 map_diff)
         return;
     _lastCellsUpdate = now;
 
-    /// update active cells around players and active objects
+    // update active cells around players and active objects
     if (IsContinent() && m_cellThreads->status() == ThreadPool::Status::READY)
         UpdateActiveCellsAsynch(now, diff);
     else
@@ -846,7 +847,7 @@ inline void Map::UpdateCells(uint32 map_diff)
 void Map::ProcessSessionPackets(PacketProcessing type)
 {
     uint32 beginTime = WorldTimer::getMSTime();
-    /// update worldsessions for existing players
+    // update worldsessions for existing players
     for (m_mapRefIter = m_mapRefManager.begin(); m_mapRefIter != m_mapRefManager.end(); ++m_mapRefIter)
     {
         Player* plr = m_mapRefIter->getSource();
@@ -925,7 +926,7 @@ void Map::Update(uint32 t_diff)
     _dynamicTree.update(t_diff);
 
     UpdateSessionsMovementAndSpellsIfNeeded();
-    /// update worldsessions for existing players
+    // update worldsessions for existing players
     for (m_mapRefIter = m_mapRefManager.begin(); m_mapRefIter != m_mapRefManager.end(); ++m_mapRefIter)
     {
         Player* plr = m_mapRefIter->getSource();
@@ -939,7 +940,7 @@ void Map::Update(uint32 t_diff)
     }
     uint32 sessionsUpdateTime = WorldTimer::getMSTimeDiffToNow(updateMapTime);
 
-    /// update players at tick
+    // update players at tick
     std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
     UpdateSessionsMovementAndSpellsIfNeeded();
     UpdatePlayers();
@@ -993,7 +994,7 @@ void Map::Update(uint32 t_diff)
         }
     }
 
-    ///- Process necessary scripts
+    // Process necessary scripts
     if (m_uiScriptedEventsTimer <= t_diff)
     {
         UpdateScriptedEvents();
@@ -1283,16 +1284,15 @@ Map::Remove(T* obj, bool remove)
         UpdateObjectVisibility(obj, cell, p); // i think will be better to call this function while object still in grid, this changes nothing but logically is better(as for me)
     RemoveFromGrid(obj, grid, cell);
 
-    obj->ResetMap();
     if (remove)
-    {
         // if option set then object already saved at this moment
         if (!sWorld.getConfig(CONFIG_BOOL_SAVE_RESPAWN_TIME_IMMEDIATELY))
-            obj->SaveRespawnTime();
+            obj->SaveRespawnTime(); // requires map not being reset
 
-        // Note: In case resurrectable corpse and pet its removed from global lists in own destructor
+    obj->ResetMap();
+    
+    if (remove) // Note: In case resurrectable corpse and pet its removed from global lists in own destructor
         delete obj;
-    }
 }
 
 template<>
@@ -2181,28 +2181,42 @@ void DungeonMap::BindPlayerOrGroupOnEnter(Player* player)
         {
             // solo saves should be reset when entering a group
             InstanceGroupBind *groupBind = pGroup->GetBoundInstance(GetId());
-            if (playerBind)
-            {
-                sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "InstanceMap::Add: %s is being put in instance %d,%d,%d,%d,%d but he is in group (Id: %d) and is bound to instance %d,%d,%d,%d,%d!",
-                    player->GetObjectGuid().GetString().c_str(), playerBind->state->GetMapId(), playerBind->state->GetInstanceId(),
-                    playerBind->state->GetPlayerCount(), playerBind->state->GetGroupCount(),
-                    playerBind->state->CanReset(), pGroup->GetId(),
-                    playerBind->state->GetMapId(), playerBind->state->GetInstanceId(),
-                    playerBind->state->GetPlayerCount(), playerBind->state->GetGroupCount(), playerBind->state->CanReset());
-
-                if (groupBind)
-                    sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "InstanceMap::Add: the group (Id: %d) is bound to instance %d,%d,%d,%d,%d",
-                        pGroup->GetId(),
-                        groupBind->state->GetMapId(), groupBind->state->GetInstanceId(),
-                        groupBind->state->GetPlayerCount(), groupBind->state->GetGroupCount(), groupBind->state->CanReset());
-
-                // no reason crash if we can fix state
-                player->UnbindInstance(GetId());
-            }
 
             // bind to the group or keep using the group save
             if (!groupBind)
+            {
                 pGroup->BindToInstance(GetPersistanceState(), false);
+
+                // the personal save has become a group save
+                if (playerBind)
+                {
+                    // cannot jump to a different instance without resetting it
+                    MANGOS_ASSERT(playerBind->state == GetPersistentState());
+                    player->UnbindInstance(GetId());
+                }
+
+                // reset personal saves of other members now that group save is created
+                for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
+                {
+                    if (Player* pMember = itr->getSource())
+                    {
+                        if (pMember == player)
+                            continue;
+
+                        if (pMember->GetMapId() != GetId())
+                        {
+                            InstancePlayerBind* memberBind = pMember->GetBoundInstance(GetId());
+                            if (memberBind && !memberBind->perm)
+                                pMember->UnbindInstance(GetId());
+                        }
+                    }
+                }
+            }
+            else if (playerBind)
+            {
+                // cannot jump to a different instance without resetting it
+                MANGOS_ASSERT(playerBind->state == GetPersistentState());
+            }
             else
             {
                 // cannot jump to a different instance without resetting it
@@ -2313,6 +2327,14 @@ void DungeonMap::PermBindAllPlayers(Player* player)
     for (const auto& itr : m_mapRefManager)
     {
         Player* plr = itr.getSource();
+
+        if (m_resetAfterUnload)
+        {
+            sLog.Player(plr->GetSession(), LOG_BASIC, LOG_LVL_ERROR, "Attempt to permanently save player to raid (map %u, instance %u) scheduled for reset on unload and already deleted from DB!", GetId(), GetInstanceId());
+            plr->TeleportToHomebind();
+            continue;
+        }
+
         // players inside an instance cannot be bound to other instances
         // some players may already be permanently bound, in this case nothing happens
         InstancePlayerBind *bind = plr->GetBoundInstance(GetId());
@@ -2450,15 +2472,15 @@ void BattleGroundMap::UnloadAll(bool pForce)
     Map::UnloadAll(pForce);
 }
 
-/// Put scripts in the execution queue
+// Put scripts in the execution queue
 void Map::ScriptsStart(ScriptMapMap const& scripts, uint32 id, ObjectGuid sourceGuid, ObjectGuid targetGuid)
 {
-    ///- Find the script map
+    // Find the script map
     ScriptMapMap::const_iterator s = scripts.find(id);
     if (s == scripts.end())
         return;
 
-    ///- Schedule script execution for all scripts in the script map
+    // Schedule script execution for all scripts in the script map
     ScriptMap const* s2 = &(s->second);
     bool immedScript = false;
     
@@ -2565,7 +2587,7 @@ void Map::TerminateScript(ScriptAction const& step)
     }
 }
 
-/// Process queued scripts
+// Process queued scripts
 void Map::ScriptsProcess()
 {
     std::unique_lock<std::mutex> lock(m_scriptSchedule_lock);
@@ -2573,7 +2595,7 @@ void Map::ScriptsProcess()
     if (m_scriptSchedule.empty())
         return;
 
-    ///- Process overdue queued scripts
+    // Process overdue queued scripts
     ScriptScheduleMap::iterator iter = m_scriptSchedule.begin();
     // ok as multimap is a *sorted* associative container
     while (!m_scriptSchedule.empty() && (iter->first <= sWorld.GetGameTime()))
@@ -3104,7 +3126,7 @@ bool Map::GetWalkHitPosition(GenericTransport* transport, float srcX, float srcY
         return false;
     }
 
-    /// Find navmesh position near source
+    // Find navmesh position near source
     float point[3] = {srcY, srcZ, srcX};
     // Warning : Coord order is Y,Z,X
     float closestPoint[3] = {0.0f, 0.0f, 0.0f};
@@ -3128,7 +3150,7 @@ bool Map::GetWalkHitPosition(GenericTransport* transport, float srcX, float srcY
     }
     filter.setExcludeFlags(NAV_STEEP_SLOPES);
 
-    /// Walk on the surface found
+    // Walk on the surface found
     dtPolyRef visited[50] = {0};
     int visitedCount = 0;
     float t = 0.0f;
@@ -3150,7 +3172,7 @@ bool Map::GetWalkHitPosition(GenericTransport* transport, float srcX, float srcY
     if (dtStatusFailed(m_navMeshQuery->closestPointOnPoly(visited[visitedCount - 1], endPosition, endPosition, nullptr)))
         return false;
 
-    /// Compute complete path, and at each path step, check for dynamic LoS collision
+    // Compute complete path, and at each path step, check for dynamic LoS collision
     // Rq: This is non-sense on Transports, since we are using position offsets ...
     float pathPoints[MAX_POINT_PATH_LENGTH * VERTEX_SIZE];
     int pointCount = 0;
@@ -3185,7 +3207,7 @@ bool Map::GetWalkHitPosition(GenericTransport* transport, float srcX, float srcY
     if (!MaNGOS::IsValidMapCoord(destX, destY, destZ))
         return false;
 
-    /// Finalize Z-position using vmaps (more accurate)
+    // Finalize Z-position using vmaps (more accurate)
     if (transport)
         destZ += 0.5f;
     else
@@ -3317,6 +3339,16 @@ VMAP::ModelInstance* Map::FindCollisionModel(float x1, float y1, float z1, float
     return VMAP::VMapFactory::createOrGetVMapManager()->FindCollisionModel(GetId(), x1, y1, z1, x2, y2, z2);
 }
 
+GameObjectModel const* Map::FindDynamicObjectCollisionModel(float x1, float y1, float z1, float x2, float y2, float z2)
+{
+    ASSERT(MaNGOS::IsValidMapCoord(x1, y1, z1));
+    ASSERT(MaNGOS::IsValidMapCoord(x2, y2, z2));
+    Vector3 const pos1 = Vector3(x1, y1, z1);
+    Vector3 const pos2 = Vector3(x2, y2, z2);
+    std::shared_lock<std::shared_timed_mutex> lock(_dynamicTree_lock);
+    return _dynamicTree.getObjectHit(pos1, pos2);
+}
+
 void Map::RemoveGameObjectModel(const GameObjectModel &model)
 {
     std::lock_guard<std::shared_timed_mutex> lock(_dynamicTree_lock);
@@ -3359,7 +3391,7 @@ bool Map::CheckDynamicTreeLoS(float x1, float y1, float z1, float x2, float y2, 
 void Map::CrashUnload()
 {
     sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Map %u (instance %u) crashed. Has players: %d", GetId(), GetInstanceId(), HavePlayers());
-    /// Logout players
+    // Logout players
     for (m_mapRefIter = m_mapRefManager.begin(); m_mapRefIter != m_mapRefManager.end(); ++m_mapRefIter)
     {
         Player* player = m_mapRefIter->getSource();
@@ -3626,6 +3658,12 @@ Creature* Map::LoadCreatureSpawn(uint32 dbGuid, bool delaySpawn)
     CreatureData const* pSpawnData = sObjectMgr.GetCreatureData(dbGuid);
     if (!pSpawnData)
         return nullptr;
+
+    if (GetId() != pSpawnData->position.mapId)
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Attempt to load creature spawn guid %u on wrong map %u.", dbGuid, GetId());
+        return nullptr;
+    }
 
     Creature* pCreature;
     ObjectGuid guid = pSpawnData->GetObjectGuid(dbGuid);

@@ -329,12 +329,7 @@ void WorldSession::HandleItemQuerySingleOpcode(WorldPacket& recv_data)
         data << pProto->RequiredSkill;
         data << pProto->RequiredSkillRank;
         data << pProto->RequiredSpell;
-        // Item de style insigne
-        if (pProto->Spells[0].SpellId != 0)
-            data << uint32(0);
-        else
-            data << pProto->RequiredHonorRank;
-
+        data << pProto->RequiredHonorRank;
         data << pProto->RequiredCityRank;
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_6_1
         data << pProto->RequiredReputationFaction;
@@ -1095,12 +1090,13 @@ void WorldSession::HandleSetAmmoOpcode(WorldPacket& recv_data)
 
 void WorldSession::SendItemEnchantTimeUpdate(ObjectGuid playerGuid, ObjectGuid itemGuid, uint32 slot, uint32 duration)
 {
-    // last check 2.0.10
     WorldPacket data(SMSG_ITEM_ENCHANT_TIME_UPDATE, (8 + 4 + 4 + 8));
     data << ObjectGuid(itemGuid);
     data << uint32(slot);
     data << uint32(duration);
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_10_2
     data << ObjectGuid(playerGuid);
+#endif
     SendPacket(&data);
 }
 

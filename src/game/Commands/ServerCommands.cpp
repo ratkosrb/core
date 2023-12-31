@@ -40,6 +40,7 @@
 #include "AutoBroadCastMgr.h"
 #include "SpellModMgr.h"
 #include "CreatureGroups.h"
+#include "HardcodedEvents.h"
 
 bool ChatHandler::HandleAnnounceCommand(char* args)
 {
@@ -390,7 +391,7 @@ bool ChatHandler::HandleServerPLimitCommand(char *args)
     return true;
 }
 
-/// Triggering corpses expire check in world
+// Triggering corpses expire check in world
 bool ChatHandler::HandleServerCorpsesCommand(char* /*args*/)
 {
     sObjectAccessor.RemoveOldCorpses();
@@ -490,7 +491,7 @@ bool ChatHandler::HandleServerIdleShutDownCommand(char* args)
     return true;
 }
 
-/// Close RA connection
+// Close RA connection
 bool ChatHandler::HandleQuitCommand(char* /*args*/)
 {
     // processed in RASocket
@@ -498,7 +499,7 @@ bool ChatHandler::HandleQuitCommand(char* /*args*/)
     return true;
 }
 
-/// Exit the realm
+// Exit the realm
 bool ChatHandler::HandleServerExitCommand(char* /*args*/)
 {
     SendSysMessage(LANG_COMMAND_EXIT);
@@ -522,7 +523,7 @@ bool ChatHandler::HandleViewLogCommand(char* args)
     return true;
 }
 
-/// Set the filters of logging
+// Set the filters of logging
 bool ChatHandler::HandleServerLogFilterCommand(char* args)
 {
     if (!*args)
@@ -569,7 +570,7 @@ bool ChatHandler::HandleServerLogFilterCommand(char* args)
     return false;
 }
 
-/// Set the level of logging
+// Set the level of logging
 bool ChatHandler::HandleServerLogLevelCommand(char *args)
 {
     if (!*args)
@@ -1146,7 +1147,7 @@ bool ChatHandler::HandleReloadQuestTemplateCommand(char* /*args*/)
     sObjectMgr.LoadQuests();
     SendSysMessage("DB table `quest_template` (quest definitions) reloaded.");
 
-    /// dependent also from `gameobject` but this table not reloaded anyway
+    // dependent also from `gameobject` but this table not reloaded anyway
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Re-Loading GameObjects for quests...");
     sObjectMgr.LoadGameObjectForQuests();
     SendSysMessage("Data GameObjects for quests reloaded.");
@@ -1837,7 +1838,7 @@ bool ChatHandler::HandleReloadCreatureDisplayInfoAddon(char*)
 
 bool ChatHandler::HandleReloadIPBanList(char*)
 {
-    sAccountMgr.LoadIPBanList();
+    sAccountMgr.LoadIPBanList(LoginDatabase.Query(LOAD_IP_BANS_QUERY));
     SendSysMessage(">> Table `ip_banned` reloaded.");
     return true;
 }
@@ -1924,5 +1925,88 @@ bool ChatHandler::HandleReloadAnticheatCommand(char*)
 {
     sAnticheatMgr->LoadAnticheatData();
     SendSysMessage(">> Anticheat data reloaded");
+    return true;
+}
+bool ChatHandler::HandleWarEffortInfoCommand(char* args)
+{
+    sGameEventMgr.Update();
+
+    uint32 stage = sObjectMgr.GetSavedVariable(VAR_WE_STAGE, WAR_EFFORT_STAGE_COLLECTION);
+    PSendSysMessage("Stage: %s (%u)", WarEffortStageToString(stage), stage);
+
+    uint32 lastStageTransitionTime = sObjectMgr.GetSavedVariable(VAR_WE_STAGE_TRANSITION_TIME, 0);
+    PSendSysMessage("Last Transition Time: %s (%u)", TimeToTimestampStr(lastStageTransitionTime).c_str(), lastStageTransitionTime);
+
+    uint32 gongRingTime = sObjectMgr.GetSavedVariable(VAR_WE_GONG_TIME, 0);
+    PSendSysMessage("Gong Ring Time: %s (%u)", TimeToTimestampStr(gongRingTime).c_str(), gongRingTime);
+
+    switch (stage)
+    {
+        case WAR_EFFORT_STAGE_COLLECTION:
+        {
+            uint32 lastAutoCompleteTime = sObjectMgr.GetSavedVariable(VAR_WE_AUTOCOMPLETE_TIME, 0);
+            PSendSysMessage("Last Auto Complete Time: %s (%u)", TimeToTimestampStr(lastAutoCompleteTime).c_str(), lastAutoCompleteTime);
+
+            uint32 nextAutoCompleteIn = sWorld.getConfig(CONFIG_UINT32_WAR_EFFORT_AUTOCOMPLETE_PERIOD) - (time(nullptr) - lastAutoCompleteTime);
+            PSendSysMessage("Next Auto Complete In: %s", secsToTimeString(nextAutoCompleteIn).c_str());
+            break;
+        }
+        case WAR_EFFORT_STAGE_MOVE_1:
+        case WAR_EFFORT_STAGE_MOVE_2:
+        case WAR_EFFORT_STAGE_MOVE_3:
+        case WAR_EFFORT_STAGE_MOVE_4:
+        case WAR_EFFORT_STAGE_MOVE_5:
+        {
+            uint32 nextAutoCompleteIn = WAR_EFFORT_MOVE_TRANSITION_TIME - (time(nullptr) - lastStageTransitionTime);
+            PSendSysMessage("Next Transition In: %s", secsToTimeString(nextAutoCompleteIn).c_str());
+            break;
+        }
+        case WAR_EFFORT_STAGE_BATTLE:
+        {
+            uint32 nextTransitionIn = WAR_EFFORT_CH_ATTACK_TIME - (time(nullptr) - lastStageTransitionTime);
+            PSendSysMessage("Next Transition In: %s", secsToTimeString(nextTransitionIn).c_str());
+            break;
+        }
+        case WAR_EFFORT_STAGE_CH_ATTACK:
+        {
+            uint32 nextTransitionIn = WAR_EFFORT_FINAL_BATTLE_TIME - (time(nullptr) - lastStageTransitionTime);
+            PSendSysMessage("Next Transition In: %s", secsToTimeString(nextTransitionIn).c_str());
+            break;
+        }
+        case WAR_EFFORT_STAGE_FINALBATTLE:
+        {
+            uint32 nextTransitionIn = WAR_EFFORT_GONG_DURATION - (time(nullptr) - gongRingTime);
+            PSendSysMessage("Next Transition In: %s", secsToTimeString(nextTransitionIn).c_str());
+            break;
+        }
+    }
+
+    return true;
+}
+
+bool ChatHandler::HandleWarEffortSetGongTimeCommand(char* args)
+{
+    uint32 gongTime;
+    if (!ExtractUInt32(&args, gongTime))
+        return false;
+
+    sObjectMgr.SetSavedVariable(VAR_WE_GONG_TIME, gongTime, true);
+    PSendSysMessage("War effort gong ring time set to '%s' (%u).", TimeToTimestampStr(gongTime).c_str(), gongTime);
+    sGameEventMgr.Update();
+
+    return true;
+}
+
+bool ChatHandler::HandleWarEffortSetStageCommand(char* args)
+{
+    uint32 stage;
+    if (!ExtractUInt32(&args, stage))
+        return false;
+
+    sObjectMgr.SetSavedVariable(VAR_WE_STAGE, stage, true);
+    sObjectMgr.SetSavedVariable(VAR_WE_STAGE_TRANSITION_TIME, time(nullptr), true);
+    PSendSysMessage("War effort stage set to '%s' (%u).", WarEffortStageToString(stage), stage);
+    sGameEventMgr.Update();
+
     return true;
 }

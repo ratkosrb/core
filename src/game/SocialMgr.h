@@ -25,6 +25,7 @@
 #include "Policies/Singleton.h"
 #include "Database/DatabaseEnv.h"
 #include "ObjectGuid.h"
+#include <shared_mutex>
 
 class SocialMgr;
 class PlayerSocial;
@@ -78,7 +79,7 @@ struct FriendInfo
 typedef std::map<uint32, FriendInfo> PlayerSocialMap;
 typedef std::map<uint32, PlayerSocial> SocialMap;
 
-/// Results of friend related commands
+// Results of friend related commands
 enum FriendsResult
 {
     FRIEND_DB_ERROR         = 0x00,                         // ERR_FRIEND_NOT_FOUND
@@ -157,7 +158,7 @@ class SocialMgr
     private:
         SocialMap m_socialMap;
 
-        std::mutex _socialMapLock;
+        std::shared_timed_mutex _socialMapLock;
 };
 
 #define sSocialMgr MaNGOS::Singleton<SocialMgr>::Instance()

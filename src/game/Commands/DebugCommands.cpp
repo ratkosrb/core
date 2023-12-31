@@ -41,6 +41,7 @@
  // VMAPS
 #include "VMapFactory.h"
 #include "ModelInstance.h"
+#include "GameObjectModel.h"
  // MMAPS
 #include "MoveMap.h"                                        // for mmap manager
 #include "PathFinder.h"                                     // for mmap commands
@@ -1657,9 +1658,17 @@ bool ChatHandler::HandleDebugLoSCommand(char*)
     VMAP::ModelInstance* spawn = m_session->GetPlayer()->GetMap()->FindCollisionModel(x0, y0, z0, x1, y1, z1);
 
     if (!spawn)
-        SendSysMessage("* No collision found.");
+        SendSysMessage("* No collision with static objects found.");
     else
-        PSendSysMessage("* Collision at '%s' [%f %f %f]", spawn->name.c_str(), spawn->iPos.x, spawn->iPos.y, spawn->iPos.z);
+        PSendSysMessage("* Collision with static object at '%s' [%f %f %f]", spawn->name.c_str(), spawn->iPos.x, spawn->iPos.y, spawn->iPos.z);
+
+    GameObjectModel const* dynObj = m_session->GetPlayer()->GetMap()->FindDynamicObjectCollisionModel(x0, y0, z0, x1, y1, z1);
+
+    if (!dynObj)
+        SendSysMessage("* No collision with dynamic objects found.");
+    else
+        PSendSysMessage("* Collision with dynamic object at '%s' [%f %f %f]", dynObj->name.c_str(), dynObj->getPosition().x, dynObj->getPosition().y, dynObj->getPosition().z);
+
     return true;
 }
 
@@ -2049,7 +2058,7 @@ bool ChatHandler::HandleVideoTurn(char*)
     float constexpr angleBegin = 0.0f;
     float constexpr angleEnd = 10 * M_PI_F;
     float constexpr moveSpeed = 30.0f;
-    std::list<Creature*> targets;
+
     Unit* selection = GetSelectedUnit();
     if (!selection)
     {
@@ -2530,8 +2539,6 @@ bool ChatHandler::HandleMmapConnection(char* args)
     fclose(fOffmeshFile);
     return true;
 }
-
-typedef std::list<Creature*> MmapTestUnitList;
 
 bool ChatHandler::HandleMmapTestArea(char* args)
 {

@@ -27,7 +27,7 @@
 #include "ObjectGuid.h"
 #include "GroupReference.h"
 #include "GroupRefManager.h"
-#include "BattleGround.h"
+#include "BattleGroundDefines.h"
 #include "LootMgr.h"
 #include "LFGMgr.h"
 #include "DBCEnums.h"
@@ -321,7 +321,6 @@ class Group
         ObjectGuid GetTargetWithIcon(RaidTargetIcon id) const { return m_targetIcons[id]; }
         void SetTargetIcon(uint8 id, ObjectGuid targetGuid);
         void ClearTargetIcon(ObjectGuid targetGuid);
-        uint16 InInstance();
         bool InCombatToInstance(uint32 instanceId);
         void ResetInstances(InstanceResetMethod method, Player* SendMsgTo);
 
@@ -347,7 +346,7 @@ class Group
         bool IsInLFG()                   { return (m_LFGAreaId > 0) ? true : false; }
 
         void CalculateLFGRoles(LFGGroupQueueInfo& data);
-        bool FillPremadeLFG(ObjectGuid const& plrGuid, Classes playerClass, LfgRoles requiredRole, uint32& InitRoles, uint32& DpsCount, std::list<ObjectGuid>& processed);
+        bool FillPremadeLFG(ObjectGuid const& plrGuid, Classes playerClass, LfgRoles requiredRole, uint32& InitRoles, uint32& DpsCount, std::vector<ObjectGuid>& processed);
 
         /*********************************************************/
         /***                   LOOT SYSTEM                     ***/

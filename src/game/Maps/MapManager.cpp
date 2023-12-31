@@ -31,6 +31,7 @@
 #include "Group.h"
 #include "ZoneScriptMgr.h"
 #include "Map.h"
+#include "BattleGround.h"
 #include "ThreadPool.h"
 
 typedef MaNGOS::ClassLevelLockable<MapManager, std::recursive_mutex> MapManagerLock;
@@ -486,8 +487,8 @@ uint32 MapManager::GetNumPlayersInInstances()
     return ret;
 }
 
-///// returns a new or existing Instance
-///// in case of battlegrounds it will only return an existing map, those maps are created by bg-system
+// returns a new or existing Instance
+// in case of battlegrounds it will only return an existing map, those maps are created by bg-system
 Map* MapManager::CreateInstance(uint32 id, Player* player)
 {
     Guard _guard(*this);
@@ -727,7 +728,7 @@ uint32 MapManager::GetContinentInstanceId(uint32 mapId, float x, float y, bool* 
                 return MAP0_IRONFORGE_AREA;
             if (IsNorthTo(x, y, stormwindAreaNorthLimit, sizeof(stormwindAreaNorthLimit) / (2 * sizeof(float))))
                 return MAP0_MIDDLE;
-            if (IsNorthTo(x, y, stormwindAreaSouthLimit, sizeof(stormwindAreaNorthLimit) / (2 * sizeof(float))))
+            if (IsNorthTo(x, y, stormwindAreaSouthLimit, sizeof(stormwindAreaSouthLimit) / (2 * sizeof(float))))
                 return MAP0_STORMWIND_AREA;
             return MAP0_SOUTH;
         }
@@ -823,7 +824,7 @@ uint32 MapManager::GetContinentInstanceId(uint32 mapId, float x, float y, bool* 
                     1735.6906f, -3834.2417f,
                     1654.3671f, -3380.9902f,
                     1593.9861f, -3975.5413f,
-                    1439.2548f, -4249.6923f,
+                    1400.9472f, -4242.2387f,
                     1436.3106f, -4007.8950f,
                     1393.3199f, -4196.0625f,
                     1445.2428f, -4373.9052f,
