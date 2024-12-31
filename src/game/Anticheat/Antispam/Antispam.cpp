@@ -48,6 +48,12 @@ void AntispamAsyncWorker(Antispam *antispam)
     LoginDatabase.ThreadEnd();
 }
 
+Antispam& Antispam::Instance()
+{
+    static Antispam antispam;
+    return antispam;
+}
+
 Antispam::Antispam()
     :   m_enabled(false), m_restrictionLevel(0), m_originalNormalizeMask(0), m_fullyNormalizeMask(0),
         m_threshold(0), m_mutetime(0), m_chatMask(0), m_worker(), m_banEnabled(false), m_detectThreshold(3),
@@ -62,7 +68,7 @@ void Antispam::loadFromDB()
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, "Loading table 'antispam_blacklist'");
     m_blackList.clear();
 
-    QueryResult* result = LoginDatabase.Query("SELECT * FROM antispam_blacklist");
+    std::unique_ptr<QueryResult> result = LoginDatabase.Query("SELECT * FROM antispam_blacklist");
     if (result)
     {
         do
@@ -71,7 +77,6 @@ void Antispam::loadFromDB()
             m_blackList.insert(fields[0].GetCppString());
         }
         while (result->NextRow());
-        delete result;
     }
 
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, ">> %u blacklist words loaded", m_blackList.size());
@@ -89,7 +94,6 @@ void Antispam::loadFromDB()
             m_replacement[fields[0].GetCppString()] = fields[1].GetCppString();
         }
         while (result->NextRow());
-        delete result;
     }
 
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, ">> %u replacements loaded", m_replacement.size());
@@ -109,7 +113,6 @@ void Antispam::loadFromDB()
             m_scores[fields[2].GetUInt8()][fields[0].GetCppString()] = fields[1].GetInt32();
         }
         while (result->NextRow());
-        delete result;
     }
 
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, ">> %u scores loaded", m_scores[MSG_TYPE_NORMALIZED].size() + m_scores[MSG_TYPE_ORIGINAL].size());
@@ -134,7 +137,6 @@ void Antispam::loadFromDB()
             m_unicode[key] = value;
         }
         while (result->NextRow());
-        delete result;
     }
 
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_BASIC, ">> %u unicode symbols loaded", m_unicode.size());
@@ -144,7 +146,7 @@ void Antispam::loadFromDB()
 void Antispam::loadMuted()
 {
     m_mutedAccounts.clear();
-    QueryResult *result = LoginDatabase.Query("SELECT id FROM antispam_detected WHERE unmuteTime <> 0");
+    std::unique_ptr<QueryResult> result = LoginDatabase.Query("SELECT id FROM antispam_detected WHERE unmuteTime <> 0");
     if (result)
     {
         do
@@ -152,7 +154,6 @@ void Antispam::loadMuted()
             auto fields = result->Fetch();
             m_mutedAccounts.insert(fields[0].GetUInt32());
         } while (result->NextRow());
-        delete result;
     }
 }
 
@@ -207,7 +208,7 @@ void Antispam::addMessage(const std::string& msg, uint32 type, PlayerPointer fro
     messageBlock.count = 1;
     messageBlock.time = time(nullptr);
 
-    m_messageQueue.push(messageBlock);
+    m_messageQueue.enqueue(messageBlock);
 }
 
 struct FindMsg
@@ -237,10 +238,10 @@ void Antispam::processMessages(uint32 diff)
     else
         m_updateTimer -= diff;
 
-    while (!m_messageQueue.empty())
+    while (m_messageQueue.size_approx())
     {
         MessageBlock messageBlock;
-        if (m_messageQueue.try_pop(messageBlock))
+        if (m_messageQueue.try_dequeue(messageBlock))
         {
             if (isMuted(messageBlock.fromAccount))
                 continue;
@@ -481,7 +482,7 @@ void Antispam::applySanction(MessageBlock& messageBlock, uint32 detectType, uint
     stmt.addUInt64(unmuteTime);
     stmt.DirectExecute();
 
-    QueryResult *result = LoginDatabase.PQuery("SELECT `detectScore` FROM `antispam_detected` WHERE `id` = %u", messageBlock.fromAccount);
+    std::unique_ptr<QueryResult> result = LoginDatabase.PQuery("SELECT `detectScore` FROM `antispam_detected` WHERE `id` = %u", messageBlock.fromAccount);
     if (result)
     {
         auto fields = result->Fetch();
@@ -494,7 +495,6 @@ void Antispam::applySanction(MessageBlock& messageBlock, uint32 detectType, uint
                 LoginDatabase.PExecute("DELETE FROM `antispam_detected` WHERE `id` = %u", messageBlock.fromAccount);
             }
         }
-        delete result;
     }
 }
 

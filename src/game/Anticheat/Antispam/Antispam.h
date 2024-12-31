@@ -1,8 +1,7 @@
 #include <string>
-#include <tbb/concurrent_queue.h>
 #include <chrono>
 #include <thread>
-
+#include "ConcurrentQueue.h"
 #include "Util.h"
 #include "World.h"
 #include "ChannelMgr.h"
@@ -81,14 +80,13 @@ struct pair_hash {
 };
 
 typedef std::pair<uint32, uint32> LowGuidPair;
-typedef tbb::concurrent_queue<MessageBlock> MessageQueue;
+typedef moodycamel::ConcurrentQueue<MessageBlock> MessageQueue;
 typedef std::unordered_map<LowGuidPair, MessageBlock, pair_hash> MessageBlocks;
 typedef std::unordered_map<uint32, MessageCounter> MessageCounters;
 typedef std::unordered_map<uint32, std::list<std::string>> MessageRepeats;
 
 class Antispam : public AntispamInterface
 {
-    friend class ACE_Singleton<Antispam, ACE_Null_Mutex>;
     public:
         Antispam();
         ~Antispam()
@@ -96,6 +94,7 @@ class Antispam : public AntispamInterface
             if (m_worker.joinable())
                 m_worker.join();
         }
+        static Antispam& Instance();
         
         void loadFromDB();
         void loadConfig();
@@ -164,4 +163,4 @@ class Antispam : public AntispamInterface
         std::thread m_worker;
 };
 
-#define sAntispam ACE_Singleton<Antispam, ACE_Null_Mutex>::instance()
+#define sAntispam Antispam::Instance()

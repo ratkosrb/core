@@ -39,6 +39,7 @@ set (shared_SRCS
     Util.h
     WheatyExceptionReport.h
     WorldPacket.h
+    ConcurrentQueue.h
     Config/Config.h
     Config/ConfigEnv.h
     Crypto/BigNumber.h

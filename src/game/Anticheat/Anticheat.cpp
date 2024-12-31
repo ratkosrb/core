@@ -53,7 +53,7 @@ void AnticheatManager::LoadAnticheatData()
 {
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_MINIMAL, "");
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_MINIMAL, "Loading antispam system ...");
-    sAntispam->loadConfig();
+    sAntispam.loadConfig();
   
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_MINIMAL, "");
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_MINIMAL, "Loading warden checks...");
@@ -183,3 +183,7 @@ void AnticheatManager::RemoveWardenSession(Warden* warden)
     m_wardenSessionsToRemove.push_back(warden);
 }
 
+AntispamInterface* AnticheatManager::GetAntispam() const
+{
+    return &sAntispam;
+}

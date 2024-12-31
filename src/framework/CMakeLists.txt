@@ -92,6 +92,9 @@ add_library(framework STATIC
 
 SET_TARGET_PROPERTIES (framework PROPERTIES FOLDER "Game Libs")
 
-target_link_libraries(framework
-  ${TBB_LIBRARIES}
-)
+
+if(NOT USE_STD_MALLOC)
+  target_link_libraries(framework
+    ${TBB_LIBRARIES}
+  )
+endif()
