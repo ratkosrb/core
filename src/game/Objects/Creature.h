@@ -68,14 +68,14 @@ private:
 class ThreatListProcesser
 {
 public:
-    ThreatListProcesser() {}
-    virtual ~ThreatListProcesser() {}
+    ThreatListProcesser() = default;
+    virtual ~ThreatListProcesser() = default;
     virtual bool Process(Unit* unit) = 0;
 };
 
 class Creature : public Unit
 {
-    CreatureAI *i_AI;
+    CreatureAI *m_AI;
 
     public:
 
@@ -115,8 +115,8 @@ class Creature : public Unit
         bool HasStaticDBSpawnData() const;                  // listed in `creature` table and have fixed in DB guid
         uint32 GetDBTableGUIDLow() const;
 
-        virtual char const* GetName() const override { return GetCreatureInfo()->name; }
-        char const* GetSubName() const { return GetCreatureInfo()->subname; }
+        virtual char const* GetName() const override { return GetCreatureInfo()->name.c_str(); }
+        char const* GetSubName() const { return GetCreatureInfo()->subname.c_str(); }
 
         void Update(uint32 update_diff, uint32 time) override;  // overwrite Unit::Update
 
@@ -126,24 +126,27 @@ class Creature : public Unit
         void SaveHomePosition() { SetHomePosition(GetPositionX(), GetPositionY(), GetPositionZ(), GetOrientation()); }
         void SetHomePosition(float x, float y, float z, float o);
         void GetHomePosition(float &x, float &y, float &z, float &o);
-        Position const& GetHomePosition() { return m_homePosition; }
+        Position const& GetHomePosition() const { return m_homePosition; }
         float GetHomePositionO() const { return m_homePosition.o; }
         void ResetHomePosition();
 
         void AddCreatureState(CreatureStateFlag f) { m_creatureStateFlags |= f; }
         bool HasCreatureState(CreatureStateFlag f) const { return m_creatureStateFlags & f; }
         void ClearCreatureState(CreatureStateFlag f) { m_creatureStateFlags &= ~f; }
-        bool HasTypeFlag(CreatureTypeFlags flag) const { return GetCreatureInfo()->type_flags & flag; }
+        bool HasStaticFlag(CreatureStaticFlags flag) const { return GetCreatureInfo()->static_flags1 & flag; }
+        bool HasStaticFlag(CreatureStaticFlags2 flag) const { return GetCreatureInfo()->static_flags2 & flag; }
         bool HasExtraFlag(CreatureFlagsExtra flag) const { return GetCreatureInfo()->flags_extra & flag; }
         bool HasImmunityFlag(CreatureImmunityFlags flag) const { return GetCreatureInfo()->immunity_flags & flag; }
+        void ToggleUnitFlagsFromStaticFlags();
+        void SetDefaultValuesFromStaticFlags();
 
         CreatureSubtype GetSubtype() const { return m_subtype; }
-        bool IsPet() const { return m_subtype == CREATURE_SUBTYPE_PET; }
+        bool IsPet() const override { return m_subtype == CREATURE_SUBTYPE_PET; }
         bool IsTotem() const { return m_subtype == CREATURE_SUBTYPE_TOTEM; }
         Totem const* ToTotem() const { return IsTotem() ? reinterpret_cast<Totem const*>(this) : nullptr; }
         Totem* ToTotem() { return IsTotem() ? reinterpret_cast<Totem*>(this) : nullptr; }
         bool IsTemporarySummon() const { return m_subtype == CREATURE_SUBTYPE_TEMPORARY_SUMMON; }
-        bool IsCorpse() const { return GetDeathState() ==  CORPSE; }
+        bool IsCorpse() const override { return GetDeathState() ==  CORPSE; }
         bool IsDespawned() const { return GetDeathState() ==  DEAD; }
         void SetCorpseDelay(uint32 delay) { m_corpseDelay = delay; }
         bool IsRacialLeader() const { return GetCreatureInfo()->racial_leader; }
@@ -171,9 +174,9 @@ class Creature : public Unit
 
         bool IsTrainerOf(Player* player, bool msg) const;
         bool CanInteractWithBattleMaster(Player* player, bool msg) const;
-        bool CanTrainAndResetTalentsOf(Player* pPlayer) const;
+        bool CanTrainAndResetTalentsOf(Player const* pPlayer) const;
 
-        bool IsOutOfThreatArea(Unit* pVictim) const;
+        bool IsOutOfThreatArea(Unit const* pVictim) const;
         void FillGuidsListFromThreatList(std::vector<ObjectGuid>& guids, uint32 maxamount = 0);
 
         bool IsImmuneToSpell(SpellEntry const* spellInfo, bool castOnSelf) const override;
@@ -200,10 +203,10 @@ class Creature : public Unit
         bool IsInEvadeMode() const;
 
         bool AIM_Initialize();
-        void SetAI(CreatureAI * ai) { i_AI = ai; }
+        void SetAI(CreatureAI * ai) { m_AI = ai; }
 
-        CreatureAI* AI() { return i_AI; }
-        CreatureAI const* AI() const { return i_AI; }
+        CreatureAI* AI() { return m_AI; }
+        CreatureAI const* AI() const { return m_AI; }
         void SetAInitializeOnRespawn(bool initialize)
         {
             if (initialize)
@@ -237,7 +240,7 @@ class Creature : public Unit
         void UpdateManaRegen() override;
         void UpdateAttackPowerAndDamage(bool ranged = false) override;
         void UpdateDamagePhysical(WeaponAttackType attType) override;
-        float GetBonusHitChanceFromAuras(WeaponAttackType attType) const final;
+        float GetWeaponBasedAuraModifier(WeaponAttackType attType, AuraType auraType) const final;
         uint32 GetCurrentEquipmentId() const { return m_equipmentId; }
 
         static float _GetHealthMod(int32 rank);             // Get custom factor to scale health (default 1, CONFIG_FLOAT_RATE_CREATURE_*_HP)
@@ -258,7 +261,7 @@ class Creature : public Unit
 
         static uint32 ChooseDisplayId(CreatureInfo const* cinfo, CreatureData const* data = nullptr, CreatureDataAddon const* addon = nullptr, GameEventCreatureData const* eventData = nullptr, float* scale = nullptr);
 
-        std::string GetAIName() const;
+        std::string const& GetAIName() const;
         std::string GetScriptName() const;
         uint32 GetScriptId() const;
 
@@ -269,7 +272,7 @@ class Creature : public Unit
         bool FallGround();
 
         bool LoadFromDB(uint32 guid, Map* map, bool force = false);
-        void SaveToDB();
+        virtual void SaveToDB();
                                                             // overwrited in Pet
         virtual void SaveToDB(uint32 mapid);
         virtual void DeleteFromDB();                        // overwrited in Pet
@@ -282,6 +285,8 @@ class Creature : public Unit
         uint32 skinningForOthersTimer; // If == 0, then everyone can skin
         bool lootForCreator = false;
 
+        void GenerateLootForBody(Player* looter, Group const* pGroupTap);
+        void GeneratePlayerDependentLoot(Player* looter, Group const* pGroupTap);
         ObjectGuid GetLootRecipientGuid() const { return m_lootRecipientGuid; }
         uint32 GetLootGroupRecipientId() const { return m_lootGroupRecipientId; }
         Player* GetLootRecipient() const;                   // use group cases as prefered
@@ -301,12 +306,12 @@ class Creature : public Unit
 
         void SendAIReaction(AiReaction reactionType);
 
-        void DoFlee();
-        void DoFleeToGetAssistance();
+        bool DoFlee();
+        bool DoFleeToGetAssistance();
         float GetFleeingSpeed() const;
         float GetBaseWalkSpeedRate() const;
         float GetBaseRunSpeedRate() const;
-        void MoveAwayFromTarget(Unit* pTarget, float distance);
+        void MoveAwayFromTarget(Unit const* pTarget, float distance);
         void CallForHelp(float radius);
         void CallAssistance();
         void SetNoCallAssistance(bool val)
@@ -331,7 +336,7 @@ class Creature : public Unit
         bool CanInitiateAttack() const;
         bool CanHaveTarget() const { return !HasExtraFlag(CREATURE_FLAG_EXTRA_NO_TARGET); }
 
-        uint32 GetDefaultMount() { return m_mountId; }
+        uint32 GetDefaultMount() const { return m_mountId; }
         void SetDefaultMount(uint32 id) { m_mountId = id; }
 
         MovementGeneratorType GetDefaultMovementType() const { return m_defaultMovementType; }
@@ -367,7 +372,7 @@ class Creature : public Unit
 
         void StartGroupLoot(Group* group, uint32 timer);
 
-        void SendZoneUnderAttackMessage(Player* attacker);
+        void SendZoneUnderAttackMessage(Player const* attacker);
 
         void SetInCombatWithZone(bool initialPulse = true);
         void EnterCombatWithTarget(Unit* pTarget);
@@ -393,7 +398,7 @@ class Creature : public Unit
             else
                 ClearCreatureState(CSTATE_COMBAT_WITH_ZONE);
         }
-        void LogDeath(Unit* pKiller) const;
+        void LogDeath(Unit const* pKiller) const;
         void LogLongCombat() const;
         // Smartlog end
 
@@ -497,8 +502,8 @@ class Creature : public Unit
 
         // Auto evade timer (if target not reachable)
         // Tested on retail 5.4.0: Creatures evade after 3 seconds (but does not return to home position)
-        bool IsEvadeBecauseTargetNotReachable() const { return m_TargetNotReachableTimer > 3000; }
-        uint32 m_TargetNotReachableTimer;
+        bool IsEvadeBecauseTargetNotReachable() const { return m_targetNotReachableTimer > 3000; }
+        uint32 m_targetNotReachableTimer;
 
         std::shared_ptr<time_t> const& GetLastLeashExtensionTimePtr() const;
         void SetLastLeashExtensionTimePtr(std::shared_ptr<time_t> const& timer);
@@ -566,7 +571,7 @@ class Creature : public Unit
         }
 
         // (msecs)timer used for group loot
-        uint32 GetGroupLootTimer() { return m_groupLootTimer; }
+        uint32 GetGroupLootTimer() const { return m_groupLootTimer; }
 
         void SetEscortable(bool escortable)
         {
@@ -576,12 +581,12 @@ class Creature : public Unit
                 ClearCreatureState(CSTATE_ESCORTABLE); 
         }
         bool IsEscortable() const { return HasCreatureState(CSTATE_ESCORTABLE); }
-        bool CanAssistPlayers() { return HasFactionTemplateFlag(FACTION_TEMPLATE_FLAG_ASSIST_PLAYERS) || HasExtraFlag(CREATURE_FLAG_EXTRA_CAN_ASSIST); }
-        bool CanSummonGuards() { return HasExtraFlag(CREATURE_FLAG_EXTRA_SUMMON_GUARD); }
+        bool CanAssistPlayers() const { return HasFactionTemplateFlag(FACTION_TEMPLATE_FLAG_ASSIST_PLAYERS) || HasExtraFlag(CREATURE_FLAG_EXTRA_CAN_ASSIST); }
+        bool CanSummonGuards() const { return HasStaticFlag(CREATURE_STATIC_FLAG_CALLS_GUARDS); }
         uint32 GetOriginalEntry() const { return m_originalEntry; }
 
     protected:
-        bool MeetsSelectAttackingRequirement(Unit* pTarget, SpellEntry const* pSpellInfo, uint32 selectFlags) const;
+        bool MeetsSelectAttackingRequirement(Unit const* pTarget, SpellEntry const* pSpellInfo, uint32 selectFlags) const;
 
         bool CreateFromProto(uint32 guidlow, CreatureInfo const* cinfo, uint32 firstCreatureId, GameEventCreatureData const* eventData = nullptr);
         bool InitEntry(uint32 entry, GameEventCreatureData const* eventData = nullptr);

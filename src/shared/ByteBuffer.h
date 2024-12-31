@@ -22,6 +22,8 @@
 #ifndef _BYTEBUFFER_H
 #define _BYTEBUFFER_H
 
+#include <array>
+
 #include "Common.h"
 #include "Utilities/ByteConverter.h"
 
@@ -60,7 +62,7 @@ class ByteBuffer
         }
 
         // constructor
-        ByteBuffer(size_t res): _rpos(0), _wpos(0)
+        explicit ByteBuffer(size_t res): _rpos(0), _wpos(0)
         {
             _storage.reserve(res);
         }
@@ -333,7 +335,15 @@ class ByteBuffer
         {
             if(pos + sizeof(T) > size())
                 throw ByteBufferException(false, pos, sizeof(T), size());
+
+#if defined(__arm__) || defined(_M_ARM)
+            // memcpy to avoid alignment issues
+            T val;
+            memcpy((void*)&val, (void*)&_storage[pos], sizeof(T));
+#else
             T val = *((T const*)&_storage[pos]);
+#endif
+
             EndianConvert(val);
             return val;
         }
@@ -415,7 +425,13 @@ class ByteBuffer
             append((uint8 const*)str.c_str(), str.size() + 1);
         }
 
-        void append(std::vector<uint8> const& src) 
+        void append(std::vector<uint8> const& src)
+        {
+            return append(src.data(), src.size());
+        }
+
+        template<size_t Size>
+        void append(std::array<uint8, Size> const& src)
         {
             return append(src.data(), src.size());
         }

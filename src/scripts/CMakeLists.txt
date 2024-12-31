@@ -145,7 +145,6 @@ set (SCRIPTS_SRCS
     eastern_kingdoms/stranglethorn_vale/zulgurub/boss_mandokir.cpp
     eastern_kingdoms/stranglethorn_vale/zulgurub/boss_marli.cpp
     eastern_kingdoms/stranglethorn_vale/zulgurub/boss_renataki.cpp
-    eastern_kingdoms/stranglethorn_vale/zulgurub/boss_thekal.cpp
     eastern_kingdoms/stranglethorn_vale/zulgurub/boss_venoxis.cpp
     eastern_kingdoms/stranglethorn_vale/zulgurub/boss_wushoolay.cpp
     eastern_kingdoms/stranglethorn_vale/zulgurub/instance_zulgurub.cpp
@@ -159,7 +158,6 @@ set (SCRIPTS_SRCS
     eastern_kingdoms/tirisfal_glades/scarlet_monastery/boss_high_inquisitor_fairbanks.cpp
     eastern_kingdoms/tirisfal_glades/scarlet_monastery/boss_houndmaster_loksey.cpp
     eastern_kingdoms/tirisfal_glades/scarlet_monastery/boss_interrogator_vishas.cpp
-    eastern_kingdoms/tirisfal_glades/scarlet_monastery/boss_mograine_and_whitemane.cpp
     eastern_kingdoms/tirisfal_glades/scarlet_monastery/instance_scarlet_monastery.cpp
     eastern_kingdoms/uldaman/boss_archaedas.cpp
     eastern_kingdoms/uldaman/boss_ironaya.cpp
@@ -329,7 +327,6 @@ include_directories(
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/src/shared
   ${TBB_INCLUDE_DIRS}
-  ${ACE_INCLUDE_DIR}
   ${MYSQL_INCLUDE_DIR}
 )
 

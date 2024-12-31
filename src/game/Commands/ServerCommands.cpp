@@ -274,8 +274,8 @@ bool ChatHandler::HandleWorldTestCommand(char *args)
         return false;
     }
     PSendSysMessage("My worldmask is 0x%x. My target worldmask is 0x%x.", me->GetWorldMask(), target->GetWorldMask());
-    PSendSysMessage("I see the target ? %s", me->CanSeeInWorld(target) ? "oui" : "non");
-    PSendSysMessage("My target sees me ? %s", target->CanSeeInWorld(me) ? "oui" : "non");
+    PSendSysMessage("I see the target ? %s", me->CanSeeInWorld(target) ? "yes" : "no");
+    PSendSysMessage("My target sees me ? %s", target->CanSeeInWorld(me) ? "yes" : "no");
     return true;
 }
 
@@ -967,7 +967,6 @@ bool ChatHandler::HandleReloadAllScriptsCommand(char* /*args*/)
 
 bool ChatHandler::HandleReloadAllSpellCommand(char* /*args*/)
 {
-    HandleReloadSpellAffectCommand((char*)"a");
     HandleReloadSpellAreaCommand((char*)"a");
     HandleReloadSpellChainCommand((char*)"a");
     HandleReloadSpellElixirCommand((char*)"a");
@@ -1038,7 +1037,7 @@ bool ChatHandler::HandleReloadAreaTriggerTeleportCommand(char* /*args*/)
 
 bool ChatHandler::HandleReloadCommandCommand(char* /*args*/)
 {
-    load_command_table = true;
+    m_loadCommandTable = true;
     SendSysMessage("DB table `command` will be reloaded at next chat command use.");
     return true;
 }
@@ -1064,6 +1063,23 @@ bool ChatHandler::HandleReloadCreatureQuestInvRelationsCommand(char* /*args*/)
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading Quests Relations... (`creature_involvedrelation`)");
     sObjectMgr.LoadCreatureInvolvedRelations();
     SendSysMessage("DB table `creature_involvedrelation` (creature quest takers) reloaded.");
+    return true;
+}
+
+bool ChatHandler::HandleReloadCreatureTemplatesCommand(char* args)
+{
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Re-Loading `creature_template` Table!");
+    uint32 entry;
+    if (ExtractUInt32(&args, entry))
+    {
+        sObjectMgr.LoadCreatureTemplate(entry);
+        PSendSysMessage("Creature template %u reloaded.", entry);
+    }
+    else
+    {
+        sObjectMgr.LoadCreatureTemplates();
+        SendSysMessage("DB table `creature_template` reloaded.");
+    }
     return true;
 }
 
@@ -1338,14 +1354,6 @@ bool ChatHandler::HandleReloadSkillFishingBaseLevelCommand(char* /*args*/)
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Re-Loading Skill Fishing base level requirements...");
     sObjectMgr.LoadFishingBaseSkillLevel();
     SendSysMessage("DB table `skill_fishing_base_level` (fishing base level for zone/subzone) reloaded.");
-    return true;
-}
-
-bool ChatHandler::HandleReloadSpellAffectCommand(char* /*args*/)
-{
-    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Re-Loading SpellAffect definitions...");
-    sSpellMgr.LoadSpellAffects();
-    SendSysMessage("DB table `spell_affect` (spell mods apply requirements) reloaded.");
     return true;
 }
 
@@ -1927,86 +1935,12 @@ bool ChatHandler::HandleReloadAnticheatCommand(char*)
     SendSysMessage(">> Anticheat data reloaded");
     return true;
 }
-bool ChatHandler::HandleWarEffortInfoCommand(char* args)
+
+bool ChatHandler::HandleListMapsCommand(char* /*args*/)
 {
-    sGameEventMgr.Update();
-
-    uint32 stage = sObjectMgr.GetSavedVariable(VAR_WE_STAGE, WAR_EFFORT_STAGE_COLLECTION);
-    PSendSysMessage("Stage: %s (%u)", WarEffortStageToString(stage), stage);
-
-    uint32 lastStageTransitionTime = sObjectMgr.GetSavedVariable(VAR_WE_STAGE_TRANSITION_TIME, 0);
-    PSendSysMessage("Last Transition Time: %s (%u)", TimeToTimestampStr(lastStageTransitionTime).c_str(), lastStageTransitionTime);
-
-    uint32 gongRingTime = sObjectMgr.GetSavedVariable(VAR_WE_GONG_TIME, 0);
-    PSendSysMessage("Gong Ring Time: %s (%u)", TimeToTimestampStr(gongRingTime).c_str(), gongRingTime);
-
-    switch (stage)
-    {
-        case WAR_EFFORT_STAGE_COLLECTION:
-        {
-            uint32 lastAutoCompleteTime = sObjectMgr.GetSavedVariable(VAR_WE_AUTOCOMPLETE_TIME, 0);
-            PSendSysMessage("Last Auto Complete Time: %s (%u)", TimeToTimestampStr(lastAutoCompleteTime).c_str(), lastAutoCompleteTime);
-
-            uint32 nextAutoCompleteIn = sWorld.getConfig(CONFIG_UINT32_WAR_EFFORT_AUTOCOMPLETE_PERIOD) - (time(nullptr) - lastAutoCompleteTime);
-            PSendSysMessage("Next Auto Complete In: %s", secsToTimeString(nextAutoCompleteIn).c_str());
-            break;
-        }
-        case WAR_EFFORT_STAGE_MOVE_1:
-        case WAR_EFFORT_STAGE_MOVE_2:
-        case WAR_EFFORT_STAGE_MOVE_3:
-        case WAR_EFFORT_STAGE_MOVE_4:
-        case WAR_EFFORT_STAGE_MOVE_5:
-        {
-            uint32 nextAutoCompleteIn = WAR_EFFORT_MOVE_TRANSITION_TIME - (time(nullptr) - lastStageTransitionTime);
-            PSendSysMessage("Next Transition In: %s", secsToTimeString(nextAutoCompleteIn).c_str());
-            break;
-        }
-        case WAR_EFFORT_STAGE_BATTLE:
-        {
-            uint32 nextTransitionIn = WAR_EFFORT_CH_ATTACK_TIME - (time(nullptr) - lastStageTransitionTime);
-            PSendSysMessage("Next Transition In: %s", secsToTimeString(nextTransitionIn).c_str());
-            break;
-        }
-        case WAR_EFFORT_STAGE_CH_ATTACK:
-        {
-            uint32 nextTransitionIn = WAR_EFFORT_FINAL_BATTLE_TIME - (time(nullptr) - lastStageTransitionTime);
-            PSendSysMessage("Next Transition In: %s", secsToTimeString(nextTransitionIn).c_str());
-            break;
-        }
-        case WAR_EFFORT_STAGE_FINALBATTLE:
-        {
-            uint32 nextTransitionIn = WAR_EFFORT_GONG_DURATION - (time(nullptr) - gongRingTime);
-            PSendSysMessage("Next Transition In: %s", secsToTimeString(nextTransitionIn).c_str());
-            break;
-        }
-    }
-
-    return true;
-}
-
-bool ChatHandler::HandleWarEffortSetGongTimeCommand(char* args)
-{
-    uint32 gongTime;
-    if (!ExtractUInt32(&args, gongTime))
-        return false;
-
-    sObjectMgr.SetSavedVariable(VAR_WE_GONG_TIME, gongTime, true);
-    PSendSysMessage("War effort gong ring time set to '%s' (%u).", TimeToTimestampStr(gongTime).c_str(), gongTime);
-    sGameEventMgr.Update();
-
-    return true;
-}
-
-bool ChatHandler::HandleWarEffortSetStageCommand(char* args)
-{
-    uint32 stage;
-    if (!ExtractUInt32(&args, stage))
-        return false;
-
-    sObjectMgr.SetSavedVariable(VAR_WE_STAGE, stage, true);
-    sObjectMgr.SetSavedVariable(VAR_WE_STAGE_TRANSITION_TIME, time(nullptr), true);
-    PSendSysMessage("War effort stage set to '%s' (%u).", WarEffortStageToString(stage), stage);
-    sGameEventMgr.Update();
+    SendSysMessage("Listing all currently created maps:");
+    for (auto const& itr : sMapMgr.Maps())
+        PSendSysMessage("%u-%u - %s - Players %u - Created %s ago", itr.first.nMapId, itr.first.nInstanceId, playerLink(itr.second->GetMapName()).c_str(), itr.second->GetPlayersCountExceptGMs(), secsToTimeString(time(nullptr) - itr.second->GetCreateTime(), true).c_str());
 
     return true;
 }

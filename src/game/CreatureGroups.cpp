@@ -291,6 +291,15 @@ void CreatureGroup::DisbandGroup(Creature* pLeader)
     m_members.clear();
 }
 
+void CreatureGroup::DoForAllMembers(Map* pMap, std::function<void(Creature*)>&& pFunc)
+{
+    for (auto const& it : m_members)
+    {
+        if (Creature* pMember = pMap->GetCreature(it.first))
+            pFunc(pMember);
+    }
+}
+
 void CreatureGroup::DeleteFromDb()
 {
     WorldDatabase.PExecute("DELETE FROM `creature_groups` WHERE `leader_guid`=%u", m_originalLeaderGuid.GetCounter());
@@ -460,7 +469,7 @@ void CreatureGroupsManager::Load()
     }
     while (result->NextRow());
 
-    result.reset(WorldDatabase.Query("SELECT `leader_guid`, `creature_id`, `min_count`, `max_count` FROM `creature_groups_entry_limit` ORDER BY `leader_guid`"));
+    result = WorldDatabase.Query("SELECT `leader_guid`, `creature_id`, `min_count`, `max_count` FROM `creature_groups_entry_limit` ORDER BY `leader_guid`");
 
     if (result)
     {
@@ -478,7 +487,7 @@ void CreatureGroupsManager::Load()
             int32 maxCount = fields[3].GetInt32();
 
             if (maxCount <= 0)
-                maxCount = INT_MAX;
+                maxCount = std::numeric_limits<int32>::max();
             else if (minCount > maxCount)
             {
                 sLog.Out(LOG_DBERROR, LOG_LVL_MINIMAL, "CREATURE GROUPS: Min count %u is bigger than Max count %u for id %u in group with leader guid %u", minCount, maxCount, creatureId, fields[0].GetUInt32());

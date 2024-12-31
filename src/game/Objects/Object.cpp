@@ -103,7 +103,7 @@ void MovementInfo::Read(ByteBuffer &data)
     }
 }
 
-void MovementInfo::CorrectData(Unit* mover)
+void MovementInfo::CorrectData()
 {
     // Nostalrius: remove incompatible flags, causing client freezes for example
 #define REMOVE_VIOLATING_FLAGS(check, maskToRemove) \
@@ -190,8 +190,8 @@ Object::Object() : m_updateFlag(0)
     m_inWorld           = false;
     m_isNewObject       = false;
     m_objectUpdated     = false;
-    _deleted            = false;
-    _delayedActions     = 0;
+    m_deleted           = false;
+    m_delayedActions    = 0;
 }
 
 Object::~Object()
@@ -344,7 +344,7 @@ void WorldObject::DirectSendPublicValueUpdate(uint32 index, uint32 count)
 {
     // Do we need an update ?
     bool abort = true;
-    for (int i = 0; i < count; i++)
+    for (uint32 i = 0; i < count; i++)
     {
         if (m_uint32Values_mirror[index + i] != m_uint32Values[index + i])
         {
@@ -356,7 +356,28 @@ void WorldObject::DirectSendPublicValueUpdate(uint32 index, uint32 count)
     if (abort)
         return;
 
+    UpdateMask updateMask;
+    updateMask.SetCount(m_valuesCount);
+    for (uint32 i = 0; i < count; i++)
+        updateMask.SetBit(index + i);
+
+    DirectSendPublicValueUpdate(updateMask);
+}
+
+void WorldObject::DirectSendPublicValueUpdate(std::initializer_list<uint32> indexes)
+{
+    UpdateMask updateMask;
+    updateMask.SetCount(m_valuesCount);
+    for (auto const& index : indexes)
+        updateMask.SetBit(index);
+
+    DirectSendPublicValueUpdate(updateMask);
+}
+
+void WorldObject::DirectSendPublicValueUpdate(UpdateMask& updateMask)
+{
     UpdateData data;
+
     ByteBuffer& buf = data.AddUpdateBlockAndGetBuffer();
     buf << uint8(UPDATETYPE_VALUES);
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
@@ -365,15 +386,17 @@ void WorldObject::DirectSendPublicValueUpdate(uint32 index, uint32 count)
     buf << GetGUID();
 #endif
 
-    UpdateMask updateMask;
-    updateMask.SetCount(m_valuesCount);
-    for (int i = 0; i < count; i++)
-        updateMask.SetBit(index + i);
-
     buf << (uint8)updateMask.GetBlockCount();
     buf.append(updateMask.GetMask(), updateMask.GetLength());
-    for (int i = 0; i < count; i++)
-        buf << uint32(m_uint32Values[index + i]);
+
+    for (uint16 index = 0; index < m_valuesCount; ++index)
+    {
+        if (updateMask.GetBit(index))
+        {
+            buf << uint32(m_uint32Values[index]);
+            m_uint32Values_mirror[index] = m_uint32Values[index];
+        }
+    }
 
     WorldPacket packet;
     data.BuildPacket(&packet);
@@ -418,7 +441,7 @@ void Object::BuildOutOfRangeUpdateBlock(UpdateData& data) const
     data.AddOutOfRangeGUID(GetObjectGuid());
 }
 
-void Object::SendOutOfRangeUpdateToPlayer(Player* player)
+void Object::SendOutOfRangeUpdateToPlayer(Player const* player)
 {
     UpdateData data;
     BuildOutOfRangeUpdateBlock(data);
@@ -427,7 +450,7 @@ void Object::SendOutOfRangeUpdateToPlayer(Player* player)
     player->SendDirectMessage(&packet);
 }
 
-void Object::DestroyForPlayer(Player* target) const
+void Object::DestroyForPlayer(Player const* target) const
 {
     MANGOS_ASSERT(target);
 
@@ -945,7 +968,7 @@ void Object::ClearUpdateMask(bool remove)
             RemoveFromClientUpdateList();
         m_objectUpdated = false;
     }
-    _delayedActions &= ~OBJECT_DELAYED_MARK_CLIENT_UPDATE;
+    m_delayedActions &= ~OBJECT_DELAYED_MARK_CLIENT_UPDATE;
 }
 
 bool Object::LoadValues(char const* data)
@@ -1056,7 +1079,7 @@ void Object::MarkUpdateFieldsWithFlagForUpdate(UpdateMask& updateMask, uint16 fl
     }
 }
 
-void Object::_SetUpdateBits(UpdateMask& updateMask, Player* target) const
+void Object::_SetUpdateBits(UpdateMask& updateMask, Player const* target) const
 {
     uint16 const* flags = nullptr;
     uint16 visibleFlag = GetUpdateFieldFlagsForTarget(target, flags);
@@ -1069,7 +1092,7 @@ void Object::_SetUpdateBits(UpdateMask& updateMask, Player* target) const
     }
 }
 
-void Object::_SetCreateBits(UpdateMask& updateMask, Player* target) const
+void Object::_SetCreateBits(UpdateMask& updateMask, Player const* target) const
 {
     uint16 const* flags = nullptr;
     uint16 visibleFlag = GetUpdateFieldFlagsForTarget(target, flags);
@@ -1369,9 +1392,9 @@ void Object::MarkForClientUpdate()
 
 void Object::ExecuteDelayedActions()
 {
-    if (_delayedActions & OBJECT_DELAYED_MARK_CLIENT_UPDATE)
+    if (m_delayedActions & OBJECT_DELAYED_MARK_CLIENT_UPDATE)
     {
-        if (m_inWorld && !_deleted)
+        if (m_inWorld && !m_deleted)
         {
             if (!m_objectUpdated)
             {
@@ -1379,13 +1402,13 @@ void Object::ExecuteDelayedActions()
                 m_objectUpdated = true;
             }
         }
-        _delayedActions &= ~OBJECT_DELAYED_MARK_CLIENT_UPDATE;
+        m_delayedActions &= ~OBJECT_DELAYED_MARK_CLIENT_UPDATE;
     }
-    if (_delayedActions & OBJECT_DELAYED_ADD_TO_REMOVE_LIST)
+    if (m_delayedActions & OBJECT_DELAYED_ADD_TO_REMOVE_LIST)
     {
         if (!IsDeleted() && IsInWorld())
             ((WorldObject*)this)->AddObjectToRemoveList();
-        _delayedActions &= ~OBJECT_DELAYED_ADD_TO_REMOVE_LIST;
+        m_delayedActions &= ~OBJECT_DELAYED_ADD_TO_REMOVE_LIST;
     }
 }
 
@@ -1394,8 +1417,15 @@ bool WorldObject::IsWithinLootXPDist(WorldObject const* objToLoot) const
     if (!IsInMap(objToLoot))
         return false;
 
-    if (objToLoot->GetMap()->IsRaid())
-        return true;
+    if (objToLoot->GetMap()->Instanceable())
+    {
+        if (objToLoot->GetMap()->IsRaid())
+            return true;
+
+        if (Creature const* pCreature = objToLoot->ToCreature())
+            if (pCreature->HasStaticFlag(CREATURE_STATIC_FLAG_CORPSE_RAID))
+                return true;
+    }
 
     // Bosses have increased loot distance.
     float lootDistance = sWorld.getConfig(CONFIG_FLOAT_GROUP_XP_DISTANCE);
@@ -1423,7 +1453,7 @@ void WorldObject::SetVisibilityModifier(float f)
 
 WorldObject::WorldObject()
     :   m_isActiveObject(false), m_visibilityModifier(DEFAULT_VISIBILITY_MODIFIER), m_currMap(nullptr),
-        m_mapId(0), m_InstanceId(0), m_summonLimitAlert(0), worldMask(WORLD_DEFAULT_OBJECT), m_zoneScript(nullptr),
+        m_mapId(0), m_instanceId(0), m_summonLimitAlert(0), m_worldMask(WORLD_DEFAULT_OBJECT), m_zoneScript(nullptr),
         m_transport(nullptr)
 {
     m_movementInfo.stime = WorldTimer::getMSTime();
@@ -1518,9 +1548,11 @@ float WorldObject::GetSizeFactorForDistance(WorldObject const* obj, SizeFactor d
         }
         case SizeFactor::CombatReachWithMelee:
         {
-            sizefactor = std::max(1.5f, GetCombatReach());
+            sizefactor = BASE_MELEERANGE_OFFSET + GetCombatReach();
             if (obj)
-                sizefactor += std::max(1.5f, obj->GetCombatReach());
+                sizefactor += obj->GetCombatReach();
+            if (sizefactor < ATTACK_DISTANCE)
+                sizefactor = ATTACK_DISTANCE;
             break;
         }
         default:
@@ -1754,7 +1786,7 @@ bool WorldObject::CanReachWithMeleeSpellAttack(WorldObject const* pVictim, float
         return false;
 
     float reach = IsUnit() && pVictim->IsUnit() ? 
-        static_cast<Unit const*>(this)->GetCombatReach(static_cast<Unit const*>(pVictim), true, flat_mod) : ATTACK_DISTANCE;
+        static_cast<Unit const*>(this)->GetCombatReachToTarget(static_cast<Unit const*>(pVictim), true, flat_mod) : ATTACK_DISTANCE;
 
     // This check is not related to bounding radius
     float dx = GetPositionX() - pVictim->GetPositionX();
@@ -2132,7 +2164,25 @@ struct ObjectViewersDeliverer
     template<class SKIP> void Visit(GridRefManager<SKIP>&) {}
 };
 
-void WorldObject::SendObjectMessageToSet(WorldPacket* data, bool self, WorldObject const* except) const
+struct ObjectViewersMovementDeliverer
+{
+    WorldPacket* i_message;
+    WorldObject const* i_sender;
+    WorldObject const* i_except;
+    explicit ObjectViewersMovementDeliverer(WorldObject const* sender, WorldPacket* msg, WorldObject const* except) : i_message(msg), i_sender(sender), i_except(except) {}
+    void Visit(CameraMapType& m)
+    {
+        for (const auto& iter : m)
+            if (Player* player = iter.getSource()->GetOwner())
+                if (player != i_except && player != i_sender)
+                    if (player->IsInVisibleList_Unsafe(i_sender))
+                        player->GetSession()->SendMovementPacket(i_message);
+    }
+    template<class SKIP> void Visit(GridRefManager<SKIP>&) {}
+};
+
+template<class DelivererType>
+void WorldObject::SendObjectMessageToSetImpl(WorldPacket* data, bool self, WorldObject const* except) const
 {
     if (self && this != except)
         if (Player const* me = ToPlayer())
@@ -2152,9 +2202,14 @@ void WorldObject::SendObjectMessageToSet(WorldPacket* data, bool self, WorldObje
     if (!GetMap()->IsLoaded(GetPositionX(), GetPositionY()))
         return;
 
-    ObjectViewersDeliverer post_man(this, data, except);
-    TypeContainerVisitor<ObjectViewersDeliverer, WorldTypeMapContainer> message(post_man);
+    DelivererType post_man(this, data, except);
+    TypeContainerVisitor<DelivererType, WorldTypeMapContainer> message(post_man);
     cell.Visit(p, message, *GetMap(), *this, std::max(GetMap()->GetVisibilityDistance(), GetVisibilityModifier()));
+}
+
+void WorldObject::SendObjectMessageToSet(WorldPacket* data, bool self, WorldObject const* except) const
+{
+    SendObjectMessageToSetImpl<ObjectViewersDeliverer>(data, self, except);
 }
 
 void WorldObject::SendMovementMessageToSet(WorldPacket data, bool self, WorldObject const* except)
@@ -2163,7 +2218,7 @@ void WorldObject::SendMovementMessageToSet(WorldPacket data, bool self, WorldObj
         static_cast<Player*>(this)->GetCheatData()->LogMovementPacket(false, data);
 
     if (!IsPlayer() || !sWorld.GetBroadcaster()->IsEnabled())
-        SendObjectMessageToSet(&data, true, except);
+        SendObjectMessageToSetImpl<ObjectViewersMovementDeliverer>(&data, true, except);
     else
     {
         auto player_broadcast = ToPlayer()->m_broadcaster;
@@ -2231,7 +2286,7 @@ void WorldObject::SetMap(Map* map)
     m_currMap = map;
     //lets save current map's Id/instanceId
     m_mapId = map->GetId();
-    m_InstanceId = map->GetInstanceId();
+    m_instanceId = map->GetInstanceId();
 
     // Order is important, must be done after m_currMap is set
     SetZoneScript();
@@ -2257,11 +2312,11 @@ TerrainInfo const* WorldObject::GetTerrain() const
 
 void WorldObject::AddObjectToRemoveList()
 {
-    if (_deleted) // Already in the remove list
+    if (m_deleted) // Already in the remove list
         return;
 
     GetMap()->AddObjectToRemoveList(this);
-    _deleted = true;
+    m_deleted = true;
 }
 
 uint32 Map::GetSummonLimitForObject(uint64 guid) const
@@ -2377,7 +2432,7 @@ Creature* Map::SummonCreature(uint32 entry, float x, float y, float z, float ang
 
 Creature* WorldObject::SummonCreature(uint32 id, float x, float y, float z, float ang, TempSummonType spwtype, uint32 despwtime, bool asActiveObject, uint32 pacifiedTimer, CreatureAiSetter pFuncAiSetter, GenericTransport* pTransport)
 {
-    CreatureInfo const* cinfo = ObjectMgr::GetCreatureTemplate(id);
+    CreatureInfo const* cinfo = sObjectMgr.GetCreatureTemplate(id);
     if (!cinfo)
     {
         sLog.Out(LOG_DBERROR, LOG_LVL_MINIMAL, "WorldObject::SummonCreature: Creature (Entry: %u) not existed for summoner: %s. ", id, GetGuidStr().c_str());
@@ -2832,7 +2887,7 @@ void Object::ForceValuesUpdateAtIndex(uint16 i)
 
 void WorldObject::SetWorldMask(uint32 newMask)
 {
-    worldMask = newMask;
+    m_worldMask = newMask;
 }
 
 bool WorldObject::CanSeeInWorld(WorldObject const* other) const
@@ -2844,7 +2899,7 @@ bool WorldObject::CanSeeInWorld(WorldObject const* other) const
     if (GetGUID() == other->GetGUID())
         return true;
 
-    return CanSeeInWorld(other->worldMask);
+    return CanSeeInWorld(other->m_worldMask);
 }
 
 bool WorldObject::CanSeeInWorld(uint32 otherPhaseMask) const
@@ -2854,9 +2909,9 @@ bool WorldObject::CanSeeInWorld(uint32 otherPhaseMask) const
             ((Player*)this)->IsGameMaster())
         return true;
     // Un monde en commun ?
-    if (worldMask & otherPhaseMask)
+    if (m_worldMask & otherPhaseMask)
         return true;
-    if (otherPhaseMask & worldMask)
+    if (otherPhaseMask & m_worldMask)
         return true;
     return false;
 }
@@ -3367,7 +3422,7 @@ void WorldObject::MonsterWhisper(int32 textId, Unit const* target, bool IsBossWh
     ((Player*)target)->GetSession()->SendPacket(&data);
 }
 
-void WorldObject::GetPosition(float &x, float &y, float &z, GenericTransport* t) const
+void WorldObject::GetPosition(float &x, float &y, float &z, GenericTransport const* t) const
 {
     if (t && m_movementInfo.t_guid == t->GetObjectGuid())
     {
@@ -3404,13 +3459,6 @@ void WorldObject::Update(uint32 update_diff, uint32 /*time_diff*/)
 
     ExecuteDelayedActions();
 }
-
-class NULLNotifier
-{
-public:
-    template<class T> void Visit(GridRefManager<T>& m) {}
-    void Visit(CameraMapType&) {}
-};
 
 void WorldObject::LoadMapCellsAround(float dist) const
 {
@@ -3508,7 +3556,7 @@ ReputationRank WorldObject::GetReactionTo(WorldObject const* target) const
                     return REP_FRIENDLY;
 
                 // duel - always hostile to opponent
-                if (selfPlayerOwner->duel && selfPlayerOwner->duel->opponent == targetPlayerOwner && selfPlayerOwner->duel->startTime != 0 && !selfPlayerOwner->duel->finished)
+                if (selfPlayerOwner->m_duel && selfPlayerOwner->m_duel->opponent == targetPlayerOwner && selfPlayerOwner->m_duel->startTime != 0 && !selfPlayerOwner->m_duel->finished)
                     return REP_HOSTILE;
 
                 // same group - checks dependant only on our faction - skip FFA_PVP for example
@@ -3660,7 +3708,7 @@ bool WorldObject::IsValidAttackTarget(Unit const* target, bool checkAlive) const
     // PvP checks
     if (playerAffectingAttacker && playerAffectingTarget)
     {
-        if (playerAffectingAttacker->duel && playerAffectingAttacker->duel->opponent == playerAffectingTarget && playerAffectingAttacker->duel->startTime != 0)
+        if (playerAffectingAttacker->m_duel && playerAffectingAttacker->m_duel->opponent == playerAffectingTarget && playerAffectingAttacker->m_duel->startTime != 0)
             return true;
 
         if (playerAffectingTarget->IsPvP())
@@ -3708,7 +3756,7 @@ bool WorldObject::IsValidHelpfulTarget(Unit const* target, bool checkAlive) cons
             return true;
 
         // cannot help others in duels
-        if (playerAffectingTarget->duel && playerAffectingTarget->duel->startTime != 0)
+        if (playerAffectingTarget->m_duel && playerAffectingTarget->m_duel->startTime != 0)
             return false;
 
         // group forces friendly relations in ffa pvp

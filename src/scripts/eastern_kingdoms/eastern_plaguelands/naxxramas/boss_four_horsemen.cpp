@@ -30,6 +30,7 @@ enum FourHorsemenData
     SPELL_SHIELDWALL         = 29061,
     SPELL_BESERK             = 26662,
     SPELL_MARK               = 28836,
+    SPELL_SUMMON_PLAYER      = 25104,
 
     // Lady Blaumeux
     SAY_BLAU_AGGRO           = 13010,
@@ -130,7 +131,7 @@ struct boss_four_horsemen_shared : public ScriptedAI
     {
         m_pInstance = (instance_naxxramas*)pCreature->GetInstanceData();
         if (!m_pInstance)
-            sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "boss_four_horsemen_shared ctor could not get instance data");
+            sLog.Out(LOG_SCRIPTS, LOG_LVL_ERROR, "boss_four_horsemen_shared ctor could not get instance data");
 
         if (m_bIsSpirit)
             SetCombatMovement(false);
@@ -139,7 +140,7 @@ struct boss_four_horsemen_shared : public ScriptedAI
     void AggroRadius(uint32 diff)
     {
         // He is used for SM event too, sooo 
-        if (m_creature->GetMapId() != 533)
+        if (m_creature->GetMapId() != MAP_NAXXRAMAS)
             return;
 
         if (m_pInstance->GetData(TYPE_FOUR_HORSEMEN) != NOT_STARTED && m_pInstance->GetData(TYPE_FOUR_HORSEMEN) != FAIL)
@@ -192,7 +193,7 @@ struct boss_four_horsemen_shared : public ScriptedAI
     void MoveInLineOfSight(Unit* pWho) override
     {
         // He is used for SM event too, sooo 
-        if (m_creature->GetMapId() != 533)
+        if (m_creature->GetMapId() != MAP_NAXXRAMAS)
             return;
 
         if (!m_creature->IsWithinDistInMap(pWho, 75.0f))
@@ -222,7 +223,7 @@ struct boss_four_horsemen_shared : public ScriptedAI
     void Reset() override
     {
         // Mograine is used for SM event too, sooo 
-        if (m_creature->GetMapId() != 533)
+        if (m_creature->GetMapId() != MAP_NAXXRAMAS)
             return;
 
         pullCheckTimer = 1000;
@@ -266,7 +267,7 @@ struct boss_four_horsemen_shared : public ScriptedAI
     void Aggro(Unit* pWho) override
     {
         // Mograine is used for SM event too, sooo 
-        if (m_creature->GetMapId() != 533)
+        if (m_creature->GetMapId() != MAP_NAXXRAMAS)
             return;
 
         if (m_pInstance->GetData(TYPE_FOUR_HORSEMEN) == IN_PROGRESS)
@@ -338,8 +339,17 @@ struct boss_four_horsemen_shared : public ScriptedAI
     void UpdateAI(uint32 const uiDiff) override
     {
         // He is used for SM event too, sooo 
-        if (m_creature->GetMapId() != 533)
+        if (m_creature->GetMapId() != MAP_NAXXRAMAS)
             return;
+
+        if (!m_bIsSpirit)
+        {
+            if (Unit* pVictim = m_creature->GetVictim())
+            {
+                if (!m_creature->IsWithinDistInMap(pVictim, VISIBILITY_DISTANCE_NORMAL))
+                    m_creature->CastSpell(pVictim, SPELL_SUMMON_PLAYER, true);
+            }
+        }
 
         m_events.Update(uiDiff);
         killSayCooldown -= std::min(killSayCooldown, uiDiff);
@@ -532,7 +542,7 @@ struct boss_highlord_mograineAI : public boss_four_horsemen_shared
     void KilledUnit(Unit* Victim) override
     {
         // He is used for SM event too, sooo 
-        if (m_creature->GetMapId() != 533)
+        if (m_creature->GetMapId() != MAP_NAXXRAMAS)
             return;
 
         // Not sure about it

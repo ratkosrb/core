@@ -81,8 +81,8 @@ void ScriptMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
 
     scripts.clear();                                        // need for reload support
 
-    //                                                  0     1        2          3           4            5            6            7                8                9              10            11         12          13          14         15   16   17   18       19
-    QueryResult* result = WorldDatabase.PQuery("SELECT `id`, `delay`, `command`, `datalong`, `datalong2`, `datalong3`, `datalong4`, `target_param1`, `target_param2`, `target_type`, `data_flags`, `dataint`, `dataint2`, `dataint3`, `dataint4`, `x`, `y`, `z`, `o`, `condition_id` FROM %s ORDER BY `id`, `delay`, `priority`", tablename);
+    //                                                                  0     1        2          3           4            5            6            7                8                9              10            11         12          13          14         15   16   17   18       19
+    std::unique_ptr<QueryResult> result = WorldDatabase.PQuery("SELECT `id`, `delay`, `command`, `datalong`, `datalong2`, `datalong3`, `datalong4`, `target_param1`, `target_param2`, `target_type`, `data_flags`, `dataint`, `dataint2`, `dataint3`, `dataint4`, `x`, `y`, `z`, `o`, `condition_id` FROM %s ORDER BY `id`, `delay`, `priority`", tablename);
 
     uint32 count = 0;
 
@@ -307,7 +307,7 @@ void ScriptMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
             }
             case SCRIPT_COMMAND_KILL_CREDIT:
             {
-                if (!ObjectMgr::GetCreatureTemplate(tmp.killCredit.creatureEntry))
+                if (!sObjectMgr.GetCreatureTemplate(tmp.killCredit.creatureEntry))
                 {
                     if (!sObjectMgr.IsExistingCreatureId(tmp.killCredit.creatureEntry))
                     {
@@ -364,7 +364,7 @@ void ScriptMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
                     continue;
                 }
 
-                if (!ObjectMgr::GetCreatureTemplate(tmp.summonCreature.creatureEntry))
+                if (!sObjectMgr.GetCreatureTemplate(tmp.summonCreature.creatureEntry))
                 {
                     if (!sObjectMgr.IsExistingCreatureId(tmp.summonCreature.creatureEntry))
                     {
@@ -414,11 +414,11 @@ void ScriptMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
             }
             case SCRIPT_COMMAND_REMOVE_AURA:
             {
-                if (!sSpellMgr.GetSpellEntry(tmp.removeAura.spellId))
+                if (tmp.removeAura.spellId && !sSpellMgr.GetSpellEntry(tmp.removeAura.spellId))
                 {
                     if (!sSpellMgr.IsExistingSpellId(tmp.removeAura.spellId))
                     {
-                        sLog.Out(LOG_DBERROR, LOG_LVL_MINIMAL, "Table `%s` using nonexistent spell (id: %u) in SCRIPT_COMMAND_REMOVE_AURA or SCRIPT_COMMAND_CAST_SPELL for script id %u",
+                        sLog.Out(LOG_DBERROR, LOG_LVL_MINIMAL, "Table `%s` using nonexistent spell (id: %u) in SCRIPT_COMMAND_REMOVE_AURA for script id %u",
                             tablename, tmp.removeAura.spellId, tmp.id);
                         continue;
                     }
@@ -433,7 +433,7 @@ void ScriptMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
                 {
                     if (!sSpellMgr.IsExistingSpellId(tmp.castSpell.spellId))
                     {
-                        sLog.Out(LOG_DBERROR, LOG_LVL_MINIMAL, "Table `%s` using nonexistent spell (id: %u) in SCRIPT_COMMAND_REMOVE_AURA or SCRIPT_COMMAND_CAST_SPELL for script id %u",
+                        sLog.Out(LOG_DBERROR, LOG_LVL_MINIMAL, "Table `%s` using nonexistent spell (id: %u) in SCRIPT_COMMAND_CAST_SPELL for script id %u",
                             tablename, tmp.castSpell.spellId, tmp.id);
                         continue;
                     }
@@ -582,7 +582,7 @@ void ScriptMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
                 }
                 else
                 {
-                    if (tmp.morph.creatureOrModelEntry && !ObjectMgr::GetCreatureTemplate(tmp.morph.creatureOrModelEntry))
+                    if (tmp.morph.creatureOrModelEntry && !sObjectMgr.GetCreatureTemplate(tmp.morph.creatureOrModelEntry))
                     {
                         if (!sObjectMgr.IsExistingCreatureId(tmp.morph.creatureOrModelEntry))
                         {
@@ -608,7 +608,7 @@ void ScriptMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
                 }
                 else
                 {
-                    if (tmp.mount.creatureOrModelEntry && !ObjectMgr::GetCreatureTemplate(tmp.mount.creatureOrModelEntry))
+                    if (tmp.mount.creatureOrModelEntry && !sObjectMgr.GetCreatureTemplate(tmp.mount.creatureOrModelEntry))
                     {
                         if (!sObjectMgr.IsExistingCreatureId(tmp.mount.creatureOrModelEntry))
                         {
@@ -632,7 +632,7 @@ void ScriptMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
             }
             case SCRIPT_COMMAND_UPDATE_ENTRY:
             {
-                if (!ObjectMgr::GetCreatureTemplate(tmp.updateEntry.creatureEntry))
+                if (!sObjectMgr.GetCreatureTemplate(tmp.updateEntry.creatureEntry))
                 {
                     if (!sObjectMgr.IsExistingCreatureId(tmp.updateEntry.creatureEntry))
                     {
@@ -674,7 +674,7 @@ void ScriptMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
             }
             case SCRIPT_COMMAND_TERMINATE_SCRIPT:
             {
-                if (tmp.terminateScript.creatureEntry && !ObjectMgr::GetCreatureTemplate(tmp.terminateScript.creatureEntry))
+                if (tmp.terminateScript.creatureEntry && !sObjectMgr.GetCreatureTemplate(tmp.terminateScript.creatureEntry))
                 {
                     if (!sObjectMgr.IsExistingCreatureId(tmp.terminateScript.creatureEntry))
                     {
@@ -925,7 +925,7 @@ void ScriptMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
             {
                 if (tmp.removeGuardian.creatureId)
                 {
-                    if (!ObjectMgr::GetCreatureTemplate(tmp.removeGuardian.creatureId))
+                    if (!sObjectMgr.GetCreatureTemplate(tmp.removeGuardian.creatureId))
                     {
                         if (!sObjectMgr.IsExistingCreatureId(tmp.removeGuardian.creatureId))
                         {
@@ -1031,7 +1031,7 @@ void ScriptMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
                     {
                         if (tmp.startScriptForAll.objectEntry)
                         {
-                            if (!ObjectMgr::GetCreatureTemplate(tmp.startScriptForAll.objectEntry))
+                            if (!sObjectMgr.GetCreatureTemplate(tmp.startScriptForAll.objectEntry))
                             {
                                 if (!sObjectMgr.IsExistingCreatureId(tmp.startScriptForAll.objectEntry))
                                 {
@@ -1237,8 +1237,6 @@ void ScriptMgr::LoadScripts(ScriptMapMap& scripts, char const* tablename)
     }
     while (result->NextRow());
 
-    delete result;
-
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "");
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, ">> Loaded %u script definitions", count);
 }
@@ -1275,7 +1273,7 @@ bool ScriptMgr::CheckScriptTargets(uint32 targetType, uint32 targetParam1, uint3
         case TARGET_T_NEAREST_CREATURE_WITH_ENTRY:
         case TARGET_T_RANDOM_CREATURE_WITH_ENTRY:
         {
-            if (!ObjectMgr::GetCreatureTemplate(targetParam1))
+            if (!sObjectMgr.GetCreatureTemplate(targetParam1))
             {
                 if (!sObjectMgr.IsExistingCreatureId(targetParam1))
                     sLog.Out(LOG_DBERROR, LOG_LVL_MINIMAL, "Table `%s` has target_param1 = %u for id %u, but this creature_template does not exist.", tableName, targetParam1, tableEntry);
@@ -1581,8 +1579,7 @@ void ScriptMgr::LoadCreatureEventAIScripts()
 {
     LoadScripts(sCreatureAIScripts, "creature_ai_scripts");
 
-    
-    QueryResult* result;
+    std::unique_ptr<QueryResult> result;
     Field* fields;
 
     // Check for scripts with delay, which is not supported for this table.
@@ -1598,7 +1595,6 @@ void ScriptMgr::LoadCreatureEventAIScripts()
                 uint32 scriptId = fields[0].GetUInt32();
                 sLog.Out(LOG_DBERROR, LOG_LVL_MINIMAL, "Table `creature_ai_scripts` has script (Id: %u) with delay!=0 but this is not supported for creature AI events.", scriptId);
             } while (result->NextRow());
-            delete result;
         }
     }
 
@@ -1617,7 +1613,6 @@ void ScriptMgr::LoadCreatureEventAIScripts()
                 if (scriptId)
                     actionIds.insert(scriptId);
             } while (result->NextRow());
-            delete result;
         }
     }
 
@@ -1665,7 +1660,7 @@ void ScriptMgr::CheckScriptTexts(ScriptMapMap const& scripts)
 void ScriptMgr::LoadAreaTriggerScripts()
 {
     m_AreaTriggerScripts.clear();                           // need for reload case
-    QueryResult* result = WorldDatabase.Query("SELECT `entry`, `script_name` FROM `scripted_areatrigger`");
+    std::unique_ptr<QueryResult> result = WorldDatabase.Query("SELECT `entry`, `script_name` FROM `scripted_areatrigger`");
 
     uint32 count = 0;
 
@@ -1702,8 +1697,6 @@ void ScriptMgr::LoadAreaTriggerScripts()
     }
     while (result->NextRow());
 
-    delete result;
-
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "");
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, ">> Loaded %u areatrigger scripts", count);
 }
@@ -1711,7 +1704,7 @@ void ScriptMgr::LoadAreaTriggerScripts()
 void ScriptMgr::LoadEventIdScripts()
 {
     m_EventIdScripts.clear();                           // need for reload case
-    QueryResult* result = WorldDatabase.Query("SELECT `id`, `script_name` FROM `scripted_event_id`");
+    std::unique_ptr<QueryResult> result = WorldDatabase.Query("SELECT `id`, `script_name` FROM `scripted_event_id`");
 
     uint32 count = 0;
 
@@ -1750,46 +1743,40 @@ void ScriptMgr::LoadEventIdScripts()
     }
     while (result->NextRow());
 
-    delete result;
-
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "");
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, ">> Loaded %u scripted event id", count);
 }
 
 void ScriptMgr::LoadScriptNames()
 {
-    m_scriptNames.push_back("");
-    QueryResult* result = WorldDatabase.Query(
-                              "SELECT DISTINCT(`script_name`) FROM `creature_template` WHERE `script_name` <> '' "
-                              "UNION "
-                              "SELECT DISTINCT(`script_name`) FROM `gameobject_template` WHERE `script_name` <> '' "
-                              "UNION "
-                              "SELECT DISTINCT(`script_name`) FROM `scripted_areatrigger` WHERE `script_name` <> '' "
-                              "UNION "
-                              "SELECT DISTINCT(`script_name`) FROM `scripted_event_id` WHERE `script_name` <> '' "
-                              "UNION "
-                              "SELECT DISTINCT(`script_name`) FROM `map_template` WHERE `script_name` <> ''");
+    m_scriptNames.emplace_back("");
 
-    if (!result)
-    {
-        BarGoLink bar(1);
-        bar.step();
-        sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "");
-        sLog.Out(LOG_DBERROR, LOG_LVL_MINIMAL, ">> Loaded empty set of Script Names!");
-        return;
-    }
-
-    BarGoLink bar(result->GetRowCount());
+    BarGoLink bar(6);
     uint32 count = 0;
-
-    do
+    char const* tableNames[6] =
     {
+        "creature_template",
+        "gameobject_template",
+        "scripted_areatrigger",
+        "scripted_event_id",
+        "spell_template",
+        "map_template"
+    };
+
+    for (uint32 i = 0; i < 6; ++i)
+    {
+        std::unique_ptr<QueryResult> result = WorldDatabase.PQuery("SELECT DISTINCT(script_name) FROM %s WHERE script_name <> ''", tableNames[i]);
         bar.step();
-        m_scriptNames.push_back((*result)[0].GetString());
-        ++count;
+
+        if (!result)
+            continue;
+
+        do
+        {
+            ++count;
+            m_scriptNames.emplace_back((*result)[0].GetString());
+        } while (result->NextRow());
     }
-    while (result->NextRow());
-    delete result;
 
     std::sort(m_scriptNames.begin(), m_scriptNames.end());
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "");
@@ -1858,6 +1845,16 @@ InstanceData* ScriptMgr::CreateInstanceData(Map* pMap)
         return nullptr;
 
     return pTempScript->GetInstanceData(pMap);
+}
+
+SpellScript* ScriptMgr::GetSpellScript(SpellEntry const* pSpell)
+{
+    Script* pTempScript = m_scripts[pSpell->ScriptId];
+
+    if (!pTempScript || !pTempScript->GetSpellScript)
+        return nullptr;
+
+    return pTempScript->GetSpellScript(pSpell);
 }
 
 bool ScriptMgr::OnGossipHello(Player* pPlayer, Creature* pCreature)
@@ -2144,7 +2141,7 @@ void ScriptMgr::LoadScriptTexts()
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading Script Texts...");
     sObjectMgr.LoadMangosStrings(WorldDatabase, "script_texts", TEXT_SOURCE_TEXT_START, TEXT_SOURCE_TEXT_END, true);
 
-    QueryResult* result = WorldDatabase.PQuery("SELECT `entry`, `sound`, `type`, `language`, `emote` FROM `script_texts` WHERE `entry` BETWEEN %i AND %i", TEXT_SOURCE_TEXT_END, TEXT_SOURCE_TEXT_START);
+    std::unique_ptr<QueryResult> result = WorldDatabase.PQuery("SELECT `entry`, `sound`, `type`, `language`, `emote` FROM `script_texts` WHERE `entry` BETWEEN %i AND %i", TEXT_SOURCE_TEXT_END, TEXT_SOURCE_TEXT_START);
 
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading Script Texts additional data...");
 
@@ -2187,8 +2184,6 @@ void ScriptMgr::LoadScriptTexts()
             ++uiCount;
         } while (result->NextRow());
 
-        delete result;
-
         sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "");
         sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, ">> Loaded %u additional Script Texts data.", uiCount);
     }
@@ -2206,7 +2201,7 @@ void ScriptMgr::LoadScriptTextsCustom()
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading Custom Texts...");
     sObjectMgr.LoadMangosStrings(WorldDatabase, "custom_texts", TEXT_SOURCE_CUSTOM_START, TEXT_SOURCE_CUSTOM_END, true);
 
-    QueryResult* result = WorldDatabase.PQuery("SELECT `entry`, `sound`, `type`, `language`, `emote` FROM `custom_texts` WHERE `entry` BETWEEN %i AND %i", TEXT_SOURCE_CUSTOM_END, TEXT_SOURCE_CUSTOM_START);
+    std::unique_ptr<QueryResult> result = WorldDatabase.PQuery("SELECT `entry`, `sound`, `type`, `language`, `emote` FROM `custom_texts` WHERE `entry` BETWEEN %i AND %i", TEXT_SOURCE_CUSTOM_END, TEXT_SOURCE_CUSTOM_START);
 
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading Custom Texts additional data...");
 
@@ -2249,8 +2244,6 @@ void ScriptMgr::LoadScriptTextsCustom()
             ++uiCount;
         } while (result->NextRow());
 
-        delete result;
-
         sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "");
         sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, ">> Loaded %u additional Custom Texts data.", uiCount);
     }
@@ -2271,11 +2264,10 @@ void ScriptMgr::LoadScriptWaypoints()
     uint64 uiCreatureCount = 0;
 
     // Load Waypoints
-    QueryResult* result = WorldDatabase.PQuery("SELECT COUNT(`entry`) FROM `script_waypoint` GROUP BY `entry`");
+    std::unique_ptr<QueryResult> result = WorldDatabase.PQuery("SELECT COUNT(`entry`) FROM `script_waypoint` GROUP BY `entry`");
     if (result)
     {
         uiCreatureCount = result->GetRowCount();
-        delete result;
     }
 
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading Script Waypoints for %u creature(s)...", uiCreatureCount);
@@ -2317,8 +2309,6 @@ void ScriptMgr::LoadScriptWaypoints()
             ++uiNodeCount;
         } while (result->NextRow());
 
-        delete result;
-
         sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "");
         sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, ">> Loaded %u Script Waypoint nodes.", uiNodeCount);
     }
@@ -2338,11 +2328,11 @@ void ScriptMgr::LoadEscortData()
 
     uint64 EscortDataCount = 0;
 
-    QueryResult* pResult = WorldDatabase.PQuery("SELECT `creature_id`, `quest`, `escort_faction` FROM `script_escort_data`");
+    std::unique_ptr<QueryResult> pResult = WorldDatabase.PQuery("SELECT `creature_id`, `quest`, `escort_faction` FROM `script_escort_data`");
 
     if (pResult)
     {
-        barGoLink bar(pResult->GetRowCount());
+        BarGoLink bar(pResult->GetRowCount());
         do
         {
             bar.step();
@@ -2382,14 +2372,12 @@ void ScriptMgr::LoadEscortData()
             ++EscortDataCount;
         } while (pResult->NextRow());
 
-        delete pResult;
-
         sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "");
         sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, ">> Loaded %u Escort Creature Data", EscortDataCount);
     }
     else
     {
-        barGoLink bar(1);
+        BarGoLink bar(1);
         bar.step();
         sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "");
         sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, ">> Loaded 0 Escort Creature Data. DB table `script_escort_data` is empty.");
@@ -2438,7 +2426,7 @@ void ScriptMgr::CollectPossibleGenericIds(std::set<uint32>& genericIds)
         }
 
         // From SCRIPT_COMMAND_TEMP_SUMMON_CREATURE.
-        result.reset(WorldDatabase.PQuery("SELECT `dataint2` FROM `%s` WHERE `command`=10 && `dataint2`!=0", script_table));
+        result = WorldDatabase.PQuery("SELECT `dataint2` FROM `%s` WHERE `command`=10 && `dataint2`!=0", script_table);
 
         if (result)
         {
@@ -2452,7 +2440,7 @@ void ScriptMgr::CollectPossibleGenericIds(std::set<uint32>& genericIds)
         }
 
         // From SCRIPT_COMMAND_START_SCRIPT_FOR_ALL and SCRIPT_COMMAND_START_SCRIPT_ON_ZONE.
-        result.reset(WorldDatabase.PQuery("SELECT `datalong` FROM `%s` WHERE `command` IN (68, 92) && `datalong`!=0", script_table));
+        result = WorldDatabase.PQuery("SELECT `datalong` FROM `%s` WHERE `command` IN (68, 92) && `datalong`!=0", script_table);
 
         if (result)
         {
@@ -2466,7 +2454,7 @@ void ScriptMgr::CollectPossibleGenericIds(std::set<uint32>& genericIds)
         }
 
         // From SCRIPT_COMMAND_START_MAP_EVENT, SCRIPT_COMMAND_ADD_MAP_EVENT_TARGET and SCRIPT_COMMAND_EDIT_MAP_EVENT.
-        result.reset(WorldDatabase.PQuery("SELECT `dataint2`, `dataint4` FROM `%s` WHERE `command` IN (61, 63, 69)", script_table));
+        result = WorldDatabase.PQuery("SELECT `dataint2`, `dataint4` FROM `%s` WHERE `command` IN (61, 63, 69)", script_table);
 
         if (result)
         {
@@ -2499,7 +2487,7 @@ void ScriptMgr::CollectPossibleEventIds(std::set<uint32>& eventIds)
                 eventIds.insert(eventId);
         } while (result->NextRow());
     }
-    result.reset(WorldDatabase.Query("SELECT `data6` FROM `gameobject_template` WHERE `type`=3 && `data6` > 0"));
+    result = WorldDatabase.Query("SELECT `data6` FROM `gameobject_template` WHERE `type`=3 && `data6` > 0");
     if (result)
     {
         do
@@ -2510,7 +2498,7 @@ void ScriptMgr::CollectPossibleEventIds(std::set<uint32>& eventIds)
                 eventIds.insert(eventId);
         } while (result->NextRow());
     }
-    result.reset(WorldDatabase.Query("SELECT `data2` FROM `gameobject_template` WHERE `type`=13 && `data2` > 0"));
+    result = WorldDatabase.Query("SELECT `data2` FROM `gameobject_template` WHERE `type`=13 && `data2` > 0");
     if (result)
     {
         do
@@ -2521,7 +2509,7 @@ void ScriptMgr::CollectPossibleEventIds(std::set<uint32>& eventIds)
                 eventIds.insert(eventId);
         } while (result->NextRow());
     }
-    result.reset(WorldDatabase.Query("SELECT `data4`, `data5`, `data6`, `data7`, `data8`, `data9`, `data10`, `data11` FROM `gameobject_template` WHERE `type`=29"));
+    result = WorldDatabase.Query("SELECT `data4`, `data5`, `data6`, `data7`, `data8`, `data9`, `data10`, `data11` FROM `gameobject_template` WHERE `type`=29");
     if (result)
     {
         do
@@ -2557,7 +2545,7 @@ void ScriptMgr::CollectPossibleEventIds(std::set<uint32>& eventIds)
     // Load all possible script entries from spells.
     for (uint32 i = 1; i < 4; ++i)
     {
-        result.reset(WorldDatabase.PQuery("SELECT `effectMiscValue%u` FROM `spell_template` WHERE `effect%u`=61", i, i));
+        result = WorldDatabase.PQuery("SELECT `effectMiscValue%u` FROM `spell_template` WHERE `effect%u`=61", i, i);
 
         if (result)
         {

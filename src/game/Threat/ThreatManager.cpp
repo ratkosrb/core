@@ -101,6 +101,9 @@ void HostileReference::fireStatusChanged(ThreatRefStatusChangeEvent& pThreatRefS
 void HostileReference::addThreat(float pMod)
 {
     iThreat += pMod;
+    if (iThreat < 0)
+        iThreat = 0;
+
     // the threat is changed. Source and target unit have to be availabe
     // if the link was cut before relink it again
     if (!isOnline())
@@ -316,17 +319,22 @@ HostileReference* ThreatContainer::selectNextVictim(Creature* pAttacker, Hostile
                 continue;
             }
 
-            float attackDistance = pAttacker->GetMaxChaseDistance(target);
             // Skip this unit if low priority
-            if (!allowLowPriorityTargets && (target->IsImmuneToDamage(pAttacker->GetMeleeDamageSchoolMask()) ||
-                                            target->IsSecondaryThreatTarget() ||
-                                           (attackerImmobilized && !target->IsWithinDist(pAttacker, attackDistance))))
+            if (!allowLowPriorityTargets)
             {
-                // current victim is a second choice target, so don't compare threat with it below
-                if (currentRef == pCurrentVictim)
-                    pCurrentVictim = nullptr;
-                ++iter;
-                continue;
+                float attackDistance = pAttacker->GetMaxChaseDistance(target);
+                // second choice targets are: immune to attacker's autoattack damage school / is secondary threat target (fear, gouge etc) /
+                // is outside of attacker's caster chase distance if rooted caster / is unreachable by attacker's melee attacks if rooted melee.
+                if ( target->IsImmuneToDamage(pAttacker->GetMeleeDamageSchoolMask()) || target->IsSecondaryThreatTarget() ||
+                   ( attackerImmobilized && pAttacker->HasDistanceCasterMovement() &&!target->IsWithinDist(pAttacker, attackDistance, true, SizeFactor::None)) ||
+                   ( attackerImmobilized && !pAttacker->CanReachWithMeleeAutoAttack(target)))
+                {
+                    // current victim is a second choice target, so don't compare threat with it below
+                    if (currentRef == pCurrentVictim)
+                        pCurrentVictim = nullptr;
+                    ++iter;
+                    continue;
+                }
             }
 
             if (pCurrentVictim)                             // select 1.3/1.1 better target in comparison current target
@@ -406,7 +414,7 @@ void ThreatManager::addThreat(Unit* pVictim, float threat, bool crit, SpellSchoo
     if (isAssistThreat)
     {
         if (getOwner()->HasUnitState(UNIT_STAT_CONFUSED | UNIT_STAT_FLEEING | UNIT_STAT_ISOLATED) ||
-           (getOwner()->HasUnitState(UNIT_STAT_STUNNED) && getOwner()->HasBreakableByDamageAuraType(SPELL_AURA_MOD_STUN, 0)))
+            (getOwner()->HasUnitState(UNIT_STAT_STUNNED) && getOwner()->HasBreakableByDamageAuraType(SPELL_AURA_MOD_STUN, 0)))
         {
             threat = 0.0f;
         }

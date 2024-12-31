@@ -192,7 +192,7 @@ class LootStore
 
         bool HaveLootFor(uint32 loot_id) const { return m_LootTemplates.find(loot_id) != m_LootTemplates.end(); }
         bool HaveQuestLootFor(uint32 loot_id) const;
-        bool HaveQuestLootForPlayer(uint32 loot_id,Player* player) const;
+        bool HaveQuestLootForPlayer(uint32 loot_id, Player const* player) const;
 
         LootTemplate const* GetLootFor(uint32 loot_id) const;
 
@@ -217,7 +217,7 @@ class LootTemplate
     public:
         // Adds an entry to the group (at loading stage)
         void AddEntry(LootStoreItem& item);
-        // Rolls for every item in the template and adds the rolled items the the loot
+        // Rolls for every item in the template and adds the rolled items to the loot
         void Process(Loot& loot, LootStore const& store, bool rate, uint8 GroupId = 0) const;
 
         // True if template includes at least 1 quest drop entry
@@ -238,7 +238,7 @@ class LootTemplate
 class LootValidatorRef :  public Reference<Loot, LootValidatorRef>
 {
     public:
-        LootValidatorRef() {}
+        LootValidatorRef() = default;
         void targetObjectDestroyLink() override {}
         void sourceObjectDestroyLink() override {}
 };
@@ -351,6 +351,7 @@ struct Loot
 
     void GenerateMoneyLoot(uint32 minAmount, uint32 maxAmount);
     bool FillLoot(uint32 loot_id, LootStore const& store, Player* loot_owner, bool personal, bool noEmptyError = false, WorldObject const* looted = nullptr);
+    void FillPlayerDependentLoot(Player* loot_owner, bool personal, WorldObject const* looted = nullptr);
 
     // Inserts the item into the loot (called by LootTemplate processors)
     void AddItem(LootStoreItem const& item);
@@ -364,7 +365,7 @@ struct Loot
     bool hasItemFor(Player* player) const;
     bool hasOverThresholdItem() const;
     bool IsAllowedLooter(ObjectGuid guid, bool doPersonalCheck = true) const;
-    bool IsOriginalLooter(ObjectGuid guid) { return IsAllowedLooter(guid, false); }
+    bool IsOriginalLooter(ObjectGuid guid) const { return IsAllowedLooter(guid, false); }
 
     void FillNotNormalLootFor(Player* player);
 

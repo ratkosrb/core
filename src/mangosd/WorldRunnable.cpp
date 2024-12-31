@@ -23,7 +23,6 @@
     \ingroup mangosd
 */
 
-#include "WorldSocketMgr.h"
 #include "Common.h"
 #include "World.h"
 #include "WorldRunnable.h"
@@ -32,6 +31,7 @@
 #include "MapManager.h"
 #include "BattleGroundMgr.h"
 #include "Master.h"
+#include "TimePeriod.h"
 
 #include "Database/DatabaseEnv.h"
 
@@ -40,7 +40,7 @@
 
 #ifdef WIN32
 #include "ServiceWin32.h"
-extern int m_ServiceStatus;
+extern volatile int m_ServiceStatus;
 #endif
 
 // Heartbeat for the World
@@ -52,6 +52,9 @@ void WorldRunnable::operator()()
 
     Master::ArmAnticrash();
     uint32 anticrashRearmTimer = 0;
+
+    // Set the platform's timer period
+    const auto scoped_tp = set_time_period(std::chrono::milliseconds(1));
 
     // Aim for WORLD_SLEEP_CONST update times
     // If we update slower, update again immediately.
@@ -116,9 +119,6 @@ void WorldRunnable::operator()()
 
     // unload battleground templates before different singletons destroyed
     sBattleGroundMgr.DeleteAllBattleGrounds();
-
-    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Stopping network threads...");
-    sWorldSocketMgr->StopNetwork();
 
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Unloading all maps...");
     sMapMgr.UnloadAll();                                    // unload all grids (including locked in memory)

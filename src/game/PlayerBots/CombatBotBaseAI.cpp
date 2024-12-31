@@ -126,9 +126,9 @@ void CombatBotBaseAI::ResetSpellData()
         ptr = nullptr;
 
     m_resurrectionSpell = nullptr;
-    spellListDirectHeal.clear();
-    spellListPeriodicHeal.clear();
-    spellListTaunt.clear();
+    m_spellListDirectHeal.clear();
+    m_spellListPeriodicHeal.clear();
+    m_spellListTaunt.clear();
 }
 
 void CombatBotBaseAI::PopulateSpellData()
@@ -821,6 +821,11 @@ void CombatBotBaseAI::PopulateSpellData()
                 {
                     if (IsHigherRankSpell(m_spells.priest.pPrayerofFortitude))
                         m_spells.priest.pPrayerofFortitude = pSpellEntry;
+                }
+                else if (pSpellEntry->SpellName[0].find("Prayer of Shadow Protection") != std::string::npos)
+                {
+                    if (IsHigherRankSpell(m_spells.priest.pPrayerofShadowProtection))
+                        m_spells.priest.pPrayerofShadowProtection = pSpellEntry;
                 }
                 else if (pSpellEntry->SpellName[0].find("Inner Fire") != std::string::npos)
                 {
@@ -1602,10 +1607,10 @@ void CombatBotBaseAI::PopulateSpellData()
             switch (pSpellEntry->Effect[i])
             {
                 case SPELL_EFFECT_HEAL:
-                    spellListDirectHeal.insert(pSpellEntry);
+                    m_spellListDirectHeal.insert(pSpellEntry);
                     break;
                 case SPELL_EFFECT_ATTACK_ME:
-                    spellListTaunt.push_back(pSpellEntry);
+                    m_spellListTaunt.push_back(pSpellEntry);
                     break;
                 case SPELL_EFFECT_RESURRECT:
                 case SPELL_EFFECT_RESURRECT_NEW:
@@ -1616,10 +1621,10 @@ void CombatBotBaseAI::PopulateSpellData()
                     switch (pSpellEntry->EffectApplyAuraName[i])
                     {
                         case SPELL_AURA_PERIODIC_HEAL:
-                            spellListPeriodicHeal.insert(pSpellEntry);
+                            m_spellListPeriodicHeal.insert(pSpellEntry);
                             break;
                         case SPELL_AURA_MOD_TAUNT:
-                            spellListTaunt.push_back(pSpellEntry);
+                            m_spellListTaunt.push_back(pSpellEntry);
                             break;
                     }
                     break;
@@ -1951,7 +1956,7 @@ bool CombatBotBaseAI::HealInjuredTarget(Unit* pTarget)
 
 bool CombatBotBaseAI::HealInjuredTargetPeriodic(Unit* pTarget)
 {
-    if (SpellEntry const* pHealSpell = SelectMostEfficientHealingSpell(pTarget, spellListPeriodicHeal))
+    if (SpellEntry const* pHealSpell = SelectMostEfficientHealingSpell(pTarget, m_spellListPeriodicHeal))
     {
         if (CanTryToCastSpell(pTarget, pHealSpell))
         {
@@ -1965,7 +1970,7 @@ bool CombatBotBaseAI::HealInjuredTargetPeriodic(Unit* pTarget)
 
 bool CombatBotBaseAI::HealInjuredTargetDirect(Unit* pTarget)
 {
-    if (SpellEntry const* pHealSpell = SelectMostEfficientHealingSpell(pTarget, spellListDirectHeal))
+    if (SpellEntry const* pHealSpell = SelectMostEfficientHealingSpell(pTarget, m_spellListDirectHeal))
         if (DoCastSpell(pTarget, pHealSpell) == SPELL_CAST_OK)
             return true;
 
@@ -2100,7 +2105,7 @@ bool CombatBotBaseAI::FindAndPreHealTarget()
     if (maxIncomingDamage < int32(pTarget->GetMaxHealth() / 2))
         return false;
 
-    if (SpellEntry const* pHealSpell = SelectMostEfficientHealingSpell(pTarget, maxIncomingDamage, spellListDirectHeal))
+    if (SpellEntry const* pHealSpell = SelectMostEfficientHealingSpell(pTarget, maxIncomingDamage, m_spellListDirectHeal))
     {
         if (pHealSpell->GetCastTime(me) > 1000 && CanTryToCastSpell(pTarget, pHealSpell))
         {
@@ -2459,37 +2464,39 @@ void CombatBotBaseAI::EquipPremadeGearTemplate()
     for (const auto& itr : sObjectMgr.GetPlayerPremadeGearTemplates())
     {
         if (itr.second.requiredClass == me->GetClass() &&
-            itr.second.level == me->GetLevel())
-            vGear.push_back(&itr.second);
-    }
-    // Use lower level gear template if there are no templates for the current level.
-    if (vGear.empty())
-    {
-        for (const auto& itr : sObjectMgr.GetPlayerPremadeGearTemplates())
+            itr.second.level <= me->GetLevel())
         {
-            if (itr.second.requiredClass == me->GetClass() &&
-                itr.second.level < me->GetLevel())
-                vGear.push_back(&itr.second);
+            if (!vGear.empty())
+            {
+                if (vGear.front()->level < itr.second.level)
+                    vGear.clear();
+                else if (vGear.front()->level > itr.second.level)
+                    continue;
+            }
+            vGear.push_back(&itr.second);
         }
     }
+
     if (!vGear.empty())
     {
-        PlayerPremadeGearTemplate const* pGear = nullptr;
+        std::vector<PlayerPremadeGearTemplate const*> vGear2;
+
         // Try to find a role appropriate gear template.
         if (m_role != ROLE_INVALID)
         {
             for (const auto itr : vGear)
             {
-                if (itr->role == m_role &&
-                   (!pGear || pGear->level < itr->level))
-                {
-                    pGear = itr;
-                }
+                if (itr->role == m_role)
+                    vGear2.push_back(itr);
             }
         }
-        // There is no gear template for this role, pick randomly.
-        if (!pGear)
+
+        PlayerPremadeGearTemplate const* pGear;
+        if (vGear2.empty())
             pGear = SelectRandomContainerElement(vGear);
+        else
+            pGear = SelectRandomContainerElement(vGear2);
+
         sObjectMgr.ApplyPremadeGearTemplateToPlayer(pGear->entry, me);
     }
 }
@@ -3045,7 +3052,7 @@ bool CombatBotBaseAI::IsWearingShield(Player* pPlayer) const
 
 bool CombatBotBaseAI::IsInDuel() const
 {
-    return me->duel && me->duel->startTime != 0;
+    return me->m_duel && me->m_duel->startTime != 0;
 }
 
 CombatBotRoles CombatBotBaseAI::GetRole() const
@@ -3080,19 +3087,19 @@ void CombatBotBaseAI::SendBattlefieldPortPacket()
 
 void CombatBotBaseAI::SendBattlemasterJoinPacket(uint8 battlegroundId)
 {
-    WorldPacket data(CMSG_BATTLEMASTER_JOIN);
+    WorldPacket data(CMSG_BATTLEFIELD_JOIN);
     data << me->GetObjectGuid();                       // battlemaster guid, or player guid if joining queue from BG portal
 
     switch (battlegroundId)
     {
         case BATTLEGROUND_QUEUE_AV:
-            data << uint32(30);
+            data << uint32(MAP_ALTERAC_VALLEY);
             break;
         case BATTLEGROUND_QUEUE_WS:
-            data << uint32(489);
+            data << uint32(MAP_WARSONG_GULCH);
             break;
         case BATTLEGROUND_QUEUE_AB:
-            data << uint32(529);
+            data << uint32(MAP_ARATHI_BASIN);
             break;
         default:
             sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "BattleBot: Invalid BG queue type!");

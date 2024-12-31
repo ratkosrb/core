@@ -307,7 +307,7 @@ float Unit::GetAttackPowerFromStrengthAndAgility(bool ranged, float strength, fl
 
 void Player::UpdateAttackPowerAndDamage(bool ranged)
 {
-    UnitMods unitMod = ranged ? UNIT_MOD_ATTACK_POWER_RANGED : UNIT_MOD_ATTACK_POWER;
+    AttackPowerModIndex unitMod = ranged ? RANGED_AP_MODS : MELEE_AP_MODS;
 
     uint16 index = UNIT_FIELD_ATTACK_POWER;
     uint16 index_mod = UNIT_FIELD_ATTACK_POWER_MODS;
@@ -324,18 +324,19 @@ void Player::UpdateAttackPowerAndDamage(bool ranged)
 #endif  
     }
 
-    float val2 = GetAttackPowerFromStrengthAndAgility(ranged, GetStat(STAT_STRENGTH), GetStat(STAT_AGILITY));
-    SetModifierValue(unitMod, BASE_VALUE, val2);
+    float baseAttackPower = GetAttackPowerFromStrengthAndAgility(ranged, GetStat(STAT_STRENGTH), GetStat(STAT_AGILITY));
 
-    float base_attPower  = GetModifierValue(unitMod, BASE_VALUE) * GetModifierValue(unitMod, BASE_PCT);
-    float attPowerMod = GetModifierValue(unitMod, TOTAL_VALUE);
+    // attack power mods are split into positive and negative field
+    float attackPowerModPositive = GetAttackPowerModifierValue(unitMod, AP_MOD_POSITIVE_FLAT);
+    float attackPowerModNegative = GetAttackPowerModifierValue(unitMod, AP_MOD_NEGATIVE_FLAT);
 
-    float attPowerMultiplier = GetModifierValue(unitMod, TOTAL_PCT) - 1.0f;
+    SetInt32Value(index, (int32)baseAttackPower);               //UNIT_FIELD_(RANGED)_ATTACK_POWER field
+    SetInt16Value(index_mod, 0, (int16)attackPowerModPositive); //UNIT_FIELD_(RANGED)_ATTACK_POWER_MODS field (positive)
+    SetInt16Value(index_mod, 1, (int16)attackPowerModNegative); //UNIT_FIELD_(RANGED)_ATTACK_POWER_MODS field (negative)
 
-    SetInt32Value(index, (uint32)base_attPower);            //UNIT_FIELD_(RANGED)_ATTACK_POWER field
-    SetInt32Value(index_mod, (uint32)attPowerMod);          //UNIT_FIELD_(RANGED)_ATTACK_POWER_MODS field
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
-    SetFloatValue(index_mult, attPowerMultiplier);          //UNIT_FIELD_(RANGED)_ATTACK_POWER_MULTIPLIER field
+    float attackPowerMultiplier = GetAttackPowerModifierValue(unitMod, AP_MOD_PCT) - 1.0f;
+    SetFloatValue(index_mult, attackPowerMultiplier);           //UNIT_FIELD_(RANGED)_ATTACK_POWER_MULTIPLIER field
 #endif
 
     //automatically update weapon damage after attack power modification
@@ -469,15 +470,15 @@ void Player::UpdateDamagePhysical(WeaponAttackType attType)
     }
 }
 
-float Player::GetBonusHitChanceFromAuras(WeaponAttackType attType) const
+float Player::GetWeaponBasedAuraModifier(WeaponAttackType attType, AuraType auraType) const
 {
-    float chance = 0.0f;
-    AuraList const& hitAurasList = GetAurasByType(SPELL_AURA_MOD_HIT_CHANCE);
-    if (hitAurasList.empty())
-        return chance;
+    float amount = 0.0f;
+    AuraList const& auras = GetAurasByType(auraType);
+    if (auras.empty())
+        return amount;
 
     Item* pWeapon = GetWeaponForAttack(attType);
-    for (auto const& i : hitAurasList)
+    for (auto const& i : auras)
     {
         SpellEntry const* pSpellEntry = i->GetSpellProto();
         if (pSpellEntry->EquippedItemClass >= 0)
@@ -489,9 +490,9 @@ float Player::GetBonusHitChanceFromAuras(WeaponAttackType attType) const
                 continue;
         }
 
-        chance += i->GetModifier()->m_amount;
+        amount += i->GetModifier()->m_amount;
     }
-    return chance;
+    return amount;
 }
 
 void Player::UpdateDefenseBonusesMod()
@@ -588,7 +589,7 @@ void Player::UpdateParryPercentage()
         // Modify value from defense skill
         value += (int32(GetDefenseSkillValue()) - int32(GetSkillMaxForLevel())) * 0.04f;
         // Parry from SPELL_AURA_MOD_PARRY_PERCENT aura
-        value += GetTotalAuraModifier(SPELL_AURA_MOD_PARRY_PERCENT);
+        value += GetWeaponBasedAuraModifier(BASE_ATTACK, SPELL_AURA_MOD_PARRY_PERCENT);
         value = value < 0.0f ? 0.0f : value;
     }
     SetStatFloatValue(PLAYER_PARRY_PERCENTAGE, value);
@@ -627,33 +628,6 @@ void Player::UpdateDodgePercentage()
     value += GetTotalAuraModifier(SPELL_AURA_MOD_DODGE_PERCENT);
     value = value < 0.0f ? 0.0f : value;
     SetStatFloatValue(PLAYER_DODGE_PERCENTAGE, value);
-}
-
-void Player::UpdateSpellCritChance(uint32 school)
-{
-    // For normal school set zero crit chance
-    if (school == SPELL_SCHOOL_NORMAL)
-    {
-        m_SpellCritPercentage[1] = 0.0f;
-        return;
-    }
-    // For others recalculate it from:
-    float crit = 0.0f;
-    // Crit from Intellect
-    crit += GetSpellCritFromIntellect();
-    // Increase crit from SPELL_AURA_MOD_SPELL_CRIT_CHANCE
-    crit += GetTotalAuraModifier(SPELL_AURA_MOD_SPELL_CRIT_CHANCE);
-    // Increase crit by school from SPELL_AURA_MOD_SPELL_CRIT_CHANCE_SCHOOL
-    crit += GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_SPELL_CRIT_CHANCE_SCHOOL, 1 << school);
-
-    // Store crit value
-    m_SpellCritPercentage[school] = crit;
-}
-
-void Player::UpdateAllSpellCritChances()
-{
-    for (int i = SPELL_SCHOOL_NORMAL; i < MAX_SPELL_SCHOOL; ++i)
-        UpdateSpellCritChance(i);
 }
 
 void Player::UpdateManaRegen()
@@ -753,6 +727,7 @@ bool Creature::UpdateAllStats()
     UpdateMaxHealth();
     UpdateAttackPowerAndDamage();
     UpdateAttackPowerAndDamage(true);
+    UpdateAllSpellCritChances();
 
     for (int i = POWER_MANA; i < MAX_POWERS; ++i)
         UpdateMaxPower(Powers(i));
@@ -835,7 +810,7 @@ void Creature::UpdateManaRegen()
 
 void Creature::UpdateAttackPowerAndDamage(bool ranged)
 {
-    UnitMods unitMod = ranged ? UNIT_MOD_ATTACK_POWER_RANGED : UNIT_MOD_ATTACK_POWER;
+    AttackPowerModIndex unitMod = ranged ? RANGED_AP_MODS : MELEE_AP_MODS;
 
     uint16 index = UNIT_FIELD_ATTACK_POWER;
     uint16 index_mod = UNIT_FIELD_ATTACK_POWER_MODS;
@@ -852,9 +827,12 @@ void Creature::UpdateAttackPowerAndDamage(bool ranged)
 #endif
     }
 
-    float baseAttackPower = GetModifierValue(unitMod, BASE_VALUE) * GetModifierValue(unitMod, BASE_PCT);
-    float attackPowerMod = GetModifierValue(unitMod, TOTAL_VALUE);
-    float attackPowerMultiplier = GetModifierValue(unitMod, TOTAL_PCT) - 1.0f;
+    CreatureClassLevelStats const* pCLS = GetClassLevelStats();
+    float baseAttackPower = ranged ? pCLS->ranged_attack_power : pCLS->attack_power;
+
+    // attack power mods are split into positive and negative field
+    float attackPowerModPositive = GetAttackPowerModifierValue(unitMod, AP_MOD_POSITIVE_FLAT);
+    float attackPowerModNegative = GetAttackPowerModifierValue(unitMod, AP_MOD_NEGATIVE_FLAT);
 
     // Only apply AP bonus from stats when different than default value,
     // as the stats are already taken into account in the base AP values.
@@ -863,13 +841,21 @@ void Creature::UpdateAttackPowerAndDamage(bool ranged)
     {
         float defaultAPBonus = GetAttackPowerFromStrengthAndAgility(ranged, GetCreateStat(STAT_STRENGTH), GetCreateStat(STAT_AGILITY));
         float currentAPBonus = GetAttackPowerFromStrengthAndAgility(ranged, GetStat(STAT_STRENGTH), GetStat(STAT_AGILITY));
-        attackPowerMod += (currentAPBonus - defaultAPBonus);
+
+        float modFromStats = (currentAPBonus - defaultAPBonus);
+        if (modFromStats > 0.0f)
+            attackPowerModPositive += modFromStats;
+        else
+            attackPowerModNegative += modFromStats;
     }
 
-    SetInt32Value(index, (int32)baseAttackPower);            //UNIT_FIELD_(RANGED)_ATTACK_POWER field
-    SetInt32Value(index_mod, (int32)attackPowerMod);         //UNIT_FIELD_(RANGED)_ATTACK_POWER_MODS field
+    SetInt32Value(index, (int32)baseAttackPower);               //UNIT_FIELD_(RANGED)_ATTACK_POWER field
+    SetInt16Value(index_mod, 0, (int16)attackPowerModPositive); //UNIT_FIELD_(RANGED)_ATTACK_POWER_MODS field (positive)
+    SetInt16Value(index_mod, 1, (int16)attackPowerModNegative); //UNIT_FIELD_(RANGED)_ATTACK_POWER_MODS field (negative)
+
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
-    SetFloatValue(index_mult, attackPowerMultiplier);         //UNIT_FIELD_(RANGED)_ATTACK_POWER_MULTIPLIER field
+    float attackPowerMultiplier = GetAttackPowerModifierValue(unitMod, AP_MOD_PCT) - 1.0f;
+    SetFloatValue(index_mult, attackPowerMultiplier);           //UNIT_FIELD_(RANGED)_ATTACK_POWER_MULTIPLIER field
 #endif
 
     //automatically update weapon damage after attack power modification
@@ -961,11 +947,11 @@ void Creature::UpdateDamagePhysical(WeaponAttackType attType)
     SetStatFloatValue(fieldmax, maxdamage);
 }
 
-float Creature::GetBonusHitChanceFromAuras(WeaponAttackType attType) const
+float Creature::GetWeaponBasedAuraModifier(WeaponAttackType attType, AuraType auraType) const
 {
-    float chance = 0.0f;
-    AuraList const& mTotalAuraList = GetAurasByType(SPELL_AURA_MOD_HIT_CHANCE);
-    for (auto const& i : mTotalAuraList)
+    float amount = 0.0f;
+    AuraList const& auras = GetAurasByType(auraType);
+    for (auto const& i : auras)
     {
         SpellEntry const* pSpellEntry = i->GetSpellProto();
         if (pSpellEntry->EquippedItemClass >= 0)
@@ -977,9 +963,9 @@ float Creature::GetBonusHitChanceFromAuras(WeaponAttackType attType) const
                 continue;
         }
 
-        chance += i->GetModifier()->m_amount;
+        amount += i->GetModifier()->m_amount;
     }
-    return chance;
+    return amount;
 }
 
 /*#######################################
@@ -992,6 +978,8 @@ bool Pet::UpdateAllStats()
 {
     for (int i = STAT_STRENGTH; i < MAX_STATS; ++i)
         UpdateStats(Stats(i));
+
+    UpdateAllSpellCritChances();
 
     for (int i = POWER_MANA; i < MAX_POWERS; ++i)
         UpdateMaxPower(Powers(i));
@@ -1029,28 +1017,25 @@ void Pet::UpdateAttackPowerAndDamage(bool ranged)
     if (ranged)
         return;
 
-    float val = 0.0f;
-    UnitMods unitMod = UNIT_MOD_ATTACK_POWER;
+    AttackPowerModIndex unitMod = MELEE_AP_MODS;
 
-    if (GetEntry() == 416)                                  // imp's attack power
-        val = GetStat(STAT_STRENGTH) - 10.0f;
-    else
-        val = 2 * GetStat(STAT_STRENGTH) - 20.0f;
+    float baseAttackPower  = (GetEntry() == 416) ? GetStat(STAT_STRENGTH) - 10.0f : 2 * GetStat(STAT_STRENGTH) - 20.0f;
 
-    SetModifierValue(UNIT_MOD_ATTACK_POWER, BASE_VALUE, val);
-
-    //in BASE_VALUE of UNIT_MOD_ATTACK_POWER for creatures we store data of meleeattackpower field in DB
-    float base_attPower  = GetModifierValue(unitMod, BASE_VALUE) * GetModifierValue(unitMod, BASE_PCT);
-    float attPowerMod = GetModifierValue(unitMod, TOTAL_VALUE);
-    float attPowerMultiplier = GetModifierValue(unitMod, TOTAL_PCT) - 1.0f;
+    // attack power mods are split into positive and negative field
+    float attackPowerModPositive = GetAttackPowerModifierValue(unitMod, AP_MOD_POSITIVE_FLAT);
+    float attackPowerModNegative = GetAttackPowerModifierValue(unitMod, AP_MOD_NEGATIVE_FLAT);
 
     //UNIT_FIELD_(RANGED)_ATTACK_POWER field
-    SetInt32Value(UNIT_FIELD_ATTACK_POWER, (int32)base_attPower);
+    SetInt32Value(UNIT_FIELD_ATTACK_POWER, (int32)baseAttackPower);
+
     //UNIT_FIELD_(RANGED)_ATTACK_POWER_MODS field
-    SetInt32Value(UNIT_FIELD_ATTACK_POWER_MODS, (int32)attPowerMod);
+    SetInt16Value(UNIT_FIELD_ATTACK_POWER_MODS, 0, (int16)attackPowerModPositive); // positive
+    SetInt16Value(UNIT_FIELD_ATTACK_POWER_MODS, 1, (int16)attackPowerModNegative); // negative
+
     //UNIT_FIELD_(RANGED)_ATTACK_POWER_MULTIPLIER field
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
-    SetFloatValue(UNIT_FIELD_ATTACK_POWER_MULTIPLIER, attPowerMultiplier);
+    float attackPowerMultiplier = GetAttackPowerModifierValue(unitMod, AP_MOD_PCT) - 1.0f;
+    SetFloatValue(UNIT_FIELD_ATTACK_POWER_MULTIPLIER, attackPowerMultiplier);
 #endif
 
     //automatically update weapon damage after attack power modification

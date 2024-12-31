@@ -73,7 +73,7 @@ void PlayerBotMgr::Load()
     LoadConfig();
 
     // 3- Load usable account ID
-    QueryResult* result = LoginDatabase.PQuery(
+    std::unique_ptr<QueryResult> result = LoginDatabase.PQuery(
                               "SELECT MAX(`id`)"
                               " FROM `account`");
     if (!result)
@@ -83,7 +83,6 @@ void PlayerBotMgr::Load()
     }
     Field* fields = result->Fetch();
     m_maxAccountId = fields[0].GetUInt32() + 10000;
-    delete result;
 
     // 4- LoadFromDB
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, ">> [PlayerBotMgr] Loading Bots ...");
@@ -111,7 +110,6 @@ void PlayerBotMgr::Load()
             m_totalChance += chance;
         }
         while (result->NextRow());
-        delete result;
         sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "%u bots loaded", m_bots.size());
     }
 
@@ -340,17 +338,15 @@ void PlayerBotMgr::Update(uint32 diff)
                 uint32 const minLevel = bg->GetMinLevel() + 10 * bracketId;
                 ASSERT(minLevel <= PLAYER_MAX_LEVEL);
                 uint32 const maxLevel = std::min<uint32>(minLevel + 9, PLAYER_MAX_LEVEL);
-                
+
                 for (uint32 i = queuedAllianceCount[bracketId]; i < bg->GetMinPlayersPerTeam(); ++i)
                 {
                     uint32 const botLevel = urand(minLevel, maxLevel);
-                    sLog.Out(LOG_BG, LOG_LVL_BASIC, "[PlayerBotMgr] Adding level %u alliance battlebot to bg queue %u.", botLevel, queueType);
                     AddBattleBot(BattleGroundQueueTypeId(queueType), ALLIANCE, botLevel, true);
                 }
                 for (uint32 i = queuedHordeCount[bracketId]; i < bg->GetMinPlayersPerTeam(); ++i)
                 {
                     uint32 const botLevel = urand(minLevel, maxLevel);
-                    sLog.Out(LOG_BG, LOG_LVL_BASIC, "[PlayerBotMgr] Adding level %u horde battlebot to bg queue %u.", botLevel, queueType);
                     AddBattleBot(BattleGroundQueueTypeId(queueType), HORDE, botLevel, true);
                 }
             }
@@ -410,7 +406,7 @@ bool PlayerBotMgr::AddBot(uint32 playerGUID, bool chatBot, PlayerBotAI* pAI)
 
     if (!accountId)
     {
-        sLog.Out(LOG_BASIC, LOG_LVL_DETAIL, "Compte du joueur %u introuvable ...", playerGUID);
+        sLog.Out(LOG_BASIC, LOG_LVL_DETAIL, "Player account %u not found...", playerGUID);
         return false;
     }
 
@@ -588,6 +584,17 @@ void PlayerBotMgr::AddBattleBot(BattleGroundQueueTypeId queueType, Team botTeam,
     uint32 const instanceId = sMapMgr.GetContinentInstanceId(1, 16224.356f, 16284.763f);
     BattleBotAI* ai = new BattleBotAI(botRace, botClass, botLevel, 1, instanceId, 16224.356f, 16284.763f, 13.175f, 4.56f, queueType, temporary);
     AddBot(ai);
+
+    if (botTeam == ALLIANCE)
+    {
+        sWorld.SendWorldTextToBGAndQueue(LANG_ALLIANCE_BATTLEBOT_ADDED, botLevel, queueType, botLevel, queueType);
+        sLog.Out(LOG_BG, LOG_LVL_BASIC, "[PlayerBotMgr] Adding level %u alliance battlebot to bg queue %u.", botLevel, queueType);
+    }
+    else
+    {
+        sWorld.SendWorldTextToBGAndQueue(LANG_HORDE_BATTLEBOT_ADDED, botLevel, queueType, botLevel, queueType);
+        sLog.Out(LOG_BG, LOG_LVL_BASIC, "[PlayerBotMgr] Adding level %u horde battlebot to bg queue %u.", botLevel, queueType);
+    }
 }
 
 void PlayerBotMgr::DeleteBattleBots()
@@ -652,14 +659,14 @@ bool ChatHandler::HandleBotAddRandomCommand(char * args)
 bool ChatHandler::HandleBotStopCommand(char * args)
 {
     sPlayerBotMgr.DeleteAll();
-    SendSysMessage("Tous les bots ont ete decharges.");
+    SendSysMessage("All the bots have been unloaded.");
     return true;
 }
 
 bool ChatHandler::HandleBotAddAllCommand(char * args)
 {
     sPlayerBotMgr.AddAllBots();
-    SendSysMessage("Tous les bots ont ete connecte");
+    SendSysMessage("All bots have been loaded.");
     return true;
 }
 
@@ -696,7 +703,7 @@ bool ChatHandler::HandleBotDeleteCommand(char * args)
 
     if (!charname || strcmp(charname, "") == 0)
     {
-        SendSysMessage("Syntaxe : $nomDuJoueur");
+        SendSysMessage("Syntax : $playerName");
         SetSentErrorMessage(true);
         return false;
     }
@@ -1067,7 +1074,7 @@ bool ChatHandler::HandlePartyBotAttackStartCommand(char* args)
         SetSentErrorMessage(true);
         return false;
     }
-    
+
     Group* pGroup = pPlayer->GetGroup();
     if (!pGroup)
     {
@@ -1090,10 +1097,10 @@ bool ChatHandler::HandlePartyBotAttackStartCommand(char* args)
                     if (pMember->IsValidAttackTarget(pTarget))
                         pAI->AttackStart(pTarget);
                 }
-            }            
+            }
         }
     }
-    
+
     PSendSysMessage("All party bots are now attacking %s.", pTarget->GetName());
     return true;
 }
@@ -1295,6 +1302,12 @@ bool ChatHandler::HandlePartyBotFocusMarkCommand(char* args)
         {
             if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pTarget->AI()))
             {
+                if (std::find(pAI->m_marksToFocus.begin(), pAI->m_marksToFocus.end(), itrMark->second) != pAI->m_marksToFocus.end())
+                {
+                    PSendSysMessage("%s already have focus %s.", pTarget->GetName(), args);
+                    return false;
+                }
+
                 PSendSysMessage("%s will focus %s.", pTarget->GetName(), args);
                 pAI->m_marksToFocus.push_back(itrMark->second);
                 return true;
@@ -1324,6 +1337,11 @@ bool ChatHandler::HandlePartyBotFocusMarkCommand(char* args)
             {
                 if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pMember->AI()))
                 {
+                    if (std::find(pAI->m_marksToFocus.begin(), pAI->m_marksToFocus.end(), itrMark->second) != pAI->m_marksToFocus.end())
+                    {
+                        // Already have focus mark
+                        continue;
+                    }
                     pAI->m_marksToFocus.push_back(itrMark->second);
                 }
             }
@@ -1600,7 +1618,7 @@ bool ChatHandler::HandlePartyBotPauseHelper(char* args, bool pause)
             else
                 PSendSysMessage("%s unpaused.", pTarget->GetName());
         }
-            
+
         else
             SendSysMessage("Target is not a party bot.");
     }
@@ -1616,6 +1634,59 @@ bool ChatHandler::HandlePartyBotPauseCommand(char* args)
 bool ChatHandler::HandlePartyBotUnpauseCommand(char* args)
 {
     return HandlePartyBotPauseHelper(args, false);
+}
+
+bool ChatHandler::HandlePartyBotPullCommand(char* args)
+{
+    Player* pPlayer = GetSession()->GetPlayer();
+    Unit* pTarget = GetSelectedUnit();
+    if (!pTarget || !pPlayer->IsValidAttackTarget(pTarget, true))
+    {
+        SendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    Group* pGroup = pPlayer->GetGroup();
+    if (!pGroup)
+    {
+        SendSysMessage("You are not in a group.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    uint32 duration;
+    if (!ExtractUInt32(&args, duration))
+        duration = 10 * IN_MILLISECONDS;
+
+    for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
+    {
+        if (Player* pMember = itr->getSource())
+        {
+            if (pMember == pPlayer)
+                continue;
+
+            if (pMember->AI())
+            {
+                if (PartyBotAI* pAI = dynamic_cast<PartyBotAI*>(pMember->AI()))
+                {
+                    if (pAI->m_role == ROLE_MELEE_DPS || pAI->m_role == ROLE_RANGE_DPS)
+                    {
+                        HandlePartyBotPauseApplyHelper(pMember, duration);
+                        continue;
+                    }
+                    else if (pAI->m_role == ROLE_TANK)
+                    {
+                        if (pMember->IsValidAttackTarget(pTarget))
+                            pAI->AttackStart(pTarget);
+                    }
+                }
+            }
+        }
+    }
+
+    PSendSysMessage("Tank party bots are pulling %s, DPS party bots are paused for %d seconds.", pTarget->GetName(), (duration / IN_MILLISECONDS));
+    return true;
 }
 
 bool ChatHandler::HandlePartyBotUnequipCommand(char* args)
@@ -1727,16 +1798,6 @@ bool ChatHandler::HandleBattleBotAddCommand(char* args, uint8 bg)
     }
 
     sPlayerBotMgr.AddBattleBot(BattleGroundQueueTypeId(bg), botTeam, botLevel, false);
-
-    if (bg == BATTLEGROUND_QUEUE_WS)
-        PSendSysMessage("Added %s battle bot and queuing for WS", option.c_str());
-        
-    if (bg == BATTLEGROUND_QUEUE_AB)
-        PSendSysMessage("Added %s battle bot and queuing for AB", option.c_str());
-    
-    if (bg == BATTLEGROUND_QUEUE_AV)
-        PSendSysMessage("Added %s battle bot and queuing for AV", option.c_str());
-
     return true;
 }
 

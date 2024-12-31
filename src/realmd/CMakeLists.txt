@@ -16,17 +16,16 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 set(EXECUTABLE_NAME realmd)
-set(EXECUTABLE_SRCS 
+set(EXECUTABLE_SRCS
+  AuthPackets.h
   AuthCodes.h
   AuthSocket.h
-  BufferedSocket.h
-  PatchHandler.h
   RealmList.h
   AuthSocket.cpp
-  BufferedSocket.cpp
-  Main.cpp
-  PatchHandler.cpp
   RealmList.cpp
+  ClientPatchCache.h
+  ClientPatchCache.cpp
+  Main.cpp
 )
 
 
@@ -34,8 +33,6 @@ if(WIN32)
   list(APPEND EXECUTABLE_SRCS
     realmd.rc
   )
-  
-  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /D__ACE_INLINE__")
 endif()
 
 include_directories(
@@ -44,7 +41,6 @@ include_directories(
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/src/shared
   ${MYSQL_INCLUDE_DIR}
-  ${ACE_INCLUDE_DIR}
   ${OPENSSL_INCLUDE_DIR}
 )
 
@@ -61,7 +57,6 @@ add_executable(${EXECUTABLE_NAME}
 target_link_libraries(${EXECUTABLE_NAME}
   shared
   framework
-  ${ACE_LIBRARIES}
 )
 
 if(WIN32)
@@ -89,10 +84,6 @@ if(UNIX)
   )
 endif()
 
-if (USE_LIBCURL)
-  target_link_libraries(${EXECUTABLE_NAME} curl)
-endif()
-
 set(EXECUTABLE_LINK_FLAGS "")
 
 if(UNIX)
@@ -111,5 +102,5 @@ install(TARGETS ${EXECUTABLE_NAME} DESTINATION ${BIN_DIR})
 install(FILES realmd.conf.dist.in DESTINATION ${CONF_DIR} RENAME realmd.conf.dist)
 
 if(WIN32 AND MSVC)
-  install(FILES ${CMAKE_SOURCE_DIR}/bin/Debug/${EXECUTABLE_NAME}.pdb DESTINATION ${BIN_DIR} CONFIGURATIONS Debug)
+  install(FILES $<TARGET_PDB_FILE:${EXECUTABLE_NAME}> DESTINATION ${BIN_DIR} OPTIONAL)
 endif()

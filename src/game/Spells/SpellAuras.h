@@ -128,12 +128,14 @@ class SpellAuraHolder
         HeartBeatData* _pveHeartBeatData;
 
         // Debuff limit
+        void CalculateForBuffLimit();
         void CalculateForDebuffLimit();
-        bool IsAffectedByDebuffLimit() const { return m_debuffLimitAffected; }
-        void SetAffectedByDebuffLimit(bool isAffectedByDebuffLimit);
-        bool IsMoreImportantDebuffThan(SpellAuraHolder* other) const;
-        bool m_debuffLimitAffected;
-        uint32 m_debuffLimitScore; // + haut => + important
+        bool IsAffectedByVisibleSlotLimit() const { return m_visibleSlotLimitAffected; }
+        void SetAffectedByVisibleSlotLimit(bool isAffectedByDebuffLimit);
+        bool IsMoreImportantVisualAuraThan(SpellAuraHolder* other) const;
+        bool m_visibleSlotLimitAffected;
+        uint32 m_visibleSlotLimitScore; // higher means more important
+
         // Refresh de buff
         void Refresh(Unit* caster, Unit* target, SpellAuraHolder* pRefreshWithAura);
         bool CanBeRefreshedBy(SpellAuraHolder* other) const;
@@ -174,7 +176,7 @@ class SpellAuraHolder
 
         bool IsSingleTarget() const { return m_isSingleTarget; }
         void SetIsSingleTarget(bool val) { m_isSingleTarget = val; }
-        bool IsChanneled() { return m_isChanneled; }
+        bool IsChanneled() const { return m_isChanneled; }
         void UnregisterSingleCastHolder();
 
         int32 GetAuraMaxDuration() const { return m_maxDuration; }
@@ -531,7 +533,7 @@ class Aura
         void TriggerSpell();
 
         // more limited that used in future versions (spell_affect table based only), so need be careful with backporting uses
-        bool isAffectedOnSpell(SpellEntry const* spell) const;
+        bool IsAffectedOnSpell(SpellEntry const* spell) const;
         bool CanProcFrom(SpellEntry const* spell, uint32 EventProcEx, uint32 procEx, bool active, bool useClassMask) const;
 
         SpellAuraHolder* GetHolder() const { return m_spellAuraHolder; }

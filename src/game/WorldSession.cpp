@@ -23,7 +23,7 @@
     \ingroup u2w
 */
 
-#include "WorldSocket.h"                                    // must be first to make ACE happy with ACE includes in it
+#include "WorldSocket.h"
 #include "Common.h"
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
@@ -43,11 +43,9 @@
 #include "PlayerBotAI.h"
 #include "Anticheat.h"
 #include "Language.h"
-#include "Auth/Sha1.h"
 #include "Chat.h"
 #include "MasterPlayer.h"
-
-#include <openssl/md5.h>
+#include "Crypto/Hash/MD5.h"
 
 // select opcodes appropriate for processing in Map::Update context for current session state
 static bool MapSessionFilterHelper(WorldSession* session, OpcodeHandler const& opHandle)
@@ -72,22 +70,17 @@ bool MapSessionFilter::Process(std::unique_ptr<WorldPacket> const& packet)
 static uint32 g_sessionCounter = 0;
 
 // WorldSession constructor
-WorldSession::WorldSession(uint32 id, WorldSocket *sock, AccountTypes sec, time_t mute_time, LocaleConstant locale) :
+WorldSession::WorldSession(uint32 id, std::shared_ptr<WorldSocket> sock, AccountTypes sec, time_t mute_time, LocaleConstant locale) :
     m_guid(g_sessionCounter++), m_muteTime(mute_time), m_connected(true), m_disconnectTimer(0), m_who_recvd(false), m_ah_list_recvd(false),
     m_accountFlags(0), m_idleTime(WorldTimer::getMSTime()), _player(nullptr), m_socket(sock), m_security(sec), m_accountId(id),
     m_exhaustionState(0), m_createTime(time(nullptr)), m_previousPlayTime(0), m_logoutTime(0), m_inQueue(false),
     m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false), m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)),
     m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)), m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED), m_warden(nullptr), m_cheatData(nullptr),
-    m_bot(nullptr), m_clientOS(CLIENT_OS_UNKNOWN), m_clientPlatform(CLIENT_PLATFORM_UNKNOWN), m_gameBuild(0),
-    m_charactersCount(10), m_characterMaxLevel(0), m_lastPubChannelMsgTime(0), m_moveRejectTime(0), m_masterPlayer(nullptr)
+    m_bot(nullptr), m_clientOS(CLIENT_OS_UNKNOWN), m_clientPlatform(CLIENT_PLATFORM_UNKNOWN), m_gameBuild(0), m_verifiedEmail(true),
+    m_charactersCount(10), m_characterMaxLevel(0), m_lastPubChannelMsgTime(0), m_moveRejectTime(0), m_masterPlayer(nullptr), m_receivedPacketType{},
+    m_floodPacketsCount{}, m_tutorials{}
 {
-    if (sock)
-    {
-        m_address = sock->GetRemoteAddress();
-        sock->AddReference();
-    }
-    else
-        m_address = "<BOT>";
+    m_remoteIpAddress = sock ? sock->GetRemoteIpString() : "<BOT>";
 }
 
 // WorldSession destructor
@@ -100,9 +93,8 @@ WorldSession::~WorldSession()
     // If have unclosed socket, close it
     if (m_socket)
     {
-        m_socket->CloseSocket();
-        m_socket->RemoveReference();
-        m_socket = nullptr;
+        m_socket->FinalizeSession();
+        m_socket = nullptr; // <-- technically this is unnecessary, since we are in the destructor that will destruct all other members soon anyway
     }
 
     // empty incoming packet queue
@@ -136,41 +128,14 @@ void WorldSession::SendPacket(WorldPacket const* packet)
     {
         if (GetBot() && GetBot()->ai)
             GetBot()->ai->OnPacketReceived(packet);
-
-        if (packet->GetOpcode() == SMSG_MESSAGECHAT)
-        {
-            WorldPacket packet2(*packet);
-            packet2.rpos(0);
-            uint8 msgtype;
-            uint32 lang;
-            ObjectGuid guid1;
-            std::string name1;
-            packet2 >> msgtype >> lang;
-            // Channels
-            if (msgtype == CHAT_MSG_CHANNEL)
-            {
-                std::string chanName, message;
-                uint32 unused;
-                packet2 >> chanName >> unused >> guid1 >> unused;
-                packet2 >> message;
-                if (sObjectMgr.GetPlayerNameByGUID(guid1, name1))
-                    m_chatBotHistory << uint32(msgtype) << " " << name1 << " " << chanName << " " << message << std::endl;
-                return;
-            }
-            ObjectGuid guid2;
-            uint32 textLen;
-            std::string message;
-            uint8 chatTag;
-            packet2 >> guid1;
-            if (msgtype == CHAT_MSG_SAY || msgtype == CHAT_MSG_YELL || msgtype == CHAT_MSG_PARTY)
-                packet2 >> guid2;
-            packet2 >> textLen >> message >> chatTag;
-            if (guid1.IsEmpty() || sObjectMgr.GetPlayerNameByGUID(guid1, name1))
-                m_chatBotHistory << uint32(msgtype) << " " << name1 << " NULL " << message << std::endl;
-        }
         return;
     }
 
+    SendPacketImpl(packet);
+}
+
+void WorldSession::SendPacketImpl(WorldPacket const* packet)
+{
 #ifdef _DEBUG
 
     // Code for network use statistic
@@ -205,15 +170,69 @@ void WorldSession::SendPacket(WorldPacket const* packet)
         sendLastPacketBytes = packet->wpos();               // wpos is real written size
     }
 
-#endif                                                  // !_DEBUG
+#endif // _DEBUG
 
     // sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[%s]Send packet : %u|0x%x (%s)", GetPlayerName(), packet->GetOpcode(), packet->GetOpcode(), LookupOpcodeName(packet->GetOpcode()));
     if (m_sniffFile)
         m_sniffFile->WritePacket(*packet, false, time(nullptr));
 
-    if (m_socket->SendPacket(*packet) == -1)
-        m_socket->CloseSocket();
+    m_socket->SendPacket(*packet);
 }
+
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_7_1
+void WorldSession::SendMovementPacket(WorldPacket const* packet)
+{
+    // There is a maximum size packet.
+    if (packet->size() > 0x8000)
+    {
+        // Packet will be rejected by client
+        sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[NETWORK] Packet %s size %u is too large. Not sent [Account %u Player %s]", LookupOpcodeName(packet->GetOpcode()), packet->size(), GetAccountId(), GetPlayerName());
+        return;
+    }
+
+    if (!m_socket)
+    {
+        if (GetBot() && GetBot()->ai)
+            GetBot()->ai->OnPacketReceived(packet);
+        return;
+    }
+
+    if (++m_movePacketsSentThisInterval < sWorld.getConfig(CONFIG_UINT32_COMPRESSION_MOVEMENT_COUNT) &&
+        m_movePacketsSentLastInterval < sWorld.getConfig(CONFIG_UINT32_COMPRESSION_MOVEMENT_COUNT))
+    {
+        SendPacketImpl(packet);
+        return;
+    }
+        
+    std::lock_guard<std::mutex> guard(m_movementPacketCompressorMutex);
+    if (m_movementPacketCompressor.CanAddPacket(*packet))
+        m_movementPacketCompressor.AddPacket(*packet);
+    else
+    {
+        // send batched packets first to maintain order of packets
+        SendCompressedMovementPackets();
+        SendPacketImpl(packet);
+    }
+}
+
+void WorldSession::SendCompressedMovementPackets()
+{
+    if (m_movementPacketCompressor.HasData())
+    {
+        WorldPacket packet;
+        if (m_movementPacketCompressor.BuildPacket(packet))
+            SendPacket(&packet);
+        else
+            sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Movement packet compression failed! Packets lost!");
+        m_movementPacketCompressor.ClearBuffer();
+    }
+}
+#else
+void WorldSession::SendMovementPacket(WorldPacket const* packet)
+{
+    SendPacket(packet);
+}
+#endif
 
 uint32 GetChatPacketProcessingType(uint32 chatType)
 {
@@ -294,6 +313,11 @@ void WorldSession::LogUnprocessedTail(WorldPacket* packet)
                   LookupOpcodeName(packet->GetOpcode()),
                   packet->GetOpcode(),
                   packet->rpos(), packet->wpos());
+}
+
+bool WorldSession::HasTrialRestrictions() const
+{
+    return !HasVerifiedEmail() && GetSecurity() <= SEC_PLAYER && sWorld.getConfig(CONFIG_BOOL_RESTRICT_UNVERIFIED_ACCOUNTS);
 }
 
 void WorldSession::CheckPlayedTimeLimit(time_t now)
@@ -401,10 +425,10 @@ bool WorldSession::Update(PacketFilter& updater)
             return false;
         }
 
-        // Cleanup socket pointer if need
-        if (m_socket && m_socket->IsClosed())
+        // Cleanup socket pointer if needed
+        if (m_socket && m_socket->IsClosing())
         {
-            m_socket->RemoveReference();
+            m_socket->FinalizeSession();
             m_socket = nullptr;
 
             if (m_warden)
@@ -417,7 +441,21 @@ bool WorldSession::Update(PacketFilter& updater)
             return ForcePlayerLogoutDelay();
         }
 
-        time_t currTime = time(nullptr);
+        time_t const currTime = time(nullptr);
+
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_7_1
+        // send these out every world update
+        SendCompressedMovementPackets();
+
+        // only enable compression when there's a lot of movement around us
+        if (m_movePacketTrackingIntervalStart + 10 < currTime)
+        {
+            m_movePacketTrackingIntervalStart = currTime;
+            m_movePacketsSentLastInterval = m_movePacketsSentThisInterval;
+            m_movePacketsSentThisInterval = 0;
+        }
+#endif
+        
         if (sWorld.getConfig(CONFIG_BOOL_LIMIT_PLAY_TIME) &&
             GetPlayer() && GetPlayer()->IsInWorld())
             CheckPlayedTimeLimit(currTime);
@@ -447,7 +485,7 @@ bool WorldSession::Update(PacketFilter& updater)
 
 bool WorldSession::CanProcessPackets() const
 {
-    return ((m_socket && !m_socket->IsClosed()) || (_player && (m_bot || sPlayerBotMgr.IsChatBot(_player->GetGUIDLow()))));
+    return ((m_socket && !m_socket->IsClosing()) || (_player && (m_bot || sPlayerBotMgr.IsChatBot(_player->GetGUIDLow()))));
 }
 
 void WorldSession::ProcessPackets(PacketFilter& updater)
@@ -640,7 +678,7 @@ void WorldSession::LogoutPlayer(bool Save)
         });
 
         // Teleport to home if the player is in an invalid instance
-        if (!_player->m_InstanceValid && !_player->IsGameMaster())
+        if (!_player->m_instanceValid && !_player->IsGameMaster())
         {
             _player->TeleportToHomebind();
             //this is a bad place to call for far teleport because we need player to be in world for successful logout
@@ -757,6 +795,10 @@ void WorldSession::LogoutPlayer(bool Save)
             _player->CleanupsBeforeDelete();
             Map::DeleteFromWorld(_player);
         }
+
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_7_1
+        m_movementPacketCompressor.ClearBuffer();
+#endif
 
         SetPlayer(nullptr);                                    // deleted in Remove/DeleteFromWorld call
 
@@ -904,16 +946,14 @@ void WorldSession::SendAuthWaitQue(uint32 position)
 
 void WorldSession::LoadGlobalAccountData()
 {
-    QueryResult* result = CharacterDatabase.PQuery("SELECT `type`, `time`, `data` FROM `account_data` WHERE `account`=%u", GetAccountId());
+    std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT `type`, `time`, `data` FROM `account_data` WHERE `account`=%u", GetAccountId());
     LoadAccountData(
-        result,
+        std::move(result),
         NewAccountData::GLOBAL_CACHE_MASK
     );
-    if (result)
-        delete result;
 }
 
-void WorldSession::LoadAccountData(QueryResult* result, uint32 mask)
+void WorldSession::LoadAccountData(std::unique_ptr<QueryResult> result, uint32 mask)
 {
     for (uint32 i = 0; i < NewAccountData::NUM_ACCOUNT_DATA_TYPES; ++i)
         if (mask & (1 << i))
@@ -986,9 +1026,11 @@ void WorldSession::SetAccountData(NewAccountData::AccountDataType type, const st
 
 void WorldSession::SendAccountDataTimes()
 {
+    using namespace Crypto::Hash;
+
     bool const isOldClient = GetGameBuild() <= CLIENT_BUILD_1_8_4;
     uint32 const dataCount = isOldClient ? OldAccountData::NUM_ACCOUNT_DATA_TYPES : NewAccountData::NUM_ACCOUNT_DATA_TYPES;
-    WorldPacket data(SMSG_ACCOUNT_DATA_MD5, dataCount * MD5_DIGEST_LENGTH);
+    WorldPacket data(SMSG_ACCOUNT_DATA_MD5, dataCount * MD5::Digest::size());
     for (uint32 index = 0; index < NewAccountData::NUM_ACCOUNT_DATA_TYPES; ++index)
     {
         // Skip indexes that dont exist in old clients
@@ -999,22 +1041,9 @@ void WorldSession::SendAccountDataTimes()
                 continue;
         }
 
-        AccountData const& itr = m_accountData[index];
-        if (itr.data.empty())
-        {
-            for (int i = 0; i < MD5_DIGEST_LENGTH; i++)
-                data << uint8(0);
-        }
-        else
-        {
-            MD5_CTX md5;
-            MD5_Init(&md5);
-            MD5_Update(&md5, itr.data.c_str(), itr.data.size());
-
-            uint8 fileHash[MD5_DIGEST_LENGTH];
-            MD5_Final(fileHash, &md5);
-            data.append(fileHash, MD5_DIGEST_LENGTH);
-        }
+        std::string const& accountData = m_accountData[index].data;
+        MD5::Digest hash = accountData.empty() ? MD5::CreateEmpty() : MD5::ComputeFrom(accountData);
+        data.append(hash.data(), hash.size());
     }
     SendPacket(&data);
 }
@@ -1024,7 +1053,7 @@ void WorldSession::LoadTutorialsData()
     for (uint32 & tutorial : m_tutorials)
         tutorial = 0;
 
-    QueryResult* result = CharacterDatabase.PQuery("SELECT `tut0`, `tut1`, `tut2`, `tut3`, `tut4`, `tut5`, `tut6`, `tut7` FROM `character_tutorial` WHERE `account` = '%u'", GetAccountId());
+    std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT `tut0`, `tut1`, `tut2`, `tut3`, `tut4`, `tut5`, `tut6`, `tut7` FROM `character_tutorial` WHERE `account` = '%u'", GetAccountId());
 
     if (!result)
     {
@@ -1040,8 +1069,6 @@ void WorldSession::LoadTutorialsData()
             m_tutorials[iI] = fields[iI].GetUInt32();
     }
     while (result->NextRow());
-
-    delete result;
 
     m_tutorialState = TUTORIALDATA_UNCHANGED;
 }
@@ -1108,7 +1135,7 @@ void WorldSession::ExecuteOpcode(OpcodeHandler const& opHandle, WorldPacket* pac
         //we should execute delayed teleports only for alive(!) players
         //because we don't want player's ghost teleported from graveyard
         if (_player->IsHasDelayedTeleport())
-            _player->TeleportTo(_player->m_teleport_dest, _player->m_teleport_options);
+            _player->TeleportTo(_player->m_teleportDest, _player->m_teleportOptions);
     }
     if (packet->rpos() < packet->wpos() && sLog.HasLogLevelOrHigher(LOG_LVL_DEBUG))
         LogUnprocessedTail(packet);
@@ -1189,7 +1216,7 @@ void WorldSession::ProcessAnticheatAction(char const* detector, char const* reas
         (cheatAction >= CHEAT_ACTION_KICK))
     {
         std::stringstream oss;
-        oss << "|r[|c1f40af20Announce by |cffff0000" << detector << "|r]: Player " << _player->GetName() << ", Cheat: " << reason << ", Penalty: " << action;
+        oss << "|r[|c1f40af20Announce by |cffff0000" << detector << "|r]: Player " << playerDesc << ", Cheat: " << reason << ", Penalty: " << action;
         sWorld.SendGlobalText(oss.str().c_str(), this);
     }
 
@@ -1291,7 +1318,7 @@ bool WorldSession::CharacterScreenIdleKick(uint32 currTime)
     if (!maxIdle) // disabled
         return false;
 
-    if ((currTime - m_idleTime) >= (maxIdle * 1000))
+    if (currTime > m_idleTime && (currTime - m_idleTime) >= (maxIdle * 1000))
     {
         sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "SESSION: Kicking session [%s] from character selection", GetRemoteAddress().c_str());
         return true;

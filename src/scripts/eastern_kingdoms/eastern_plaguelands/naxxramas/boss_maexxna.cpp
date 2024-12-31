@@ -97,7 +97,7 @@ struct mob_webwrapAI : public ScriptedAI
     {
         if (!pVictim || pVictim->GetTypeId() != TYPEID_PLAYER)
         {
-            sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "mob_webwrapAI::SetVictim called for non-player");
+            sLog.Out(LOG_SCRIPTS, LOG_LVL_ERROR, "mob_webwrapAI::SetVictim called for non-player");
             return;
         }
 
@@ -120,7 +120,7 @@ struct mob_webwrapAI : public ScriptedAI
                 }
             }
         }
-        ((TemporarySummon*)m_creature)->UnSummon();
+        m_creature->DespawnOrUnsummon(1);
     }
 
     void UpdateAI(uint32 const uiDiff) override
@@ -132,7 +132,6 @@ struct mob_webwrapAI : public ScriptedAI
         if (!pVictim || pVictim->IsDead())
         {
             m_creature->Kill(m_creature, nullptr);
-            // ((TemporarySummon*)m_creature)->UnSummon();
             return;
         }
         // todo: can this be removed? We set MovePoint in SetVictim
@@ -290,10 +289,7 @@ struct boss_maexxnaAI : public ScriptedAI
 
             // set immune anticheat and calculate speed
             if (Player* plr = pTarget->ToPlayer())
-            {
                 plr->SetLaunched(true);
-                plr->SetXYSpeed(horizontalSpeed);
-            }
 
             pTarget->KnockBack(angle, horizontalSpeed, verticalSpeed);
             wraps.push_back(std::make_pair(uint32(2000), pTarget->GetObjectGuid()));

@@ -33,6 +33,7 @@
 #include "Map.h"
 #include "BattleGround.h"
 #include "ThreadPool.h"
+#include "IO/Multithreading/CreateThread.h"
 
 typedef MaNGOS::ClassLevelLockable<MapManager, std::recursive_mutex> MapManagerLock;
 INSTANTIATE_SINGLETON_2(MapManager, MapManagerLock);
@@ -42,10 +43,12 @@ MapManager::MapManager()
     :
     i_gridCleanUpDelay(sWorld.getConfig(CONFIG_UINT32_INTERVAL_GRIDCLEAN)),
     i_MaxInstanceId(RESERVED_INSTANCES_LAST),
-    m_threads(new ThreadPool(sWorld.getConfig(CONFIG_UINT32_MAPUPDATE_INSTANCED_UPDATE_THREADS)))
+    m_threads(new ThreadPool("MapManager", sWorld.getConfig(CONFIG_UINT32_MAPUPDATE_INSTANCED_UPDATE_THREADS))),
+    m_instanceCreationThreads(new ThreadPool("NewMapForPlayer", 1))
 {
     i_timer.SetInterval(sWorld.getConfig(CONFIG_UINT32_INTERVAL_MAPUPDATE));
     m_threads->start<ThreadPool::MySQL<>>();
+    m_instanceCreationThreads->start<>();
 }
 
 MapManager::~MapManager()
@@ -194,9 +197,8 @@ bool MapManager::CanPlayerEnter(uint32 mapid, Player* player)
                 Group* group = player->GetGroup();
                 if (!group || !group->isRaidGroup())
                 {
-                    // probably there must be special opcode, because client has this string constant in GlobalStrings.lua
                     // TODO: this is not a good place to send the message
-                    player->GetSession()->SendAreaTriggerMessage("You must be in a raid group to enter %s instance", mapName);
+                    player->SendRaidGroupOnlyError(0, ERR_RAID_GROUP_REQUIRED);
                     sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "MAP: Player '%s' must be in a raid group to enter instance of '%s'", player->GetName(), mapName);
                     return false;
                 }
@@ -276,6 +278,7 @@ void MapManager::CreateNewInstancesForPlayers()
             DungeonMap* pMap = static_cast<DungeonMap*>(CreateInstance(dest.mapId, player));
             if (pMap->CanEnter(player))
             {
+                pMap->ForceLoadGridsAroundPosition(dest.x, dest.y);
                 pMap->BindPlayerOrGroupOnEnter(player);
                 player->SendNewWorld();
             } 
@@ -337,14 +340,17 @@ void MapManager::Update(uint32 diff)
         }
     }
 
-    std::thread instanceCreationThread = std::thread(&MapManager::CreateNewInstancesForPlayers, this);
-    
+    std::vector<std::function<void()>> instanceCreators;
+    instanceCreators.emplace_back([this]() {CreateNewInstancesForPlayers();});
+    std::future<void> instances = m_instanceCreationThreads->processWorkload(std::move(instanceCreators),
+        ThreadPool::Callable());
+
     i_maxContinentThread = continentsIdx;
     i_continentUpdateFinished.store(0);
 
     if (!m_continentThreads || m_continentThreads->size() < continentsUpdaters.size())
     {
-        m_continentThreads.reset(new ThreadPool(continentsUpdaters.size()));
+        m_continentThreads.reset(new ThreadPool("MapContinent", continentsUpdaters.size()));
         m_continentThreads->start<>();
     }
     std::future<void> continents = m_continentThreads->processWorkload(std::move(continentsUpdaters),
@@ -368,8 +374,8 @@ void MapManager::Update(uint32 diff)
     SwitchPlayersInstances();
     asyncMapUpdating = false;
 
-    if (instanceCreationThread.joinable())
-        instanceCreationThread.join();
+    if (instances.valid())
+        instances.wait();
 
     // Execute far teleports after all map updates have finished
     ExecuteDelayedPlayerTeleports();
@@ -451,11 +457,10 @@ void MapManager::InitMaxInstanceId()
 {
     i_MaxInstanceId = RESERVED_INSTANCES_LAST;
 
-    QueryResult* result = CharacterDatabase.Query("SELECT MAX(`id`) FROM `instance`");
+    std::unique_ptr<QueryResult> result = CharacterDatabase.Query("SELECT MAX(`id`) FROM `instance`");
     if (result)
     {
         i_MaxInstanceId = result->Fetch()[0].GetUInt32();
-        delete result;
     }
     if (i_MaxInstanceId < RESERVED_INSTANCES_LAST)
         i_MaxInstanceId = RESERVED_INSTANCES_LAST;
@@ -647,7 +652,7 @@ uint32 MapManager::GetContinentInstanceId(uint32 mapId, float x, float y, bool* 
     // Y = horizontal axis on wow ...
     switch (mapId)
     {
-        case 0:
+        case MAP_EASTERN_KINGDOMS:
         {
             static float const topNorthSouthLimit[] = {
                 2032.048340f, -6927.750000f,
@@ -732,7 +737,7 @@ uint32 MapManager::GetContinentInstanceId(uint32 mapId, float x, float y, bool* 
                 return MAP0_STORMWIND_AREA;
             return MAP0_SOUTH;
         }
-        case 1:
+        case MAP_KALIMDOR:
         {
             static float const northMiddleLimit[] = {
                   -2280.00f,  4054.00f,

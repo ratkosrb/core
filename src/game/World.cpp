@@ -81,6 +81,8 @@
 #include "InstanceStatistics.h"
 #include "GuardMgr.h"
 #include "TransportMgr.h"
+#include "RealmZone.h"
+#include "IO/Multithreading/CreateThread.h"
 
 #include <chrono>
 
@@ -210,22 +212,22 @@ void World::Shutdown()
     sAnticheatMgr->StopWardenUpdateThread();
 }
 
-// Find a session by its id
-WorldSession* World::FindSession(uint32 id) const
+/// Find a session by its accountId. Might return nullptr if not found.
+WorldSession* World::FindSession(uint32 accountId) const
 {
-    SessionMap::const_iterator itr = m_sessions.find(id);
+    SessionMap::const_iterator itr = m_sessions.find(accountId);
 
     if (itr != m_sessions.end())
         return itr->second;                                 // also can return nullptr for kicked session
-    else
-        return nullptr;
+
+    return nullptr;
 }
 
-// Remove a given session
-bool World::RemoveSession(uint32 id)
+/// Remove a given session by its accountId
+bool World::RemoveSession(uint32 accountId)
 {
     // Find the session, kick the user, but we can't delete session at this moment to prevent iterator invalidation
-    SessionMap::const_iterator itr = m_sessions.find(id);
+    SessionMap::const_iterator itr = m_sessions.find(accountId);
 
     if (itr != m_sessions.end() && itr->second)
     {
@@ -320,7 +322,8 @@ void World::AddSession_(WorldSession* s)
     WorldPacket packet(SMSG_AUTH_RESPONSE, 1 + 4 + 1 + 4);
     packet << uint8(AUTH_OK);
     packet << uint32(0);                                    // BillingTimeRemaining
-    packet << uint8(0);                                     // BillingPlanFlags
+                                                            // BillingPlanFlags
+    packet << uint8(s->HasTrialRestrictions() ? (BILLING_FLAG_TRIAL | BILLING_FLAG_RESTRICTED) : BILLING_FLAG_NONE);
     packet << uint32(0);                                    // BillingTimeRested
     s->SendPacket(&packet);
 
@@ -345,7 +348,7 @@ void World::AddSession_(WorldSession* s)
     }
 }
 
-int32 World::GetQueuedSessionPos(WorldSession* sess)
+uint32 World::GetQueuedSessionPos(WorldSession* sess)
 {
     uint32 position = 1;
 
@@ -366,7 +369,8 @@ void World::AddQueuedSession(WorldSession* sess)
     WorldPacket packet(SMSG_AUTH_RESPONSE, 1 + 4 + 1 + 4 + 4);
     packet << uint8(AUTH_WAIT_QUEUE);
     packet << uint32(0);                                    // BillingTimeRemaining
-    packet << uint8(0);                                     // BillingPlanFlags
+                                                            // BillingPlanFlags
+    packet << uint8(sess->HasTrialRestrictions() ? (BILLING_FLAG_TRIAL | BILLING_FLAG_RESTRICTED) : BILLING_FLAG_NONE);
     packet << uint32(0);                                    // BillingTimeRested
     packet << uint32(GetQueuedSessionPos(sess));            // position in queue
     sess->SendPacket(&packet);
@@ -406,7 +410,7 @@ bool World::RemoveQueuedSession(WorldSession* sess)
     uint32 loggedInSessions = uint32(m_sessions.size() - m_QueuedSessions.size());
     if (loggedInSessions > getConfig(CONFIG_UINT32_PLAYER_HARD_LIMIT))
         return found;
-    
+
     // accept first in queue
     if ((!m_playerLimit || (int32)sessions <= m_playerLimit) && !m_QueuedSessions.empty())
     {
@@ -540,6 +544,7 @@ void World::LoadConfigSettings(bool reload)
 
     setConfigMinMax(CONFIG_FLOAT_RATE_TARGET_POS_RECALCULATION_RANGE, "TargetPosRecalculateRange", 1.5f, CONTACT_DISTANCE, ATTACK_DISTANCE);
 
+    setConfig(CONFIG_BOOL_DURABILITY_LOSS_ENABLE, "DurabilityLoss.Enable", true);
     setConfigPos(CONFIG_FLOAT_RATE_DURABILITY_LOSS_DAMAGE, "DurabilityLossChance.Damage", 0.5f);
 
     setConfigPos(CONFIG_FLOAT_LISTEN_RANGE_SAY,       "ListenRange.Say",       25.0f);
@@ -561,7 +566,9 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_UINT32_LOGIN_QUEUE_GRACE_PERIOD_SECS, "LoginQueue.GracePeriodSecs", 0);
     setConfig(CONFIG_UINT32_CHARACTER_SCREEN_MAX_IDLE_TIME, "CharacterScreenMaxIdleTime", 0);
     setConfig(CONFIG_UINT32_ASYNC_QUERIES_TICK_TIMEOUT, "AsyncQueriesTickTimeout", 0);
-    setConfigMinMax(CONFIG_UINT32_COMPRESSION, "Compression", 1, 1, 9);
+    setConfigMinMax(CONFIG_UINT32_COMPRESSION_LEVEL, "Compression.Level", 1, 1, 9);
+    setConfig(CONFIG_UINT32_COMPRESSION_UPDATE_SIZE, "Compression.Update.Size", 128);
+    setConfig(CONFIG_UINT32_COMPRESSION_MOVEMENT_COUNT, "Compression.Movement.Count", 300);
     setConfig(CONFIG_BOOL_ADDON_CHANNEL, "AddonChannel", true);
     setConfig(CONFIG_BOOL_CLEAN_CHARACTER_DB, "CleanCharacterDB", true);
     setConfig(CONFIG_BOOL_GRID_UNLOAD, "GridUnload", true);
@@ -615,6 +622,7 @@ void World::LoadConfigSettings(bool reload)
     setConfigMinMax(CONFIG_UINT32_CHARACTERS_PER_REALM, "CharactersPerRealm", 10, 1, 10);
     setConfigMin(CONFIG_UINT32_CHARACTERS_PER_ACCOUNT, "CharactersPerAccount", 50, getConfig(CONFIG_UINT32_CHARACTERS_PER_REALM));
     setConfig(CONFIG_BOOL_LIMIT_PLAY_TIME, "LimitPlayTime", false);
+    setConfig(CONFIG_BOOL_RESTRICT_UNVERIFIED_ACCOUNTS, "RestrictUnverifiedAccounts", false);
 
     setConfig(CONFIG_BOOL_SKIP_CINEMATICS, "SkipCinematics", false);
     setConfig(CONFIG_BOOL_OBJECT_HEALTH_VALUE_SHOW, "ShowHealthValues", false);
@@ -663,7 +671,7 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_BOOL_GM_LOWER_SECURITY,      "GM.LowerSecurity", false);
     setConfig(CONFIG_BOOL_GM_ALLOW_TRADES,        "GM.AllowTrades", true);
     setConfig(CONFIG_BOOL_GMS_ALLOW_PUBLIC_CHANNELS,         "GM.AllowPublicChannels", false);
-    setConfig(CONFIG_BOOL_GM_JOIN_OPPOSITE_FACTION_CHANNELS, "GM.JoinOppositeFactionChannels", 0);
+    setConfig(CONFIG_BOOL_GM_JOIN_OPPOSITE_FACTION_CHANNELS, "GM.JoinOppositeFactionChannels", false);
     if (getConfig(CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_CHAT))
         setConfig(CONFIG_BOOL_GM_JOIN_OPPOSITE_FACTION_CHANNELS, false);
     setConfig(CONFIG_BOOL_GMTICKETS_ENABLE,           "GMTickets.Enable", true);
@@ -961,8 +969,8 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_UINT32_MAPUPDATE_MIN_VISIBILITY_DISTANCE, "MapUpdate.MinVisibilityDistance", 0);
     setConfig(CONFIG_BOOL_CONTINENTS_INSTANCIATE, "Continents.Instanciate", false);
     setConfig(CONFIG_UINT32_CONTINENTS_MOTIONUPDATE_THREADS, "Continents.MotionUpdate.Threads", 0);
-    setConfig(CONFIG_BOOL_TERRAIN_PRELOAD_CONTINENTS, "Terrain.Preload.Continents", 1);
-    setConfig(CONFIG_BOOL_TERRAIN_PRELOAD_INSTANCES, "Terrain.Preload.Instances", 1);
+    setConfig(CONFIG_BOOL_TERRAIN_PRELOAD_CONTINENTS, "Terrain.Preload.Continents", true);
+    setConfig(CONFIG_BOOL_TERRAIN_PRELOAD_INSTANCES, "Terrain.Preload.Instances", true);
 
     setConfig(CONFIG_BOOL_ENABLE_MOVEMENT_EXTRAPOLATION_CHARGE, "Movement.ExtrapolateChargePosition", true);
     setConfig(CONFIG_BOOL_ENABLE_MOVEMENT_EXTRAPOLATION_PET, "Movement.ExtrapolatePetPosition", true);
@@ -1059,7 +1067,7 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_UINT32_PACKET_BCAST_THREADS,                  "Network.PacketBroadcast.Threads", 0);
     setConfig(CONFIG_UINT32_PACKET_BCAST_FREQUENCY,                "Network.PacketBroadcast.Frequency", 50);
     setConfig(CONFIG_UINT32_PBCAST_DIFF_LOWER_VISIBILITY_DISTANCE, "Network.PacketBroadcast.ReduceVisDistance.DiffAbove", 0);
-    
+
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "* Anticrash : options 0x%x rearm after %usec", getConfig(CONFIG_UINT32_ANTICRASH_OPTIONS), getConfig(CONFIG_UINT32_ANTICRASH_REARM_TIMER) / 1000);
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "* Pathfinding : [%s]", getConfig(CONFIG_BOOL_MMAP_ENABLED) ? "ON" : "OFF");
 
@@ -1089,7 +1097,7 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_BOOL_UNLINKED_AUCTION_HOUSES, "Progression.UnlinkedAuctionHouses", true);
 
     // Movement Anticheat
-    setConfig(CONFIG_BOOL_AC_MOVEMENT_ENABLED, "Anticheat.Enable", true);
+    setConfig(CONFIG_BOOL_AC_MOVEMENT_ENABLED, "Anticheat.Enable", false);
     setConfig(CONFIG_BOOL_AC_MOVEMENT_PLAYERS_ONLY, "Anticheat.PlayersOnly", true);
     setConfig(CONFIG_BOOL_AC_MOVEMENT_NOTIFY_CHEATERS, "Anticheat.NotifyCheaters", false);
     setConfig(CONFIG_UINT32_AC_MOVEMENT_BAN_DURATION, "Anticheat.BanDuration", 86400);
@@ -1143,12 +1151,17 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_FLY_THRESHOLD, "Anticheat.FlyHack.Threshold", 3);
     setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_FLY_PENALTY, "Anticheat.FlyHack.Penalty", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS | CHEAT_ACTION_KICK);
     setConfig(CONFIG_BOOL_AC_MOVEMENT_CHEAT_NO_FALL_TIME_ENABLED, "Anticheat.NoFallTime.Enable", true);
-    setConfig(CONFIG_BOOL_AC_MOVEMENT_CHEAT_NO_FALL_TIME_REJECT, "Anticheat.NoFallTime.Reject", true);
-    setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_NO_FALL_TIME_THRESHOLD, "Anticheat.NoFallTime.Threshold", 5);
+    setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_NO_FALL_TIME_THRESHOLD, "Anticheat.NoFallTime.Threshold", 1);
     setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_NO_FALL_TIME_PENALTY, "Anticheat.NoFallTime.Penalty", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS | CHEAT_ACTION_KICK);
     setConfig(CONFIG_BOOL_AC_MOVEMENT_CHEAT_BAD_FALL_RESET_ENABLED, "Anticheat.BadFallReset.Enable", true);
     setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_BAD_FALL_RESET_THRESHOLD, "Anticheat.BadFallReset.Threshold", 1);
     setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_BAD_FALL_RESET_PENALTY, "Anticheat.BadFallReset.Penalty", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS | CHEAT_ACTION_KICK);
+    setConfig(CONFIG_BOOL_AC_MOVEMENT_CHEAT_BAD_FALL_STOP_ENABLED, "Anticheat.BadFallStop.Enable", true);
+    setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_BAD_FALL_STOP_THRESHOLD, "Anticheat.BadFallStop.Threshold", 1);
+    setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_BAD_FALL_STOP_PENALTY, "Anticheat.BadFallStop.Penalty", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS | CHEAT_ACTION_KICK);
+    setConfig(CONFIG_BOOL_AC_MOVEMENT_CHEAT_BAD_MOVE_START_ENABLED, "Anticheat.BadMoveStart.Enable", true);
+    setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_BAD_MOVE_START_THRESHOLD, "Anticheat.BadMoveStart.Threshold", 1);
+    setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_BAD_MOVE_START_PENALTY, "Anticheat.BadMoveStart.Penalty", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS | CHEAT_ACTION_KICK);
     setConfig(CONFIG_BOOL_AC_MOVEMENT_CHEAT_TELEPORT_ENABLED, "Anticheat.Teleport.Enable", true);
     setConfig(CONFIG_BOOL_AC_MOVEMENT_CHEAT_TELEPORT_REJECT, "Anticheat.Teleport.Reject", true);
     setConfig(CONFIG_FLOAT_AC_MOVEMENT_CHEAT_TELEPORT_DISTANCE, "Anticheat.Teleport.Distance", 40.0f);
@@ -1211,8 +1224,8 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_BOTTING_PENALTY, "Anticheat.Botting.Penalty", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
 
     // Warden Anticheat
-    setConfig(CONFIG_BOOL_AC_WARDEN_WIN_ENABLED, "Warden.WinEnabled", true);
-    setConfig(CONFIG_BOOL_AC_WARDEN_OSX_ENABLED, "Warden.OSXEnabled", true);
+    setConfig(CONFIG_BOOL_AC_WARDEN_WIN_ENABLED, "Warden.WinEnabled", false);
+    setConfig(CONFIG_BOOL_AC_WARDEN_OSX_ENABLED, "Warden.OSXEnabled", false);
     setConfig(CONFIG_BOOL_AC_WARDEN_PLAYERS_ONLY, "Warden.PlayersOnly", false);
     setConfig(CONFIG_UINT32_AC_WARDEN_NUM_SCANS, "Warden.NumScans", 10);
     setConfig(CONFIG_UINT32_AC_WARDEN_CLIENT_RESPONSE_DELAY, "Warden.ClientResponseDelay", 30);
@@ -1356,6 +1369,9 @@ void World::SetInitialWorldSettings()
     // Remove the bones (they should not exist in DB though) and old corpses after a restart
     CharacterDatabase.PExecute("DELETE FROM `corpse` WHERE `corpse_type` = '0' OR `time` < (UNIX_TIMESTAMP()-'%u')", 3 * DAY);
 
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading Script Names...");
+    sScriptMgr.LoadScriptNames();
+
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading spells ...");
     sSpellMgr.LoadSpells();
 
@@ -1394,9 +1410,6 @@ void World::SetInitialWorldSettings()
     LoadDBCStores(dbcPath);
     DetectDBCLang();
     sObjectMgr.SetDBCLocaleIndex(GetDefaultDbcLocale());    // Get once for all the locale index of DBC language (console/broadcasts)
-
-    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading Script Names...");
-    sScriptMgr.LoadScriptNames();
 
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading MapTemplate...");
     sObjectMgr.LoadMapTemplate();
@@ -1604,9 +1617,6 @@ void World::SetInitialWorldSettings()
 
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading spell target destination coordinates...");
     sSpellMgr.LoadSpellTargetPositions();
-
-    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading SpellAffect definitions...");
-    sSpellMgr.LoadSpellAffects();
 
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading spell pet auras...");
     sSpellMgr.LoadSpellPetAuras();
@@ -1862,6 +1872,9 @@ void World::SetInitialWorldSettings()
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading spell group stack rules ...");
     sSpellMgr.LoadSpellGroupStackRules();
 
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading RBAC for chat commands...");
+    ChatHandler::LoadRbacPermissions();
+
     sObjectMgr.LoadPlayerPremadeTemplates();
 
     if (getConfig(CONFIG_BOOL_RESTORE_DELETED_ITEMS))
@@ -1872,10 +1885,7 @@ void World::SetInitialWorldSettings()
 
     if (GetWowPatch() >= WOW_PATCH_103 || !getConfig(CONFIG_BOOL_ACCURATE_LFG))
     {
-        m_lfgQueueThread.reset(new std::thread([&]()
-        {
-            m_lfgQueue.Update();
-        }));
+        m_lfgQueueThread = IO::Multithreading::CreateThreadPtr("LfgUpdate", [&] { m_lfgQueue.Update(); });
     }
 
     sAnticheatMgr->StartWardenUpdateThread();
@@ -1884,8 +1894,8 @@ void World::SetInitialWorldSettings()
         std::make_unique<MovementBroadcaster>(getConfig(CONFIG_UINT32_PACKET_BCAST_THREADS),
                                               std::chrono::milliseconds(getConfig(CONFIG_UINT32_PACKET_BCAST_FREQUENCY)));
 
-    m_charDbWorkerThread.reset(new std::thread(&CharactersDatabaseWorkerThread));
-    m_asyncPacketsThread.reset(new std::thread(&World::ProcessAsyncPackets, this));
+    m_charDbWorkerThread = IO::Multithreading::CreateThreadPtr("CharDB", [](){ CharactersDatabaseWorkerThread(); });
+    m_asyncPacketsThread = IO::Multithreading::CreateThreadPtr("AsyncPacket", [this](){ ProcessAsyncPackets(); });
 
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "");
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "==========================================================");
@@ -1947,12 +1957,16 @@ void World::DetectDBCLang()
 // Only processes packets while session update, the messager, and cli commands processing are NOT running
 void World::ProcessAsyncPackets()
 {
-    while (!sWorld.IsStopped())
+    do
     {
-        do
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        } while (!m_canProcessAsyncPackets);
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        std::lock_guard<std::mutex> lock(m_asyncPacketsMutex);
+
+        if (IsStopped())
+            return;
+
+        if (!m_canProcessAsyncPackets)
+            continue;
 
         for (auto const& itr : m_sessions)
         {
@@ -1965,7 +1979,7 @@ void World::ProcessAsyncPackets()
             if (!m_canProcessAsyncPackets)
                 break;
         }
-    }
+    } while (!IsStopped());
 }
 
 // Update the World !
@@ -1974,7 +1988,7 @@ void World::Update(uint32 diff)
     m_currentMSTime = WorldTimer::getMSTime();
     m_currentTime = std::chrono::time_point_cast<std::chrono::milliseconds>(Clock::now());
     m_currentDiff = diff;
-    
+
     // Update the different timers
     for (auto& timer : m_timers)
     {
@@ -2000,18 +2014,21 @@ void World::Update(uint32 diff)
         sAuctionMgr.Update();
     }
 
-    m_canProcessAsyncPackets = false;
+    {
+        m_canProcessAsyncPackets = false;
+        std::lock_guard<std::mutex> lock(m_asyncPacketsMutex);
 
-    GetMessager().Execute(this);
+        GetMessager().Execute(this);
 
-    // <li> Handle session updates
-    uint32 updateSessionsTime = WorldTimer::getMSTime();
-    UpdateSessions(diff);
-    updateSessionsTime = WorldTimer::getMSTimeDiffToNow(updateSessionsTime);
-    if (getConfig(CONFIG_UINT32_PERFLOG_SLOW_SESSIONS_UPDATE) && updateSessionsTime > getConfig(CONFIG_UINT32_PERFLOG_SLOW_SESSIONS_UPDATE))
-        sLog.Out(LOG_PERFORMANCE, LOG_LVL_MINIMAL, "Update sessions: %ums", updateSessionsTime);
+        // <li> Handle session updates
+        uint32 updateSessionsTime = WorldTimer::getMSTime();
+        UpdateSessions(diff);
+        updateSessionsTime = WorldTimer::getMSTimeDiffToNow(updateSessionsTime);
+        if (getConfig(CONFIG_UINT32_PERFLOG_SLOW_SESSIONS_UPDATE) && updateSessionsTime > getConfig(CONFIG_UINT32_PERFLOG_SLOW_SESSIONS_UPDATE))
+            sLog.Out(LOG_PERFORMANCE, LOG_LVL_MINIMAL, "Update sessions: %ums", updateSessionsTime);
 
-    m_canProcessAsyncPackets = true;
+        m_canProcessAsyncPackets = true;
+    }
 
     // <li> Update uptime table
     if (m_timers[WUPDATE_UPTIME].Passed())
@@ -2026,14 +2043,14 @@ void World::Update(uint32 diff)
 
     // Update objects (maps, transport, creatures,...)
     uint32 updateMapSystemTime = WorldTimer::getMSTime();
-    
+
     // TODO: find a better place for this
     if (!m_updateThreads)
     {
-        m_updateThreads = std::unique_ptr<ThreadPool>( new ThreadPool(
+        m_updateThreads = std::unique_ptr<ThreadPool>(new ThreadPool(
+                    "WorldUpdate",
                     getConfig(CONFIG_UINT32_ASYNC_TASKS_THREADS_COUNT),
-                    ThreadPool::ClearMode::UPPON_COMPLETION)
-                                             );
+                    ThreadPool::ClearMode::UPPON_COMPLETION));
         m_updateThreads->start<ThreadPool::MySQL<>>();
     }
     std::unique_lock<std::mutex> lock(m_asyncTaskQueueMutex);
@@ -2041,7 +2058,7 @@ void World::Update(uint32 diff)
     std::future<void> job = m_updateThreads->processWorkload(_asyncTasksBusy);
     _asyncTasks.clear();
     lock.unlock();
-    
+
     sMapMgr.Update(diff);
     sBattleGroundMgr.Update(diff);
     sGuardMgr.Update(diff);
@@ -2067,7 +2084,7 @@ void World::Update(uint32 diff)
     if (getConfig(CONFIG_UINT32_PERFLOG_SLOW_MAPSYSTEM_UPDATE) && updateMapSystemTime > getConfig(CONFIG_UINT32_PERFLOG_SLOW_MAPSYSTEM_UPDATE))
         sLog.Out(LOG_PERFORMANCE, LOG_LVL_MINIMAL, "Update map system: %ums [%ums for async]", updateMapSystemTime, WorldTimer::getMSTimeDiffToNow(asyncWaitBegin));
 
-    // Sauvegarde des variables internes (table variables) : MaJ par rapport a la DB
+    // Save internal variables (table variables) : DB update
     if (m_timers[WUPDATE_SAVE_VAR].Passed())
     {
         m_timers[WUPDATE_SAVE_VAR].Reset();
@@ -2121,12 +2138,15 @@ void World::Update(uint32 diff)
     // Update ban list if necessary
     sAccountMgr.Update(diff);
 
-    m_canProcessAsyncPackets = false;
+    {
+        m_canProcessAsyncPackets = false;
+        std::lock_guard<std::mutex> lock(m_asyncPacketsMutex);
 
-    // And last, but not least handle the issued cli commands
-    ProcessCliCommands();
+        // And last, but not least handle the issued cli commands
+        ProcessCliCommands();
 
-    m_canProcessAsyncPackets = true;
+        m_canProcessAsyncPackets = true;
+    }
 
     //cleanup unused GridMap objects as well as VMaps
     if (getConfig(CONFIG_BOOL_CLEANUP_TERRAIN))
@@ -2250,6 +2270,48 @@ void World::SendWorldText(int32 string_id, ...)
             Player* player = session->GetPlayer();
             if (player && player->IsInWorld())
                 wt_do(player);
+        }
+    }
+
+    va_end(ap);
+}
+
+// Send a System Message to all players in the same battleground or queue (except self if mentioned)
+void World::SendWorldTextToBGAndQueue(int32 string_id, uint32 queuedPlayerLevel, uint32 queueType, ...)
+{
+    auto queueTypeId = static_cast<BattleGroundQueueTypeId>(queueType);
+    BattleGroundTypeId bgTypeId = BattleGroundMgr::BgTemplateId(queueTypeId);
+    BattleGroundBracketId queuedPlayerBracket = Player::GetBattleGroundBracketIdFromLevel(bgTypeId, queuedPlayerLevel);
+
+    va_list ap;
+    va_start(ap, queueType);
+
+    MaNGOS::WorldWorldTextBuilder wt_builder(string_id, &ap);
+    MaNGOS::LocalizedPacketListDo<MaNGOS::WorldWorldTextBuilder> wt_do(wt_builder);
+    for (const auto& itr : m_sessions)
+    {
+        if (WorldSession* session = itr.second)
+        {
+            Player* player = session->GetPlayer();
+            if (player && player->IsInWorld())
+            {
+                // Always announce it to all GMs.
+                if (session->GetSecurity() > SEC_PLAYER)
+                {
+                    wt_do(player);
+                    continue;
+                }
+
+                // If player is queued or already inside a BG matching the BG type.
+                if (player->InBattleGroundQueueForBattleGroundQueueType(queueTypeId) ||
+                    (player->InBattleGround() && player->GetBattleGroundTypeId() == bgTypeId))
+                {
+                    // If player bracket matches the queued player bracket.
+                    if (player->GetBattleGroundBracketIdFromLevel(bgTypeId) == queuedPlayerBracket)
+                        wt_do(player);
+                }
+
+            }
         }
     }
 
@@ -2446,7 +2508,7 @@ class BanQueryHolder : public SqlQueryHolder
 public:
     BanQueryHolder(BanMode mode, std::string banTarget, uint32 duration, std::string reason, uint32 realmId, std::string author,
         uint32 authorAccountId)
-        : m_mode(mode), m_duration(duration), m_reason(reason), m_realmId(realmId), 
+        : m_mode(mode), m_duration(duration), m_reason(reason), m_realmId(realmId),
           m_author(author), m_banTarget(banTarget), m_accountId(authorAccountId)
     {
     }
@@ -2473,9 +2535,9 @@ private:
 class BanAccountHandler
 {
 public:
-    void HandleAccountSelectResult(QueryResult*, SqlQueryHolder* queryHolder)
+    void HandleAccountSelectResult(std::unique_ptr<QueryResult>, SqlQueryHolder* queryHolder)
     {
-        BanQueryHolder* holder = static_cast<BanQueryHolder*>(queryHolder);
+        BanQueryHolder* holder = dynamic_cast<BanQueryHolder*>(queryHolder);
         if (!holder)
             return;
 
@@ -2483,7 +2545,7 @@ public:
 
         WorldSession* session = sWorld.FindSession(holder->GetAuthorAccountId());
 
-        QueryResult* result = holder->GetResult(0);
+        std::unique_ptr<QueryResult> result = holder->TakeResult(0);
         if (!result)
         {
             if (session)
@@ -2575,6 +2637,8 @@ BanReturn World::BanAccount(BanMode mode, std::string nameOrIP, uint32 duration_
             break;
         }
         default:
+            delete holder;
+
             return BAN_SYNTAX_ERROR;
     }
 
@@ -2780,7 +2844,7 @@ void World::UpdateSessions(uint32 diff)
         {
             if (pSession->PlayerLoading())
                 sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[CRASH] World::UpdateSession attempt to delete session %u loading a player.", pSession->GetAccountId());
-            
+
             AccountPlayHistory& history = m_accountsPlayHistory[pSession->GetAccountId()];
             if (!RemoveQueuedSession(pSession))
                 history.logoutTime = timeNow;
@@ -2842,13 +2906,12 @@ void World::UpdateRealmCharCount(uint32 accountId)
                                   "SELECT COUNT(`guid`) FROM `characters` WHERE `account` = '%u'", accountId);
 }
 
-void World::_UpdateRealmCharCount(QueryResult* resultCharCount, uint32 accountId)
+void World::_UpdateRealmCharCount(std::unique_ptr<QueryResult> resultCharCount, uint32 accountId)
 {
     if (resultCharCount)
     {
         Field* fields = resultCharCount->Fetch();
         uint32 charCount = fields[0].GetUInt32();
-        delete resultCharCount;
 
         LoginDatabase.PExecute("REPLACE INTO `realmcharacters` (`numchars`, `acctid`, `realmid`) VALUES (%u, %u, %u)", charCount, accountId, realmID);
     }
@@ -3040,7 +3103,7 @@ bool World::configNoReload(bool reload, eConfigBoolValues index, char const* fie
 
 void World::InvalidatePlayerDataToAllClient(ObjectGuid guid)
 {
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_9_4
     WorldPacket data(SMSG_INVALIDATE_PLAYER, 8);
     data << guid;
     SendGlobalMessage(&data);
@@ -3062,7 +3125,7 @@ void World::SetSessionDisconnected(WorldSession* sess)
 
 void World::AddAsyncTask(std::function<void()> task) {
     std::lock_guard<std::mutex> lock(m_asyncTaskQueueMutex);
-    _asyncTasks.push_back(task);
+    _asyncTasks.push_back(std::move(task));
 }
 
 void World::LogMoneyTrade(ObjectGuid sender, ObjectGuid receiver, uint32 amount, const char* type, uint32 dataInt)

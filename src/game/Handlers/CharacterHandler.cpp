@@ -31,11 +31,9 @@
 #include "Player.h"
 #include "Guild.h"
 #include "GuildMgr.h"
-#include "Auth/md5.h"
 #include "ObjectAccessor.h"
 #include "Group.h"
 #include "Database/DatabaseImpl.h"
-#include "PlayerDump.h"
 #include "SocialMgr.h"
 #include "Util.h"
 #include "Language.h"
@@ -83,7 +81,7 @@ bool LoginQueryHolder::Initialize()
                      "`reset_talents_time`, `transport_guid`, `transport_x`, `transport_y`, `transport_z`, `transport_o`, `extra_flags`, `stable_slots`, `at_login_flags`, `zone`, `online`, `death_expire_time`, `current_taxi_path`, "
                      "`honor_rank_points`, `honor_highest_rank`, `honor_standing`, `honor_last_week_hk`, `honor_last_week_cp`, `honor_stored_hk`, `honor_stored_dk`, "
                      "`watched_faction`, `drunk`, `health`, `power1`, `power2`, `power3`, `power4`, `power5`, `explored_zones`, `equipment_cache`, `ammo_id`, `action_bars`, "
-                     "`world_phase_mask`, `create_time` FROM `characters` WHERE `guid` = '%u'", m_guid.GetCounter());
+                     "`world_phase_mask`, `create_time`, `instance` FROM `characters` WHERE `guid` = '%u'", m_guid.GetCounter());
     res &= SetPQuery(PLAYER_LOGIN_QUERY_LOADGROUP,           "SELECT `group_id` FROM `group_member` WHERE `member_guid` ='%u'", m_guid.GetCounter());
     res &= SetPQuery(PLAYER_LOGIN_QUERY_LOADBOUNDINSTANCES,  "SELECT `id`, `permanent`, `map`, `reset_time` FROM `character_instance` LEFT JOIN `instance` ON `instance` = `id` WHERE `guid` = '%u'", m_guid.GetCounter());
     res &= SetPQuery(PLAYER_LOGIN_QUERY_LOADAURAS,           "SELECT `caster_guid`, `item_guid`, `spell`, `stacks`, `charges`, `base_points0`, `base_points1`, `base_points2`, `periodic_time0`, `periodic_time1`, `periodic_time2`, `max_duration`, `duration`, `effect_index_mask` FROM `character_aura` WHERE `guid` = '%u'", m_guid.GetCounter());
@@ -114,19 +112,20 @@ bool LoginQueryHolder::Initialize()
 class CharacterHandler
 {
 public:
-    void HandleCharEnumCallback(QueryResult* result, uint32 account)
+    void HandleCharEnumCallback(std::unique_ptr<QueryResult> result, uint32 account)
     {
         WorldSession* session = sWorld.FindSession(account);
         if (!session)
         {
-            delete result;
             return;
         }
-        session->HandleCharEnum(result);
+        session->HandleCharEnum(std::move(result));
     }
-    void HandlePlayerLoginCallback(QueryResult* /*dummy*/, SqlQueryHolder * holder)
+    void HandlePlayerLoginCallback(std::unique_ptr<QueryResult> /*dummy*/, SqlQueryHolder* holder)
     {
-        if (!holder) return;
+        if (!holder)
+            return;
+
         WorldSession* session = sWorld.FindSession(((LoginQueryHolder*)holder)->GetAccountId());
         if (!session)
         {
@@ -137,12 +136,11 @@ public:
     }
 } chrHandler;
 
-void WorldSession::HandleCharEnum(QueryResult* result)
+void WorldSession::HandleCharEnum(std::unique_ptr<QueryResult> result)
 {
     WorldPacket data(SMSG_CHAR_ENUM, 100);                  // we guess size
 
     uint8 num = 0;
-
     data << num;
 
     if (result)
@@ -159,10 +157,8 @@ void WorldSession::HandleCharEnum(QueryResult* result)
                 ++num;
         }
         while (result->NextRow());
-
-        delete result;
     }
-
+    
     data.put<uint8>(0, num);
     m_charactersCount = num;
 
@@ -405,7 +401,7 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recv_data)
         return;
     }
 
-    LoginQueryHolder *holder = new LoginQueryHolder(GetAccountId(), playerGuid);
+    LoginQueryHolder* holder = new LoginQueryHolder(GetAccountId(), playerGuid);
     if (!holder->Initialize())
     {
         delete holder;                                      // delete all unprocessed queries
@@ -418,7 +414,7 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recv_data)
 void WorldSession::LoginPlayer(ObjectGuid loginPlayerGuid)
 {
     ASSERT(loginPlayerGuid.IsPlayer());
-    LoginQueryHolder *holder = new LoginQueryHolder(GetAccountId(), loginPlayerGuid);
+    LoginQueryHolder* holder = new LoginQueryHolder(GetAccountId(), loginPlayerGuid);
     if (!holder->Initialize())
     {
         delete holder;                                      // delete all unprocessed queries
@@ -527,10 +523,10 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
     {
         m_masterPlayer = new MasterPlayer(this);
         m_masterPlayer->LoadPlayer(GetPlayer());
-        m_masterPlayer->LoadActions(holder->GetResult(PLAYER_LOGIN_QUERY_LOADACTIONS));
-        m_masterPlayer->LoadSocial(holder->GetResult(PLAYER_LOGIN_QUERY_LOADSOCIALLIST));
-        m_masterPlayer->LoadMails(holder->GetResult(PLAYER_LOGIN_QUERY_LOADMAILS));
-        m_masterPlayer->LoadMailedItems(holder->GetResult(PLAYER_LOGIN_QUERY_LOADMAILEDITEMS));
+        m_masterPlayer->LoadActions(std::move(holder->TakeResult(PLAYER_LOGIN_QUERY_LOADACTIONS)));
+        m_masterPlayer->LoadSocial(std::move(holder->TakeResult(PLAYER_LOGIN_QUERY_LOADSOCIALLIST)));
+        m_masterPlayer->LoadMails(std::move(holder->TakeResult(PLAYER_LOGIN_QUERY_LOADMAILS)));
+        m_masterPlayer->LoadMailedItems(std::move(holder->TakeResult(PLAYER_LOGIN_QUERY_LOADMAILEDITEMS)));
     }
     m_masterPlayer->UpdateNextMailTimeAndUnreads();
 
@@ -556,7 +552,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
     SendPacket(&data);
 
     // load player specific part before send times
-    LoadAccountData(holder->GetResult(PLAYER_LOGIN_QUERY_LOADACCOUNTDATA), NewAccountData::PER_CHARACTER_CACHE_MASK);
+    LoadAccountData(holder->TakeResult(PLAYER_LOGIN_QUERY_LOADACCOUNTDATA), NewAccountData::PER_CHARACTER_CACHE_MASK);
     SendAccountDataTimes();
 
     pCurrChar->GetSocial()->SendFriendList();
@@ -622,9 +618,9 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
         // normal delayed teleport protection not applied (and this correct) for this case (Player object just created)
         AreaTriggerTeleport const* at = sObjectMgr.GetGoBackTrigger(pCurrChar->GetMapId());
         if (at)
-            pCurrChar->TeleportTo(at->destination, pCurrChar->GetOrientation());
-        else if (pCurrChar->GetMapId() == 533)
-            pCurrChar->TeleportTo(0, 3362.15f, -3379.35f, 144.782f, 6.28319f); // Naxxramas has no exit trigger
+            pCurrChar->TeleportTo(at->destination);
+        else if (pCurrChar->GetMapId() == MAP_NAXXRAMAS)
+            pCurrChar->TeleportTo(MAP_EASTERN_KINGDOMS, 3362.15f, -3379.35f, 144.782f, 6.28319f); // Naxxramas has no exit trigger
         else
             pCurrChar->TeleportToHomebind();
 
@@ -876,12 +872,11 @@ void WorldSession::HandleCharRenameOpcode(WorldPacket& recv_data)
                                  );
 }
 
-void WorldSession::HandleChangePlayerNameOpcodeCallBack(QueryResult* result, uint32 accountId, std::string newname)
+void WorldSession::HandleChangePlayerNameOpcodeCallBack(std::unique_ptr<QueryResult> result, uint32 accountId, std::string newname)
 {
     WorldSession* session = sWorld.FindSession(accountId);
     if (!session)
     {
-        delete result;
         return;
     }
 
@@ -896,8 +891,6 @@ void WorldSession::HandleChangePlayerNameOpcodeCallBack(QueryResult* result, uin
     uint32 guidLow = result->Fetch()[0].GetUInt32();
     ObjectGuid guid = ObjectGuid(HIGHGUID_PLAYER, guidLow);
     std::string oldname = result->Fetch()[1].GetCppString();
-
-    delete result;
 
     CharacterDatabase.BeginTransaction();
     CharacterDatabase.PExecute("UPDATE `characters` SET `name` = '%s', `at_login_flags` = `at_login_flags` & ~ %u WHERE `guid` ='%u'", newname.c_str(), uint32(AT_LOGIN_RENAME), guidLow);

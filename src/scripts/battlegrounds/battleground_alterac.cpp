@@ -150,7 +150,7 @@ struct npc_VanndarAI : public ScriptedAI, public npc_alterac_bossHelper
 
     void UpdateAI(uint32 const diff) override
     {
-        if (m_creature->GetMapId() == 30)
+        if (m_creature->GetMapId() == MAP_ALTERAC_VALLEY)
             if (m_creature->GetDistance2d(POSITION_VANNDAR_CENTER_X, POSITION_VANNDAR_CENTER_Y) > 35.0f)
             {
                 m_creature->CombatStop();
@@ -407,7 +407,7 @@ struct npc_DrekTharAI : public ScriptedAI, public npc_alterac_bossHelper
 
     void UpdateAI(uint32 const diff) override
     {
-        if (m_creature->GetMapId() == 30)
+        if (m_creature->GetMapId() == MAP_ALTERAC_VALLEY)
         {
             if (m_creature->GetDistance2d(POSITION_DKT_CENTER_X, POSITION_DKT_CENTER_Y) > 33.0f)
             {
@@ -620,7 +620,7 @@ struct npc_BalindaAI : public ScriptedAI
         if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
-        if (m_creature->GetMapId() == 30)
+        if (m_creature->GetMapId() == MAP_ALTERAC_VALLEY)
             if (m_creature->GetDistance2d(POSITION_BAL_CENTER_X, POSITION_BAL_CENTER_Y) > 45.0f)
             {
                 m_creature->CombatStop();
@@ -861,7 +861,7 @@ struct npc_GalvangarAI : public ScriptedAI
         if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
-        if (m_creature->GetMapId() == 30)
+        if (m_creature->GetMapId() == MAP_ALTERAC_VALLEY)
         {
             if (m_creature->GetDistance2d(POSITION_GAL_CENTER_X, POSITION_GAL_CENTER_Y) > 45.0f)
             {
@@ -2119,7 +2119,7 @@ struct AV_NpcEventAI : public npc_escortAI
                         it->CastSpell(m_creature, AV_INVOCATION_SPELL, false);
                     m_RamRiderList.clear();
 
-                    m_creature->SummonGameObject(OBJECT_WB_H_INVOCATION, -360.006989f, -130.33f, 26.4321f, 5.6635f, 0, 0, 0, 0, -1, false);
+                    m_creature->SummonGameObject(OBJECT_WB_H_INVOCATION, -360.139f, -133.403f, 26.4856f, 4.41568f, 0, 0, -0.803857f, 0.594823f, -1, false);
                     m_creature->SetHomePosition(m_creature->GetPositionX(), m_creature->GetPositionY(), m_creature->GetPositionZ(), 0.0f);
                     Stop();//SetEscortPaused(true);
                     isGobSummoned = true;
@@ -2152,7 +2152,7 @@ struct AV_NpcEventAI : public npc_escortAI
                         it->CastSpell(m_creature, AV_INVOCATION_SPELL, false);
                     m_RamRiderList.clear();
 
-                    m_creature->SummonGameObject(OBJECT_WB_A_INVOCATION, -199.7f, -342.698f, 6.809f, 1.69646f, 0, 0, 0, 0, -1, false);
+                    m_creature->SummonGameObject(OBJECT_WB_A_INVOCATION, -199.993f, -343.217f, 6.77662f, 3.68265f, 0, 0, -0.96363f, 0.267241f, -1, false);
                     m_creature->SetHomePosition(m_creature->GetPositionX(), m_creature->GetPositionY(), m_creature->GetPositionZ(), 0.0f);
                     Stop();//SetEscortPaused(true);
                     isGobSummoned = true;
@@ -2635,7 +2635,7 @@ bool QuestComplete_npc_AVBlood_collector(Player* pPlayer, Creature* pQuestGiver,
                         break;
 
                     default:
-                        sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[Alterac] QuestComplete_npc_AVBlood_collector called with quest %u reqItem=%u unknown !", pQuest->GetQuestId(), pQuest->ReqItemId[0]);
+                        sLog.Out(LOG_SCRIPTS, LOG_LVL_MINIMAL, "[Alterac] QuestComplete_npc_AVBlood_collector called with quest %u reqItem=%u unknown !", pQuest->GetQuestId(), pQuest->ReqItemId[0]);
                         return false;
                 }
             }

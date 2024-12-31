@@ -70,10 +70,12 @@ void WorldSession::SendTradeStatus(TradeStatus status)
 
 void WorldSession::HandleIgnoreTradeOpcode(WorldPacket& /*recvPacket*/)
 {
+    _player->TradeCancel(true, TRADE_STATUS_IGNORE_YOU);
 }
 
 void WorldSession::HandleBusyTradeOpcode(WorldPacket& /*recvPacket*/)
 {
+    _player->TradeCancel(true, TRADE_STATUS_BUSY);
 }
 
 void WorldSession::SendUpdateTrade(bool trader_state /*= true*/)
@@ -565,12 +567,12 @@ void WorldSession::HandleBeginTradeOpcode(WorldPacket& /*recvPacket*/)
     SendTradeStatus(TRADE_STATUS_OPEN_WINDOW);
 }
 
-void WorldSession::SendCancelTrade()
+void WorldSession::SendCancelTrade(TradeStatus status)
 {
     if (m_playerRecentlyLogout)
         return;
 
-    SendTradeStatus(TRADE_STATUS_TRADE_CANCELED);
+    SendTradeStatus(status);
 }
 
 void WorldSession::HandleCancelTradeOpcode(WorldPacket& /*recvPacket*/)
@@ -650,12 +652,6 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
         return;
     }
 
-    if (pOther->GetSocial()->HasIgnore(GetPlayer()->GetObjectGuid()))
-    {
-        SendTradeStatus(TRADE_STATUS_IGNORE_YOU);
-        return;
-    }
-
     if (!sWorld.getConfig(CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_TRADE) && pOther->GetTeam() != _player->GetTeam())
     {
         SendTradeStatus(TRADE_STATUS_WRONG_FACTION);
@@ -665,6 +661,12 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
     if (_player->GetDistance3dToCenter(pOther) > TRADE_DISTANCE)
     {
         SendTradeStatus(TRADE_STATUS_TARGET_TO_FAR);
+        return;
+    }
+
+    if (HasTrialRestrictions() || pOther->GetSession()->HasTrialRestrictions())
+    {
+        SendTradeStatus(TRADE_STATUS_TRIAL_ACCOUNT);
         return;
     }
 

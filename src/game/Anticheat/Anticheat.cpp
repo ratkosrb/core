@@ -15,6 +15,7 @@
 */
 
 #include "Anticheat.h"
+#include "IO/Multithreading/CreateThread.h"
 
 AnticheatManager* AnticheatManager::instance()
 {
@@ -26,8 +27,6 @@ AnticheatManager* GetAnticheatLib()
 {
     return AnticheatManager::instance();
 }
-
-#ifdef USE_ANTICHEAT
 
 #include "World.h"
 #include "WorldSession.h"
@@ -60,7 +59,7 @@ void AnticheatManager::LoadAnticheatData()
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_MINIMAL, "Loading warden checks...");
     sWardenScanMgr.LoadFromDB();
     Warden::LoadScriptedScans();
-    
+
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_MINIMAL, "");
     sLog.Out(LOG_ANTICHEAT, LOG_LVL_MINIMAL, "Loading warden modules...");
     sWardenModuleMgr;
@@ -100,7 +99,7 @@ Warden* AnticheatManager::CreateWardenFor(WorldSession* client, BigNumber* K)
 
 void AnticheatManager::StartWardenUpdateThread()
 {
-   m_wardenUpdateThread = std::thread(&AnticheatManager::UpdateWardenSessions, this);
+   m_wardenUpdateThread = IO::Multithreading::CreateThread("WardenSessions", [this]() { UpdateWardenSessions(); });
 }
 
 void AnticheatManager::StopWardenUpdateThread()
@@ -184,9 +183,3 @@ void AnticheatManager::RemoveWardenSession(Warden* warden)
     m_wardenSessionsToRemove.push_back(warden);
 }
 
-AntispamInterface* AnticheatManager::GetAntispam() const
-{
-    return sAntispam;
-}
-
-#endif

@@ -30,279 +30,139 @@
 #include "HardcodedEvents.h"
 #include "CreatureGroups.h"
 
-enum
+struct go_wind_stoneAI: public GameObjectAI
 {
-    SPELL_SET_AURA            = 24746,
-    SPELL_RED_LIGHTNING       = 24240,
+    go_wind_stoneAI(GameObject* pGo) : GameObjectAI(pGo) {}
 
-    ITEM_SET_ENTRY            = 492,
-
-    ITEM_SET_SHOULDERS        = 20406,
-    ITEM_SET_CHEST            = 20407,
-    ITEM_SET_HEAD             = 20408,
-
-    SPELL_APPARITION          = 25035,
-
-    GO_TYPE_PIERRE_ERR        = 0,
-    GO_TYPE_PIERRE_INF        = 1,
-    GO_TYPE_PIERRE_MOYENNE    = 2,
-    GO_TYPE_PIERRE_SUP        = 3,
-
-    // Pierre moyenne
-    ITEM_ACCES_PIERRE_MOYENNE = 20422,
-    AURA_ACCES_PIERRE_MOYENNE = 24748,
-
-    // Pierre superieure
-    ITEM_ACCES_PIERRE_SUP     = 20451,
-    AURA_ACCES_PIERRE_SUP     = 24782,
-
-    GOSSIP_STONE_FIRST_HELLO    = 69,
-    GOSSIP_STONE_FIRST_OPTION   = 10684
-};
-
-struct Silithus_WindStonesBossData
-{
-    int stoneType;
-    int action;
-    int summonEntry;
-    int reqItem;
-    int gossipOption;
-};
-static Silithus_WindStonesBossData const windStonesBosses[] =
-{
-    {GO_TYPE_PIERRE_INF,    1,  15209,  20416, 10685 },
-    {GO_TYPE_PIERRE_INF,    2,  15307,  20419, 10691 },
-    {GO_TYPE_PIERRE_INF,    3,  15212,  20418, 10690 },
-    {GO_TYPE_PIERRE_INF,    4,  15211,  20420, 10692 },
-
-    {GO_TYPE_PIERRE_MOYENNE,1,  15206,  20432, 10699 },
-    {GO_TYPE_PIERRE_MOYENNE,2,  15208,  20435, 10701 },
-    {GO_TYPE_PIERRE_MOYENNE,3,  15220,  20433, 10700 },
-    {GO_TYPE_PIERRE_MOYENNE,4,  15207,  20436, 10702 },
-
-    {GO_TYPE_PIERRE_SUP,    1,  15203,  20447, 10708 },
-    {GO_TYPE_PIERRE_SUP,    2,  15205,  20449, 10710 },
-    {GO_TYPE_PIERRE_SUP,    3,  15204,  20448, 10709 },
-    {GO_TYPE_PIERRE_SUP,    4,  15305,  20450, 10711 },
-};
-
-struct go_pierre_ventsAI: public GameObjectAI
-{
-    go_pierre_ventsAI(GameObject* pGo) : GameObjectAI(pGo) {}
-
-    uint32 GetStoneType()
+    static uint32 GetSpawnText(uint32 npcEntry)
     {
+        uint32 textId;
+        switch (npcEntry)
+        {
+            case 15209:
+            case 15307:
+            case 15212:
+            case 15211:
+                textId = PickRandomValue(10686, 10694, 10695, 10696);
+                break;
+            case 15206:
+            case 15208:
+            case 15220:
+            case 15207:
+                textId = PickRandomValue(10801, 10802, 10803, 10804);
+                break;
+            case 15203:
+            case 15205:
+            case 15204:
+            case 15305:
+                textId = PickRandomValue(10805, 10806, 10807, 10810);
+                break;
+            default:
+                textId = 0;
+                break;
+        }
+        return textId;
+    }
+
+    bool OnActivateBySpell(SpellCaster* caster, uint32 spellId, uint32 action) override
+    {
+        uint32 npcEntry = 0;
+        static constexpr uint32 templars[] = { 15209, 15211, 15212, 15307 };
+        static constexpr uint32 dukes[] = { 15206, 15207, 15208, 15220 };
+        static constexpr uint32 royals[] = { 15203, 15204, 15205, 15305 };
+
+        switch (spellId)
+        {
+            case 24734: npcEntry = templars[urand(0, 3)]; break; // Summon Templar Random
+            case 24763: npcEntry = dukes[urand(0, 3)];    break; // Summon Duke Random
+            case 24784: npcEntry = royals[urand(0, 3)];   break; // Summon Royal Random
+            case 24744: npcEntry = 15209;                 break; // Summon Templar (fire)
+            case 24756: npcEntry = 15212;                 break; // Summon Templar (air)
+            case 24758: npcEntry = 15307;                 break; // Summon Templar (earth)
+            case 24760: npcEntry = 15211;                 break; // Summon Templar (water)
+            case 24765: npcEntry = 15206;                 break; // Summon Duke (fire)
+            case 24768: npcEntry = 15220;                 break; // Summon Duke (air)
+            case 24770: npcEntry = 15208;                 break; // Summon Duke (earth)
+            case 24772: npcEntry = 15207;                 break; // Summon Duke (water)
+            case 24786: npcEntry = 15203;                 break; // Summon Royal (fire)
+            case 24788: npcEntry = 15204;                 break; // Summon Royal (air)
+            case 24789: npcEntry = 15205;                 break; // Summon Royal (earth)
+            case 24790: npcEntry = 15305;                 break; // Summon Royal (water)
+        }
+
+        if (!npcEntry)
+        {
+            sLog.Out(LOG_SCRIPTS, LOG_LVL_ERROR, "go_wind_stoneAI - Unhandled spell id %u!\n", spellId);
+            return false;
+        }
+
+        if (!me->isSpawned())
+            return true;
+
+        float x, y, z, o;
         switch (me->GetEntry())
         {
-            // Pierre SUP
-            case 180466:
-            case 180539:
-            case 180559:
-                return GO_TYPE_PIERRE_SUP;
-            // Pierre MOYENNE
-            case 180554:
-            case 180534:
-            case 180502:
-            case 180461:
-                return GO_TYPE_PIERRE_MOYENNE;
-            // Pierre INF
-            case 180456:
-            case 180518:
-            case 180529:
-            case 180544:
-            case 180549:
-            case 180564:
-                return GO_TYPE_PIERRE_INF;
+            case 180461: // guessed
+                x = -7927.48f;
+                y = 1935.30f;
+                z = 5.61f;
+                o = 4.76475f;
+                break;
+            case 180534: // guessed
+                x = -6998.52f;
+                y = 1223.02f;
+                z = 9.16f;
+                o = 4.76475f;
+                break;
+            case 180554: // sniffed
+                x = -6716.82f;
+                y = 1674.36f;
+                z = 8.51f;
+                o = 4.76475f;
+                break;
             default:
-                return GO_TYPE_PIERRE_ERR;
-        }
-    }
-    uint32 SelectRandomBoss(uint32 stoneType)
-    {
-        std::vector<uint32> possibleBosses;
-        for (const auto& stone : windStonesBosses)
-            if (stone.stoneType == stoneType)
-                possibleBosses.push_back(stone.summonEntry);
-        ASSERT(!possibleBosses.empty());
-        return possibleBosses[urand(0, possibleBosses.size() - 1)];
-    }
-
-    bool CheckPlayerHasAura(uint32 uiReqAura, Player *pUser, uint32 itemToDelete = 0)
-    {
-        if (uiReqAura && !pUser->HasAura(uiReqAura))
-            if (!pUser->IsGameMaster())
-                return false;
-        return true;
-    }
-
-    void UseFailed(Unit* user)
-    {
-        if (user->IsAlive())
-        {
-            user->CastSpell(user, SPELL_RED_LIGHTNING, true);
-            user->DealDamage(user, user->GetHealth() > 1000 ? 1000 : user->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
-        }
-    }
-    bool CanUse(Player* user)
-    {
-        if (!user || !me->isSpawned())
-            return false;
-
-        bool playerHasAura = true;
-
-        // Check if allowed to use the stone ?
-        switch (GetStoneType())
-        {
-            // Pierre SUP
-            case GO_TYPE_PIERRE_SUP:
-                if (!user->HasItemWithIdEquipped(ITEM_ACCES_PIERRE_SUP))
-                    playerHasAura = false;
-            // Pierre MOYENNE
-            case GO_TYPE_PIERRE_MOYENNE:
-                if (!user->HasItemWithIdEquipped(ITEM_ACCES_PIERRE_MOYENNE))
-                    playerHasAura = false;
-            // Pierre INF
-            case GO_TYPE_PIERRE_INF:
-                if (!user->HasItemWithIdEquipped(ITEM_SET_HEAD) ||
-                    !user->HasItemWithIdEquipped(ITEM_SET_SHOULDERS) ||
-                    !user->HasItemWithIdEquipped(ITEM_SET_CHEST))
-                    playerHasAura = false;
+                x = me->GetPositionX();
+                y = me->GetPositionY();
+                z = me->GetPositionZ();
+                o = me->GetOrientation();
                 break;
         }
-
-        if (!playerHasAura)
+        
+        if (Creature* pCreature = me->SummonCreature(npcEntry, x, y, z, o, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, MINUTE * IN_MILLISECONDS))
         {
-            UseFailed(user);
-            return false;
-        }
-        return true;
-    }
-
-    bool OnUse(Unit* user) override
-    {
-        Player* player = user->ToPlayer();
-        if (!CanUse(player))
-            return true;
-
-        uint32 stoneType = GetStoneType();
-        player->PlayerTalkClass->ClearMenus();
-        //FixMe: Positive ID is broadcast text. I don't understand the thing below.
-        //player->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_STONE_FIRST_OPTION + stoneType - 1, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF);
-        player->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, GOSSIP_STONE_FIRST_OPTION, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF);
-
-        for (const auto& stone : windStonesBosses)
-            if (stone.stoneType == stoneType)
-                if (player->HasItemCount(stone.reqItem, 1))
-                    player->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, stone.gossipOption, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + stone.action);
-
-        player->SEND_GOSSIP_MENU(GOSSIP_STONE_FIRST_HELLO + stoneType - 1, me->GetGUID());
-        return true;
-    }
-
-    bool GossipSelect(Player* player, uint32 action)
-    {
-        if (!CanUse(player))
-            return true;
-
-        uint32 stoneType = GetStoneType();
-        if (!stoneType)
-            return true;
-
-        uint32 summonEntry = 0;
-        uint32 textId = 0;
-
-        // Let's find out which mob we have to summon.
-        switch (stoneType)
-        {
-            case GO_TYPE_PIERRE_SUP:
-                textId = 10805;
-                break;
-            case GO_TYPE_PIERRE_MOYENNE:
-                textId = 10802;
-                break;
-            case GO_TYPE_PIERRE_INF:
-                textId = 10686;
-                break;
-        }
-
-        for (const auto& stone : windStonesBosses)
-        {
-            if (stone.stoneType == stoneType && action == GOSSIP_ACTION_INFO_DEF + stone.action)
+            pCreature->m_Events.AddLambdaEventAtOffset([pCreature, casterGuid = caster->GetObjectGuid()]
             {
-                if (player->HasItemCount(stone.reqItem, 1))
+                if (Player* pPlayer = pCreature->GetMap()->GetPlayer(casterGuid))
+                    pCreature->SetFacingToObject(pPlayer);
+            }, 1500);
+
+            if (uint32 textId = GetSpawnText(npcEntry))
+            {
+                pCreature->m_Events.AddLambdaEventAtOffset([pCreature, textId, casterGuid = caster->GetObjectGuid()]
                 {
-                    summonEntry = stone.summonEntry;
-                    player->DestroyItemCount(stone.reqItem, 1, true, false);
-                }
-            }   
-        }
-
-        if (!summonEntry && action != GOSSIP_ACTION_INFO_DEF)
-        {
-            UseFailed(player);
-            return true;
-        }
-
-        if (!summonEntry)
-            summonEntry = SelectRandomBoss(stoneType);
-
-        if (!summonEntry)
-            return true;
-
-        // Destroy required items.
-        if (!player->ToPlayer()->IsGameMaster())
-        {
-            switch (stoneType)
-            {
-                case GO_TYPE_PIERRE_SUP:
-                    player->DestroyEquippedItem(ITEM_ACCES_PIERRE_SUP);
-                // no break
-                case GO_TYPE_PIERRE_MOYENNE:
-                    player->DestroyEquippedItem(ITEM_ACCES_PIERRE_MOYENNE);
-                // no break
-                case GO_TYPE_PIERRE_INF:
-                    player->DestroyEquippedItem(ITEM_SET_SHOULDERS);
-                    player->DestroyEquippedItem(ITEM_SET_CHEST);
-                    player->DestroyEquippedItem(ITEM_SET_HEAD);
-                    break;
+                    if (Player* pPlayer = pCreature->GetMap()->GetPlayer(casterGuid))
+                        DoScriptText(textId, pCreature, pPlayer);
+                }, 1600);
             }
+            
+            pCreature->m_Events.AddLambdaEventAtOffset([pCreature, casterGuid = caster->GetObjectGuid()]
+            {
+                pCreature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
+                if (Player* pPlayer = pCreature->GetMap()->GetPlayer(casterGuid))
+                {
+                    pCreature->AI()->AttackStart(pPlayer);
+                    pCreature->SetLootRecipient(pPlayer);
+                }
+            }, 8000);
         }
-
-        // Summon the creature
-        if (Creature* pInvoc = me->SummonCreature(summonEntry, player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), me->GetAngle(player), TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 3600000, false, 5000))
-        {
-            player->CastSpell(player, SPELL_RED_LIGHTNING, true);
-            pInvoc->CastSpell(pInvoc, SPELL_APPARITION, true);
-            pInvoc->SetLootRecipient(player); // Force tag for summoner
-            if (textId)
-                pInvoc->MonsterSay(textId, 0, player);
-        }
-
-        // Mark stone as used.
-        me->UseDoorOrButton();
-        if (stoneType == GO_TYPE_PIERRE_SUP)
-            me->SetRespawnTime(3600);
-        else if (stoneType == GO_TYPE_PIERRE_MOYENNE)
-            me->SetRespawnTime(300);
-        else if (stoneType == GO_TYPE_PIERRE_INF)
-            me->SetRespawnTime(90);
-        else
-            me->SetRespawnTime(me->ComputeRespawnDelay());
+        me->Despawn();
         return true;
     }
 };
 
-GameObjectAI* GetAIgo_pierre_vents(GameObject *go)
+GameObjectAI* GetAIgo_wind_stone(GameObject *go)
 {
-    return new go_pierre_ventsAI(go);
-}
-
-bool GossipSelect_go_pierre_vents(Player* user, GameObject* gobj, uint32 sender, uint32 action)
-{
-    user->CLOSE_GOSSIP_MENU();
-    if (go_pierre_ventsAI* ai = dynamic_cast<go_pierre_ventsAI*>(gobj->AI()))
-        ai->GossipSelect(user, action);
-    return true;
+    return new go_wind_stoneAI(go);
 }
 
 enum
@@ -608,91 +468,6 @@ CreatureAI* GetAI_npc_creeping_doom(Creature* pCreature)
 }
 
 /*#####
- ## npc_prince_thunderaan
- ######*/
-
-enum
-{
-    SPELL_TENDRILS_OF_AIR           = 23009, // KB
-    SPELL_TEARS_OF_THE_WIND_SEEKER    = 23011
-};
-
-struct npc_prince_thunderaanAI : public ScriptedAI
-{
-    npc_prince_thunderaanAI(Creature* pCreature) : ScriptedAI(pCreature)
-    {
-        engaged = false;
-        emerged = false;
-        Reset();
-    }
-
-    uint32 m_uiTendrilsTimer;
-    uint32 m_uiTearsTimer;
-    bool engaged;
-    bool emerged;
-
-    void Reset() override
-    {
-        m_uiTendrilsTimer   = 8000;
-        m_uiTearsTimer      = 15000;
-    }
-
-    void SpellHitTarget(Unit* pCaster, SpellEntry const* pSpell) override
-    {
-        if (pCaster->GetTypeId() != TYPEID_PLAYER)
-            return;
-
-        if (pSpell->Id == SPELL_TENDRILS_OF_AIR)
-            m_creature->GetThreatManager().modifyThreatPercent(pCaster, -100);
-    }
-
-    void Aggro(Unit* pWho) override
-    {
-        if (!engaged)
-        {
-            m_creature->MonsterYell("My power is discombobulatingly devastating! It is ludicrous that these mortals even attempt to enter my realm!", 0);
-            engaged = true;
-        }
-    }
-
-    void UpdateAI(uint32 const uiDiff) override
-    {
-        if (!emerged)
-        {
-            m_creature->CastSpell(m_creature, 20568, false);     // Ragnaros Emerge
-            emerged = true;
-        }
-
-        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
-            return;
-
-        if (m_uiTendrilsTimer < uiDiff)
-        {
-            if (DoCastSpellIfCan(m_creature, SPELL_TENDRILS_OF_AIR) == CAST_OK) // KB
-                m_uiTendrilsTimer = urand(12000, 20000);
-        }
-        else
-            m_uiTendrilsTimer -= uiDiff;
-
-        if (m_uiTearsTimer < uiDiff)
-        {
-            if (DoCastSpellIfCan(m_creature, SPELL_TEARS_OF_THE_WIND_SEEKER) == CAST_OK)
-                m_uiTearsTimer = urand(8000, 11000);
-        }
-        else
-            m_uiTearsTimer -= uiDiff;
-
-        DoMeleeAttackIfReady();
-    }
-};
-
-CreatureAI* GetAI_npc_prince_thunderaan(Creature* pCreature)
-{
-    return new npc_prince_thunderaanAI(pCreature);
-}
-
-
-/*#####
  ## npc_colossus
  ######*/
 
@@ -842,7 +617,6 @@ CreatureAI* GetAI_npc_colossus(Creature* pCreature)
 enum
 {
     GO_GLYPHED_CRYSTAL      = 180514,
-    GO_GLYPHED_CRYSTAL_BIG  = 210342
 };
 
 struct npc_Geologist_LarksbaneAI : public ScriptedAI
@@ -870,11 +644,11 @@ struct npc_Geologist_LarksbaneAI : public ScriptedAI
         m_creature->RemoveFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_QUESTGIVER);
         m_creature->RemoveFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP);
 
-        if (GameObject* pGo = m_creature->SummonGameObject(GO_GLYPHED_CRYSTAL, -6826.51f, 809.082f, 51.8577f, 0.259445f))
+        if (GameObject* pGo = m_creature->SummonGameObject(GO_GLYPHED_CRYSTAL, -6825.29f, 809.125f, 51.8699f, 0.349065f, 0, 0, 0.173648f, 0.984808f))
             lCrystalGUIDs.push_back(pGo->GetGUID());
-        if (GameObject* pGo = m_creature->SummonGameObject(GO_GLYPHED_CRYSTAL, -6827.54f, 806.711f, 51.9809f, 2.2241f))
+        if (GameObject* pGo = m_creature->SummonGameObject(GO_GLYPHED_CRYSTAL, -6822.21f, 808.584f, 51.5885f, 2.77507f, 0, 0, 0.983254f, 0.182238f))
             lCrystalGUIDs.push_back(pGo->GetGUID());
-        if (GameObject* pGo = m_creature->SummonGameObject(GO_GLYPHED_CRYSTAL_BIG, -6825.31f, 805.146f, 51.9435f, -1.255528f))
+        if (GameObject* pGo = m_creature->SummonGameObject(GO_GLYPHED_CRYSTAL, -6823.57f, 811.977f, 51.4426f, 4.41568f, 0, 0, -0.803857f, 0.594823f))
             lCrystalGUIDs.push_back(pGo->GetGUID());
 
         uiCurrAction = 1;
@@ -1391,7 +1165,6 @@ enum
     GO_AQ_BARRIER           = 176146,
     GO_AQ_GATE_ROOTS        = 176147,
     GO_AQ_GATE_RUNES        = 176148,
-    GO_AQ_GHOST_GATE        = 180322,
 
     AQ_OPEN_IF_CLOSED = 0,
     AQ_PREPARE_CLOSE = 1,
@@ -2301,8 +2074,6 @@ struct scarab_gongAI: public GameObjectAI
     GameObject* go_aq_barrier;
     GameObject* go_aq_gate_runes;
     GameObject* go_aq_gate_roots;
-    // Invisible AQ barrier
-    GameObject* go_aq_ghost_gate;
 
     void UpdateAI(uint32 const uiDiff) override
     {
@@ -2379,9 +2150,8 @@ struct scarab_gongAI: public GameObjectAI
         go_aq_barrier    = GetClosestGameObjectWithEntry(me, GO_AQ_BARRIER, 150);
         go_aq_gate_runes = GetClosestGameObjectWithEntry(me, GO_AQ_GATE_RUNES, 150);
         go_aq_gate_roots = GetClosestGameObjectWithEntry(me, GO_AQ_GATE_ROOTS, 150);
-        go_aq_ghost_gate = GetClosestGameObjectWithEntry(me, GO_AQ_GHOST_GATE, 150);
 
-        if (!go_aq_barrier || !go_aq_gate_runes || !go_aq_gate_roots || !go_aq_ghost_gate)
+        if (!go_aq_barrier || !go_aq_gate_runes || !go_aq_gate_roots)
             return;
 
         // Abort "Pawn on the Eternal Board" scene if currently active.
@@ -2413,7 +2183,6 @@ struct scarab_gongAI: public GameObjectAI
 
     void ResetAQGates()
     {
-        go_aq_ghost_gate->SetGoState(GO_STATE_READY);
         go_aq_barrier->SetGoState(GO_STATE_READY);
         go_aq_gate_runes->SetGoState(GO_STATE_READY);
         go_aq_gate_roots->ResetDoorOrButton();
@@ -3198,19 +2967,13 @@ void AddSC_silithus()
     Script* pNewScript;
 
     pNewScript = new Script;
-    pNewScript->Name = "go_pierre_vents";
-    pNewScript->pGOGossipSelect =  &GossipSelect_go_pierre_vents;
-    pNewScript->GOGetAI = &GetAIgo_pierre_vents;
+    pNewScript->Name = "go_wind_stone";
+    pNewScript->GOGetAI = &GetAIgo_wind_stone;
     pNewScript->RegisterSelf();
 
     /*########################
     ##      Nostalrius      ##
     ########################*/
-
-    pNewScript = new Script;
-    pNewScript->Name = "npc_prince_thunderaan";
-    pNewScript->GetAI = &GetAI_npc_prince_thunderaan;
-    pNewScript->RegisterSelf();
 
     // AQ WAR
     pNewScript = new Script;

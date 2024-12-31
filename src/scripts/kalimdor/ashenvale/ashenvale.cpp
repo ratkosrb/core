@@ -59,7 +59,7 @@ struct npc_ruul_snowhoofAI : public npc_escortAI
     void WaypointReached(uint32 uiPointId) override
     {
         //m_creature->MonsterYell("DEBUG : WayPoint reached", 0); //The hell, still skipping waypoints 13/02/2015
-        //sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "DEBUG : Ruul : WayPoint n° %u", uiPointId);
+        //sLog.Out(LOG_SCRIPTS, LOG_LVL_MINIMAL, "DEBUG : Ruul : WayPoint n° %u", uiPointId);
         switch (uiPointId)
         {
             case 13:
@@ -490,7 +490,7 @@ struct go_foulweald_totem_moundAI: public GameObjectAI
                 guidCurrentEnragedFoulweald[i] = foulweald->GetGUID();
                 float x, y, z;
                 me->GetPosition(x, y, z);
-                foulweald->GetMotionMaster()->MovePoint(1, x, y, z, true);
+                foulweald->GetMotionMaster()->MovePoint(1, x, y, z, MOVE_PATHFINDING);
                 foulweald->SetHomePosition(x, y, z, 0);
                 foulweald->SetRespawnDelay(425);
                 DefineFoulwealdMound(foulweald, me->GetGUID());
@@ -524,7 +524,7 @@ struct go_foulweald_totem_moundAI: public GameObjectAI
                     guid = foulweald->GetGUID();
                     float x, y, z;
                     me->GetPosition(x, y, z);
-                    foulweald->GetMotionMaster()->MovePoint(1, x, y, z, true);
+                    foulweald->GetMotionMaster()->MovePoint(1, x, y, z, MOVE_PATHFINDING);
                     foulweald->SetHomePosition(x, y, z, 0);
                     foulweald->SetRespawnDelay(425);
                     DefineFoulwealdMound(foulweald, me->GetGUID());
@@ -551,7 +551,7 @@ struct go_foulweald_totem_moundAI: public GameObjectAI
                     {
                         float x, y, z;
                         me->GetPosition(x, y, z);
-                        murgut->GetMotionMaster()->MovePoint(1, x, y, z, true);
+                        murgut->GetMotionMaster()->MovePoint(1, x, y, z, MOVE_PATHFINDING);
                         murgut->SetHomePosition(x, y, z, 0);
                         murgut->SetRespawnDelay(125);
                         if (GameObject* pGo = me->FindNearestGameObject(GO_KARANG_S_BANNER, 10))

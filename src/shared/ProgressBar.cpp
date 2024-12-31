@@ -19,7 +19,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <stdio.h>
+#include <cstdio>
+#include <limits>
 
 #include "ProgressBar.h"
 #include "Errors.h"
@@ -40,21 +41,21 @@ BarGoLink::BarGoLink(int row_count)
 
 BarGoLink::BarGoLink(uint32 row_count)
 {
-    //MANGOS_ASSERT(row_count < (uint32)ACE_INT32_MAX);
-    init((int)row_count);
+    MANGOS_ASSERT(row_count < std::numeric_limits<int32>::max());
+    init(static_cast<int>(row_count));
 }
 
 BarGoLink::BarGoLink(uint64 row_count)
 {
-    //MANGOS_ASSERT(row_count < (uint64)ACE_INT32_MAX);
-    init((int)row_count);
+    MANGOS_ASSERT(row_count < std::numeric_limits<int32>::max());
+    init(static_cast<int>(row_count));
 }
 
 #ifdef __APPLE__
 BarGoLink::BarGoLink(size_t row_count)
 {
-    //MANGOS_ASSERT(row_count < (uint64)ACE_INT32_MAX);
-    init((int)row_count);
+    MANGOS_ASSERT(row_count < std::numeric_limits<int32>::max());
+    init(static_cast<int>(row_count));
 }
 #endif
 
