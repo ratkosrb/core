@@ -280,6 +280,8 @@ set (game_SRCS
     AI/ScriptedPetAI.h
     AI/TotemAI.h
     Anticheat/Anticheat.h
+    Anticheat/Antispam/Antispam.cpp
+    Anticheat/Antispam/Antispam.h
     Anticheat/MovementAnticheat/MovementAnticheat.cpp
     Anticheat/MovementAnticheat/MovementAnticheat.h
     Anticheat/WardenAnticheat/Warden.cpp
