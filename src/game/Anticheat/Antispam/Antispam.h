@@ -3,10 +3,9 @@
 
 #include <string>
 #include <chrono>
-#include <thread>
 
 #ifdef USE_STANDARD_MALLOC
-#include <mutex>
+#include "ace/Thread_Mutex.h"
 #else
 #include <tbb/concurrent_queue.h>
 #endif
@@ -106,8 +105,8 @@ public:
     Antispam();
     ~Antispam()
     {
-        if (m_worker.joinable())
-            m_worker.join();
+        if (m_worker)
+            m_worker->wait();
     }
 
     void loadFromDB();
@@ -170,7 +169,7 @@ private:
     MutedAccountsSet m_mutedAccounts;
 
 #ifdef USE_STANDARD_MALLOC
-    std::mutex m_messageMutex;
+    ACE_Thread_Mutex m_messageMutex;
 #endif
 
     void PushToMessageQueue(MessageBlock const& messageBlock);
@@ -181,7 +180,33 @@ private:
     MessageCounters m_messageCounters[A_CHAT_TYPE_MAX];
     MessageRepeats m_messageRepeats[A_CHAT_TYPE_MAX];
 
-    std::thread m_worker;
+    ACE_Based::Thread *m_worker;
+};
+
+class AntispamAsyncWorker : public ACE_Based::Runnable
+{
+public:
+    AntispamAsyncWorker(Antispam *antispam) : m_antispam(antispam)
+    {
+    }
+
+    virtual void run()
+    {
+        LoginDatabase.ThreadStart();
+        LogsDatabase.ThreadStart();
+        auto prevNow = Clock::now();
+        while (!sWorld.IsStopped())
+        {
+            auto currNow = Clock::now();
+            auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(currNow - prevNow).count();
+            m_antispam->processMessages(diff);
+            prevNow = currNow;
+            ACE_Based::Thread::Sleep(50);
+        }
+        LogsDatabase.ThreadEnd();
+        LoginDatabase.ThreadEnd();
+    }
+    Antispam* m_antispam;
 };
 
 #define sAntispam ACE_Singleton<Antispam, ACE_Null_Mutex>::instance()
