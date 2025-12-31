@@ -73,6 +73,7 @@ public:
     virtual void showMuted(WorldSession* session) {}
 };
 
+#include "Antispam/Antispam.h"
 #include "WardenAnticheat/Warden.hpp"
 #include "MovementAnticheat/MovementAnticheat.h"
 #include "ace/Thread_Mutex.h"
@@ -97,6 +98,7 @@ public:
 
     Warden * CreateWardenFor(WorldSession* client, BigNumber* K);
     MovementAnticheat* CreateAnticheatFor(Player* player);
+    AntispamInterface* GetAntispam() const;
 
     void StartWardenUpdateThread();
     void StopWardenUpdateThread();
@@ -117,7 +119,6 @@ private:
 
 public:
     // Antispam wrappers
-    AntispamInterface* GetAntispam() const { return nullptr; }
     bool CanWhisper(AccountPersistentData const& data, MasterPlayer* player) { return true; }
 
     static AnticheatManager* instance();
